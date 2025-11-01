@@ -17,7 +17,9 @@ cursor-agent --print --force --output-format stream-json --stream-partial-output
     def truncate_path:
       . as $path |
       if ($path | type) == "string" then
-        $path | sub("^.*/your-project/"; "")
+        # Remove full path up to and including the repo directory (e.g., "v2/", "agent-cube/", etc.)
+        # Match pattern: /path/to/repo-name/ -> keep only what comes after
+        $path | sub("^.*/([^/]+-[^/]+|[^/]+v[0-9]+)/"; "")
       else
         $path
       end;
@@ -34,13 +36,35 @@ cursor-agent --print --force --output-format stream-json --stream-partial-output
     elif .type == "tool_call" then
       if .subtype == "started" then
         if .tool_call.shellToolCall then
-          "🔧 Shell: \(.tool_call.shellToolCall.args.command // "unknown")"
+          # Strip repo path from command and truncate long commands
+          (.tool_call.shellToolCall.args.command // "unknown") as $cmd |
+          ($cmd | sub("^cd [^ ]+ && "; "") | truncate_path) as $clean |
+          if ($clean | length) > 60 then
+            "🔧 \($clean[:57])..."
+          else
+            "🔧 \($clean)"
+          end
         elif .tool_call.writeToolCall then
-          "📝 Write: \(.tool_call.writeToolCall.args.path // "unknown" | truncate_path)"
+          (.tool_call.writeToolCall.args.path // "unknown" | truncate_path) as $p |
+          if ($p | length) > 50 then
+            "📝 \($p[:47])..."
+          else
+            "📝 \($p)"
+          end
         elif .tool_call.editToolCall then
-          "✏️  Edit: \(.tool_call.editToolCall.args.path // "unknown" | truncate_path)"
+          (.tool_call.editToolCall.args.path // "unknown" | truncate_path) as $p |
+          if ($p | length) > 50 then
+            "✏️  \($p[:47])..."
+          else
+            "✏️  \($p)"
+          end
         elif .tool_call.readToolCall then
-          "📖 Read: \(.tool_call.readToolCall.args.path // "unknown" | truncate_path)"
+          (.tool_call.readToolCall.args.path // "unknown" | truncate_path) as $p |
+          if ($p | length) > 50 then
+            "📖 \($p[:47])..."
+          else
+            "📖 \($p)"
+          end
         else
           "🔧 Tool: \(.tool_call | keys[0])"
         end
