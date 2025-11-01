@@ -9,6 +9,7 @@ export PATH="$HOME/.local/bin:$PATH"
 TASK_ID="$1"
 PROMPT_FILE="$2"
 PROJECT_ROOT="$(pwd)"
+export PROJECT_ROOT
 
 if [ -z "$TASK_ID" ] || [ -z "$PROMPT_FILE" ]; then
   echo "Usage: $0 <task-id> <writer-prompt-file>"
@@ -55,7 +56,13 @@ fi
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model sonnet-4.5-thinking \
     "$PROMPT" 2>&1 | tee "/tmp/writer-sonnet-$TASK_ID-$(date +%s).json" | \
-    jq -r --unbuffered '
+    jq -r --unbuffered --arg project_root "$PROJECT_ROOT" '
+      def truncate_path:
+        . as $path |
+        if ($path | type) == "string" then
+          $path | sub("^\($project_root)/?"; "")
+        else $path end;
+      
       if .type == "system" and .subtype == "init" then
         "\u001b[32m[Writer A]\u001b[0m 🤖 \(.model) | Session: \(.session_id)"
       elif .type == "assistant" then
@@ -64,10 +71,22 @@ fi
         else empty end
       elif .type == "tool_call" then
         if .subtype == "started" then
-          if .tool_call.shellToolCall then "\u001b[32m[Writer A]\u001b[0m 🔧 \(.tool_call.shellToolCall.args.command[:60] // "unknown")"
-          elif .tool_call.writeToolCall then "\u001b[32m[Writer A]\u001b[0m 📝 \(.tool_call.writeToolCall.args.path[:60] // "unknown")"
-          elif .tool_call.editToolCall then "\u001b[32m[Writer A]\u001b[0m ✏️  \(.tool_call.editToolCall.args.path[:60] // "unknown")"
-          elif .tool_call.readToolCall then "\u001b[32m[Writer A]\u001b[0m 📖 \(.tool_call.readToolCall.args.path[:60] // "unknown")"
+          if .tool_call.shellToolCall then 
+            ((.tool_call.shellToolCall.args.command // "unknown") | sub("^cd [^ ]+ && "; "") | truncate_path) as $cmd |
+            if ($cmd | length) > 60 then "\u001b[32m[Writer A]\u001b[0m 🔧 \($cmd[:57])..."
+            else "\u001b[32m[Writer A]\u001b[0m 🔧 \($cmd)" end
+          elif .tool_call.writeToolCall then
+            ((.tool_call.writeToolCall.args.path // "unknown") | truncate_path) as $p |
+            if ($p | length) > 50 then "\u001b[32m[Writer A]\u001b[0m 📝 \($p[:47])..."
+            else "\u001b[32m[Writer A]\u001b[0m 📝 \($p)" end
+          elif .tool_call.editToolCall then
+            ((.tool_call.editToolCall.args.path // "unknown") | truncate_path) as $p |
+            if ($p | length) > 50 then "\u001b[32m[Writer A]\u001b[0m ✏️  \($p[:47])..."
+            else "\u001b[32m[Writer A]\u001b[0m ✏️  \($p)" end
+          elif .tool_call.readToolCall then
+            ((.tool_call.readToolCall.args.path // "unknown") | truncate_path) as $p |
+            if ($p | length) > 50 then "\u001b[32m[Writer A]\u001b[0m 📖 \($p[:47])..."
+            else "\u001b[32m[Writer A]\u001b[0m 📖 \($p)" end
           else empty end
         elif .subtype == "completed" then
           if .tool_call.shellToolCall.result.success then
@@ -91,7 +110,13 @@ WRITER_A_PID=$!
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model gpt-5-codex-high \
     "$PROMPT" 2>&1 | tee "/tmp/writer-codex-$TASK_ID-$(date +%s).json" | \
-    jq -r --unbuffered '
+    jq -r --unbuffered --arg project_root "$PROJECT_ROOT" '
+      def truncate_path:
+        . as $path |
+        if ($path | type) == "string" then
+          $path | sub("^\($project_root)/?"; "")
+        else $path end;
+      
       if .type == "system" and .subtype == "init" then
         "\u001b[34m[Writer B]\u001b[0m 🤖 \(.model) | Session: \(.session_id)"
       elif .type == "assistant" then
@@ -100,10 +125,22 @@ WRITER_A_PID=$!
         else empty end
       elif .type == "tool_call" then
         if .subtype == "started" then
-          if .tool_call.shellToolCall then "\u001b[34m[Writer B]\u001b[0m 🔧 \(.tool_call.shellToolCall.args.command[:60] // "unknown")"
-          elif .tool_call.writeToolCall then "\u001b[34m[Writer B]\u001b[0m 📝 \(.tool_call.writeToolCall.args.path[:60] // "unknown")"
-          elif .tool_call.editToolCall then "\u001b[34m[Writer B]\u001b[0m ✏️  \(.tool_call.editToolCall.args.path[:60] // "unknown")"
-          elif .tool_call.readToolCall then "\u001b[34m[Writer B]\u001b[0m 📖 \(.tool_call.readToolCall.args.path[:60] // "unknown")"
+          if .tool_call.shellToolCall then 
+            ((.tool_call.shellToolCall.args.command // "unknown") | sub("^cd [^ ]+ && "; "") | truncate_path) as $cmd |
+            if ($cmd | length) > 60 then "\u001b[34m[Writer B]\u001b[0m 🔧 \($cmd[:57])..."
+            else "\u001b[34m[Writer B]\u001b[0m 🔧 \($cmd)" end
+          elif .tool_call.writeToolCall then
+            ((.tool_call.writeToolCall.args.path // "unknown") | truncate_path) as $p |
+            if ($p | length) > 50 then "\u001b[34m[Writer B]\u001b[0m 📝 \($p[:47])..."
+            else "\u001b[34m[Writer B]\u001b[0m 📝 \($p)" end
+          elif .tool_call.editToolCall then
+            ((.tool_call.editToolCall.args.path // "unknown") | truncate_path) as $p |
+            if ($p | length) > 50 then "\u001b[34m[Writer B]\u001b[0m ✏️  \($p[:47])..."
+            else "\u001b[34m[Writer B]\u001b[0m ✏️  \($p)" end
+          elif .tool_call.readToolCall then
+            ((.tool_call.readToolCall.args.path // "unknown") | truncate_path) as $p |
+            if ($p | length) > 50 then "\u001b[34m[Writer B]\u001b[0m 📖 \($p[:47])..."
+            else "\u001b[34m[Writer B]\u001b[0m 📖 \($p)" end
           else empty end
         elif .subtype == "completed" then
           if .tool_call.shellToolCall.result.success then

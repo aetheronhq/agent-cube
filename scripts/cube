@@ -402,6 +402,8 @@ cmd_resume() {
     print_info "Session ID: $session_id"
     print_info "Message: $message"
     
+    # Export PROJECT_ROOT so stream-agent.sh can strip paths correctly
+    export PROJECT_ROOT
     exec "$SCRIPT_DIR/automation/stream-agent.sh" "$worktree" --model "$model" --resume "$session_id" "$message"
 }
 
