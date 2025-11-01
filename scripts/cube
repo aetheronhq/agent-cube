@@ -1,0 +1,459 @@
+#!/bin/bash
+# cube - Agent Cube CLI
+# A command-line interface for orchestrating parallel LLM coding workflows
+
+set -e
+
+VERSION="1.0.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Ensure ~/.local/bin is in PATH for cursor-agent
+export PATH="$HOME/.local/bin:$PATH"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Helper functions
+print_error() {
+    echo -e "${RED}❌ Error: $1${NC}" >&2
+}
+
+print_success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+print_info() {
+    echo -e "${CYAN}ℹ️  $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+# Check if cursor-agent is installed
+check_cursor_agent() {
+    if ! command -v cursor-agent &> /dev/null; then
+        print_error "cursor-agent CLI is not installed"
+        echo ""
+        echo "Install cursor-agent:"
+        echo -e "  ${GREEN}npm install -g @cursor/cli${NC}"
+        echo ""
+        echo "Or add to your PATH if already installed:"
+        echo -e "  ${YELLOW}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
+        echo ""
+        echo "After installation, authenticate with:"
+        echo -e "  ${GREEN}cursor-agent login${NC}"
+        echo ""
+        exit 1
+    fi
+    
+    # Check if authenticated
+    if ! cursor-agent --help &> /dev/null; then
+        print_warning "cursor-agent may not be authenticated"
+        echo ""
+        echo "Run: ${GREEN}cursor-agent login${NC}"
+        echo ""
+    fi
+}
+
+# Show help
+show_help() {
+    echo -e "${CYAN}cube${NC} - Agent Cube CLI ${GREEN}v${VERSION}${NC}"
+    echo ""
+    echo -e "${YELLOW}USAGE:${NC}"
+    echo "  cube <command> [options]"
+    echo ""
+    echo -e "${YELLOW}COMMANDS:${NC}"
+    echo -e "  ${GREEN}writers${NC}    <task-id> <prompt-file>"
+    echo "             Launch dual writers for a task"
+    echo "             Example: cube writers 02-error-handler implementation/phase-02/orchestration/02-error-handler-writer-prompt.md"
+    echo ""
+    echo -e "  ${GREEN}panel${NC}      <task-id> <panel-prompt-file> [review-type]"
+    echo "             Launch 3-judge panel for solution selection or peer review"
+    echo "             Review types: initial (default), peer-review"
+    echo "             Example: cube panel 02-error-handler implementation/phase-02/orchestration/02-error-handler-panel-prompt.md"
+    echo ""
+    echo -e "  ${GREEN}feedback${NC}   <writer> <task-id> <feedback-file>"
+    echo "             Send feedback to a writer (resumes their session)"
+    echo "             Writer: sonnet | codex"
+    echo "             Example: cube feedback codex 02-error-handler implementation/phase-02/orchestration/02-error-handler-synthesis-instructions.md"
+    echo ""
+    echo -e "  ${GREEN}resume${NC}     <writer|judge> <task-id> <message>"
+    echo "             Resume a writer or judge session with a message"
+    echo "             Example: cube resume writer-codex 02-error-handler \"Please fix the lint errors\""
+    echo "             Example: cube resume judge-1 02-error-handler \"Review the updated solution\""
+    echo ""
+    echo -e "  ${GREEN}status${NC}     <task-id>"
+    echo "             Show status of a task (sessions, branches, etc.)"
+    echo "             Example: cube status 02-error-handler"
+    echo ""
+    echo -e "  ${GREEN}sessions${NC}"
+    echo "             List all active sessions"
+    echo "             Example: cube sessions"
+    echo ""
+    echo -e "  ${GREEN}install${NC}"
+    echo "             Install cube CLI to your PATH"
+    echo "             Example: cube install"
+    echo ""
+    echo -e "  ${GREEN}version${NC}"
+    echo "             Show version information"
+    echo ""
+    echo -e "  ${GREEN}help${NC}"
+    echo "             Show this help message"
+    echo ""
+    echo -e "${YELLOW}GLOBAL OPTIONS:${NC}"
+    echo "  -h, --help     Show help"
+    echo "  -v, --version  Show version"
+    echo ""
+    echo -e "${YELLOW}EXAMPLES:${NC}"
+    echo "  # Start dual writers for a new task"
+    echo "  cube writers 03-auth-middleware implementation/phase-03/orchestration/03-auth-middleware-writer-prompt.md"
+    echo ""
+    echo "  # Launch judge panel for initial review"
+    echo "  cube panel 03-auth-middleware implementation/phase-03/orchestration/03-auth-middleware-panel-prompt.md"
+    echo ""
+    echo "  # Send synthesis instructions to winner"
+    echo "  cube feedback codex 03-auth-middleware implementation/phase-03/orchestration/03-auth-middleware-synthesis.md"
+    echo ""
+    echo "  # Launch peer review"
+    echo "  cube panel 03-auth-middleware implementation/phase-03/orchestration/03-auth-middleware-peer-review.md peer-review"
+    echo ""
+    echo -e "${YELLOW}DOCUMENTATION:${NC}"
+    echo "  See AGENT_CUBE.md and AGENT_CUBE_AUTOMATION.md for full workflow details"
+    echo ""
+}
+
+# Show version
+show_version() {
+    echo -e "${CYAN}cube${NC} version ${GREEN}${VERSION}${NC}"
+    echo "Agent Cube - Parallel LLM Coding Workflow Orchestrator"
+}
+
+# Install cube to PATH
+install_cube() {
+    print_info "Installing cube CLI..."
+    
+    # Check if ~/.local/bin exists
+    if [ ! -d "$HOME/.local/bin" ]; then
+        print_warning "Creating ~/.local/bin directory"
+        mkdir -p "$HOME/.local/bin"
+    fi
+    
+    # Create symlink
+    local target="$HOME/.local/bin/cube"
+    if [ -L "$target" ] || [ -f "$target" ]; then
+        print_warning "Removing existing cube installation"
+        rm -f "$target"
+    fi
+    
+    ln -s "$SCRIPT_DIR/cube" "$target"
+    chmod +x "$SCRIPT_DIR/cube"
+    
+    print_success "Cube CLI installed to $target"
+    
+    # Check if ~/.local/bin is in PATH
+    if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+        print_warning "~/.local/bin is not in your PATH"
+        echo ""
+        echo "Add this line to your ~/.zshrc or ~/.bashrc:"
+        echo -e "${YELLOW}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
+        echo ""
+        echo "Then run: source ~/.zshrc (or ~/.bashrc)"
+    else
+        print_success "~/.local/bin is already in your PATH"
+        echo ""
+        echo -e "You can now run: ${GREEN}cube --help${NC}"
+    fi
+}
+
+# Launch dual writers
+cmd_writers() {
+    local task_id="$1"
+    local prompt_file="$2"
+    
+    if [ -z "$task_id" ] || [ -z "$prompt_file" ]; then
+        print_error "Usage: cube writers <task-id> <prompt-file>"
+        echo "Example: cube writers 02-error-handler implementation/phase-02/orchestration/02-error-handler-writer-prompt.md"
+        exit 1
+    fi
+    
+    if [ ! -f "$PROJECT_ROOT/$prompt_file" ]; then
+        print_error "Prompt file not found: $prompt_file"
+        exit 1
+    fi
+    
+    check_cursor_agent
+    
+    print_info "Launching dual writers for task: $task_id"
+    exec "$SCRIPT_DIR/automation/launch-dual-writers.sh" "$task_id" "$prompt_file"
+}
+
+# Launch judge panel
+cmd_panel() {
+    local task_id="$1"
+    local panel_prompt="$2"
+    local review_type="${3:-initial}"
+    
+    if [ -z "$task_id" ] || [ -z "$panel_prompt" ]; then
+        print_error "Usage: cube panel <task-id> <panel-prompt-file> [review-type]"
+        echo "Example: cube panel 02-error-handler implementation/phase-02/orchestration/02-error-handler-panel-prompt.md"
+        exit 1
+    fi
+    
+    if [ ! -f "$PROJECT_ROOT/$panel_prompt" ]; then
+        print_error "Panel prompt file not found: $panel_prompt"
+        exit 1
+    fi
+    
+    check_cursor_agent
+    
+    print_info "Launching judge panel for task: $task_id (review type: $review_type)"
+    exec "$SCRIPT_DIR/automation/launch-judge-panel.sh" "$task_id" "$panel_prompt" "$review_type"
+}
+
+# Send feedback to writer
+cmd_feedback() {
+    local writer="$1"
+    local task_id="$2"
+    local feedback_file="$3"
+    
+    if [ -z "$writer" ] || [ -z "$task_id" ] || [ -z "$feedback_file" ]; then
+        print_error "Usage: cube feedback <writer> <task-id> <feedback-file>"
+        echo "Writer: sonnet | codex"
+        echo "Example: cube feedback codex 02-error-handler implementation/phase-02/orchestration/02-error-handler-synthesis.md"
+        exit 1
+    fi
+    
+    # Normalize writer name
+    local writer_letter=""
+    case "$writer" in
+        sonnet|writer-sonnet|a|A)
+            writer="sonnet"
+            writer_letter="A"
+            ;;
+        codex|writer-codex|b|B)
+            writer="codex"
+            writer_letter="B"
+            ;;
+        *)
+            print_error "Invalid writer: $writer (must be 'sonnet' or 'codex')"
+            exit 1
+            ;;
+    esac
+    
+    if [ ! -f "$PROJECT_ROOT/$feedback_file" ]; then
+        print_error "Feedback file not found: $feedback_file"
+        exit 1
+    fi
+    
+    # Find worktree
+    local worktree="$HOME/.cursor/worktrees/aetheron-connect-v2/writer-${writer}"
+    if [ ! -d "$worktree" ]; then
+        print_error "Worktree not found: $worktree"
+        exit 1
+    fi
+    
+    # Find session ID
+    local session_file="$PROJECT_ROOT/.agent-sessions/WRITER_${writer_letter}_${task_id}_SESSION_ID.txt"
+    if [ ! -f "$session_file" ]; then
+        print_error "Session ID not found: $session_file"
+        print_info "Run 'cube sessions' to see available sessions"
+        exit 1
+    fi
+    
+    local session_id=$(cat "$session_file")
+    
+    check_cursor_agent
+    
+    print_info "Sending feedback to writer-${writer} for task: $task_id"
+    print_info "Session ID: $session_id"
+    
+    exec "$SCRIPT_DIR/automation/send-writer-feedback.sh" "$task_id" "$writer" "$feedback_file" "$session_id"
+}
+
+# Show task status
+cmd_status() {
+    local task_id="$1"
+    
+    if [ -z "$task_id" ]; then
+        print_error "Usage: cube status <task-id>"
+        exit 1
+    fi
+    
+    echo -e "${CYAN}📊 Task Status: ${YELLOW}$task_id${NC}"
+    echo ""
+    
+    # Check branches
+    echo -e "${GREEN}Branches:${NC}"
+    git branch -r | grep "$task_id" || echo "  No branches found"
+    echo ""
+    
+    # Check sessions
+    echo -e "${GREEN}Sessions:${NC}"
+    if [ -d "$PROJECT_ROOT/.agent-sessions" ]; then
+        ls -1 "$PROJECT_ROOT/.agent-sessions" | grep "$task_id" || echo "  No sessions found"
+    else
+        echo "  No sessions directory"
+    fi
+    echo ""
+    
+    # Check worktrees
+    echo -e "${GREEN}Worktrees:${NC}"
+    git worktree list | grep "$task_id" || echo "  No worktrees found"
+}
+
+# List all sessions
+cmd_sessions() {
+    echo -e "${CYAN}📋 Active Sessions${NC}"
+    echo ""
+    
+    if [ ! -d "$PROJECT_ROOT/.agent-sessions" ]; then
+        print_warning "No sessions directory found"
+        exit 0
+    fi
+    
+    local count=0
+    for file in "$PROJECT_ROOT/.agent-sessions"/*_SESSION_ID.txt; do
+        if [ -f "$file" ]; then
+            local name=$(basename "$file" _SESSION_ID.txt)
+            local session_id=$(cat "$file")
+            echo -e "${GREEN}${name}${NC}"
+            echo -e "  Session ID: ${CYAN}${session_id}${NC}"
+            
+            # Show metadata if exists
+            if [ -f "${file}.meta" ]; then
+                local meta=$(head -1 "${file}.meta" | sed 's/^# //')
+                echo "  ${meta}"
+            fi
+            echo ""
+            ((count++))
+        fi
+    done
+    
+    if [ $count -eq 0 ]; then
+        print_info "No active sessions found"
+    else
+        print_success "Found $count active session(s)"
+    fi
+}
+
+# Resume a session
+cmd_resume() {
+    local target="$1"
+    local task_id="$2"
+    shift 2
+    local message="$*"
+    
+    if [ -z "$target" ] || [ -z "$task_id" ] || [ -z "$message" ]; then
+        print_error "Usage: cube resume <writer|judge> <task-id> <message>"
+        echo "Example: cube resume writer-codex 02-error-handler \"Fix the lint errors\""
+        exit 1
+    fi
+    
+    # Normalize target
+    local writer_name=""
+    local writer_letter=""
+    local model=""
+    
+    case "$target" in
+        writer-sonnet|sonnet|a|A)
+            writer_name="sonnet"
+            writer_letter="A"
+            model="sonnet-4.5-thinking"
+            ;;
+        writer-codex|codex|b|B)
+            writer_name="codex"
+            writer_letter="B"
+            model="gpt-5-codex-high"
+            ;;
+        *)
+            print_error "Invalid target: $target (must be writer-sonnet or writer-codex)"
+            exit 1
+            ;;
+    esac
+    
+    # Find worktree
+    local worktree="$HOME/.cursor/worktrees/aetheron-connect-v2/writer-${writer_name}"
+    if [ ! -d "$worktree" ]; then
+        print_error "Worktree not found: $worktree"
+        exit 1
+    fi
+    
+    # Find session ID
+    local session_file="$PROJECT_ROOT/.agent-sessions/WRITER_${writer_letter}_${task_id}_SESSION_ID.txt"
+    if [ ! -f "$session_file" ]; then
+        print_error "Session ID not found: $session_file"
+        print_info "Run 'cube sessions' to see available sessions"
+        exit 1
+    fi
+    
+    local session_id=$(cat "$session_file")
+    
+    check_cursor_agent
+    
+    print_info "Resuming writer-${writer_name} for task: $task_id"
+    print_info "Session ID: $session_id"
+    print_info "Message: $message"
+    
+    exec "$SCRIPT_DIR/automation/stream-agent.sh" "$worktree" --model "$model" --resume "$session_id" "$message"
+}
+
+# Main command dispatcher
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+    
+    case "$1" in
+        -h|--help|help)
+            show_help
+            ;;
+        -v|--version|version)
+            show_version
+            ;;
+        install)
+            install_cube
+            ;;
+        writers)
+            shift
+            cmd_writers "$@"
+            ;;
+        panel)
+            shift
+            cmd_panel "$@"
+            ;;
+        feedback)
+            shift
+            cmd_feedback "$@"
+            ;;
+        status)
+            shift
+            cmd_status "$@"
+            ;;
+        sessions)
+            cmd_sessions
+            ;;
+        resume)
+            shift
+            cmd_resume "$@"
+            ;;
+        *)
+            print_error "Unknown command: $1"
+            echo ""
+            echo "Run 'cube help' for usage information"
+            exit 1
+            ;;
+    esac
+}
+
+# Run main
+main "$@"
+

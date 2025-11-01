@@ -1,0 +1,13 @@
+# Distribution
+/dist/
+
+# Agent sessions (project-specific)
+.agent-sessions/
+
+# Temp files
+*.log
+/tmp/
+
+# OS
+.DS_Store
+
