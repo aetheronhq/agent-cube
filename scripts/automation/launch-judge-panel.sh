@@ -23,7 +23,18 @@ if [ ! -f "$PROJECT_ROOT/$PROMPT_FILE" ]; then
   exit 1
 fi
 
-PROMPT=$(cat "$PROJECT_ROOT/$PROMPT_FILE")
+PROMPT_CONTENT=$(cat "$PROJECT_ROOT/$PROMPT_FILE")
+
+# Write prompt to temp files to avoid shell parsing issues with special characters
+TEMP_PROMPT_1=$(mktemp)
+TEMP_PROMPT_2=$(mktemp)
+TEMP_PROMPT_3=$(mktemp)
+echo "$PROMPT_CONTENT" > "$TEMP_PROMPT_1"
+echo "$PROMPT_CONTENT" > "$TEMP_PROMPT_2"
+echo "$PROMPT_CONTENT" > "$TEMP_PROMPT_3"
+
+# Cleanup temp files on exit
+trap "rm -f $TEMP_PROMPT_1 $TEMP_PROMPT_2 $TEMP_PROMPT_3" EXIT
 
 echo "🎯 Launching 3-Judge Panel for Task: $TASK_ID"
 echo "📄 Prompt: $PROMPT_FILE"
@@ -34,7 +45,7 @@ echo ""
 (
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model sonnet-4.5-thinking \
-    "$PROMPT" 2>&1 | tee "/tmp/judge-1-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
+    "$(cat $TEMP_PROMPT_1)" 2>&1 | tee "/tmp/judge-1-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
     jq -r --unbuffered '
       if .type == "system" and .subtype == "init" then "\u001b[32m[Judge 1]\u001b[0m 🤖 \(.model)"
       elif .type == "assistant" then
@@ -63,7 +74,7 @@ JUDGE_1_PID=$!
 (
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model gpt-5-codex-high \
-    "$PROMPT" 2>&1 | tee "/tmp/judge-2-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
+    "$(cat $TEMP_PROMPT_2)" 2>&1 | tee "/tmp/judge-2-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
     jq -r --unbuffered '
       if .type == "system" and .subtype == "init" then "\u001b[33m[Judge 2]\u001b[0m 🤖 \(.model)"
       elif .type == "assistant" then
@@ -92,7 +103,7 @@ JUDGE_2_PID=$!
 (
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model composer-1 \
-    "$PROMPT" 2>&1 | tee "/tmp/judge-3-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
+    "$(cat $TEMP_PROMPT_3)" 2>&1 | tee "/tmp/judge-3-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
     jq -r --unbuffered '
       if .type == "system" and .subtype == "init" then "\u001b[35m[Judge 3]\u001b[0m 🤖 \(.model)"
       elif .type == "assistant" then
