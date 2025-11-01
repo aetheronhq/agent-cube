@@ -13,18 +13,46 @@ This document describes how to automate Agent Cube workflows using `cursor-agent
 
 ---
 
-## Quick Start
+## ⚡ Quick Start (Recommended)
+
+**Use the `cube` CLI for all orchestration tasks:**
 
 ```bash
-# Install cursor-agent (if not installed)
-npm install -g @cursor/agent
+# Install cube CLI (one-time setup)
+bash install.sh  # or see INSTALL.md
 
-# Authenticate
+# Authenticate cursor-agent
 cursor-agent login
 
-# Run an agent with streaming output
-./scripts/automation/stream-agent.sh ~/.cursor/worktrees/path/to/worktree "your prompt"
+# Launch dual writers
+cube writers <task-id> <prompt-file>
+
+# Launch judge panel
+cube panel <task-id> <panel-prompt-file>
+
+# Send feedback/synthesis
+cube feedback <writer> <task-id> <feedback-file>
+
+# Resume a session
+cube resume <writer|judge> <task-id> "<message>"
+
+# Check status
+cube status <task-id>
+cube sessions
+
+# See all commands
+cube --help
 ```
+
+**Everything below this section is for advanced users who want to understand the internals.**
+
+---
+
+## 🔧 Advanced: Direct cursor-agent Usage
+
+> ⚠️ **Note:** Most users should use the `cube` CLI commands above instead of calling scripts directly.
+
+If you need to work with cursor-agent CLI directly:
 
 ---
 
