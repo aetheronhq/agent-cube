@@ -5,10 +5,10 @@
 
 class Cube < Formula
   desc "Agent Cube CLI - Orchestrate parallel LLM coding workflows"
-  homepage "https://github.com/aetheronhq/aetheron-connect-v2"
-  url "https://github.com/aetheronhq/aetheron-connect-v2/archive/refs/tags/v1.0.0.tar.gz"
+  homepage "https://github.com/aetheronhq/agent-cube"
+  url "https://github.com/aetheronhq/agent-cube/archive/refs/tags/v1.0.0.tar.gz"
   sha256 "YOUR_SHA256_HERE"
-  license "MIT"
+  license "Proprietary"
   version "1.0.0"
 
   depends_on "jq"

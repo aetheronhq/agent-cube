@@ -151,11 +151,9 @@ Writer A  Writer B  (parallel implementation)
 
 ## License
 
-MIT
+Proprietary and Confidential - Copyright © 2025 Aetheron. All Rights Reserved.
 
-## Contributing
-
-Issues and PRs welcome! This is an early experimental tool.
+This is internal tooling for Aetheron projects only.
 
 ## Credits
 
