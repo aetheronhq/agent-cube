@@ -17,7 +17,7 @@ cursor-agent --print --force --output-format stream-json --stream-partial-output
     def truncate_path:
       . as $path |
       if ($path | type) == "string" then
-        $path | sub("^.*/aetheron-connect-v2/"; "")
+        $path | sub("^.*/your-project/"; "")
       else
         $path
       end;

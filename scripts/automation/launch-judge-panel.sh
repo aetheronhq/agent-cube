@@ -9,7 +9,7 @@ export PATH="$HOME/.local/bin:$PATH"
 TASK_ID="$1"
 PROMPT_FILE="$2"
 REVIEW_TYPE="${3:-initial}"  # initial or peer-review
-PROJECT_ROOT="/Users/jacob/dev/aetheron-connect-v2"
+PROJECT_ROOT="$(pwd)"
 
 if [ -z "$TASK_ID" ] || [ -z "$PROMPT_FILE" ]; then
   echo "Usage: $0 <task-id> <panel-prompt-file> [review-type]"

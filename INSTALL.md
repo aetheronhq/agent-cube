@@ -7,7 +7,7 @@ The Agent Cube CLI (`cube`) orchestrates parallel LLM coding workflows with auto
 ### Option 1: Install Script (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aetheronhq/aetheron-connect-v2/feature/agent-cube-cli-automation/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/aetheronhq/agent-cube/main/install.sh | bash
 ```
 
 This will:
@@ -27,7 +27,7 @@ brew install cube
 
 ```bash
 # Clone the repository
-git clone --branch feature/agent-cube-cli-automation https://github.com/aetheronhq/aetheron-connect-v2.git ~/.agent-cube
+git clone https://github.com/aetheronhq/agent-cube.git ~/.agent-cube
 
 # Create symlink
 mkdir -p ~/.local/bin
@@ -132,7 +132,7 @@ cube resume codex <task-id> "Continue with the implementation"
 ### Install Script
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aetheronhq/aetheron-connect-v2/feature/agent-cube-cli-automation/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/aetheronhq/agent-cube/main/install.sh | bash
 ```
 
 ### Homebrew
@@ -225,8 +225,8 @@ Agent Cube uses your project's configuration:
 ## Support
 
 - Documentation: See `AGENT_CUBE.md` and `AGENT_CUBE_AUTOMATION.md`
-- Issues: https://github.com/aetheronhq/aetheron-connect-v2/issues
-- Discussions: https://github.com/aetheronhq/aetheron-connect-v2/discussions
+- Issues: https://github.com/aetheronhq/agent-cube/issues
+- Discussions: https://github.com/aetheronhq/agent-cube/discussions
 
 ## License
 

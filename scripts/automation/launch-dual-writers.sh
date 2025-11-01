@@ -8,7 +8,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 TASK_ID="$1"
 PROMPT_FILE="$2"
-PROJECT_ROOT="/Users/jacob/dev/aetheron-connect-v2"
+PROJECT_ROOT="$(pwd)"
 
 if [ -z "$TASK_ID" ] || [ -z "$PROMPT_FILE" ]; then
   echo "Usage: $0 <task-id> <writer-prompt-file>"
@@ -28,10 +28,10 @@ echo "📄 Prompt: $PROMPT_FILE"
 echo ""
 
 # Create worktrees if they don't exist
-WORKTREE_SONNET="$HOME/.cursor/worktrees/aetheron-connect-v2/writer-sonnet"
-WORKTREE_CODEX="$HOME/.cursor/worktrees/aetheron-connect-v2/writer-codex"
+WORKTREE_SONNET="$HOME/.cursor/worktrees/your-project/writer-sonnet"
+WORKTREE_CODEX="$HOME/.cursor/worktrees/your-project/writer-codex"
 
-mkdir -p "$HOME/.cursor/worktrees/aetheron-connect-v2"
+mkdir -p "$HOME/.cursor/worktrees/your-project"
 
 if [ ! -d "$WORKTREE_SONNET" ]; then
   echo "Creating worktree for Writer A (Sonnet)..."

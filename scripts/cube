@@ -254,7 +254,7 @@ cmd_feedback() {
     fi
     
     # Find worktree
-    local worktree="$HOME/.cursor/worktrees/aetheron-connect-v2/writer-${writer}"
+    local worktree="$HOME/.cursor/worktrees/your-project/writer-${writer}"
     if [ ! -d "$worktree" ]; then
         print_error "Worktree not found: $worktree"
         exit 1
@@ -380,7 +380,7 @@ cmd_resume() {
     esac
     
     # Find worktree
-    local worktree="$HOME/.cursor/worktrees/aetheron-connect-v2/writer-${writer_name}"
+    local worktree="$HOME/.cursor/worktrees/your-project/writer-${writer_name}"
     if [ ! -d "$worktree" ]; then
         print_error "Worktree not found: $worktree"
         exit 1

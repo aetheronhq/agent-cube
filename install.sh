@@ -1,6 +1,6 @@
 #!/bin/bash
 # Agent Cube CLI Installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/aetheronhq/aetheron-connect-v2/feature/agent-cube-cli-automation/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/aetheronhq/agent-cube/main/install.sh | bash
 
 set -e
 
@@ -71,8 +71,8 @@ if [ -d "$INSTALL_DIR" ]; then
 fi
 
 # Download files from GitHub
-REPO="aetheronhq/aetheron-connect-v2"
-BRANCH="feature/agent-cube-cli-automation"
+REPO="aetheronhq/agent-cube"
+BRANCH="main"
 BASE_URL="https://raw.githubusercontent.com/$REPO/$BRANCH"
 
 print_info "Downloading from GitHub ($REPO/$BRANCH)..."

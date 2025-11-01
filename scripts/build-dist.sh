@@ -257,8 +257,8 @@ See AGENT_CUBE.md and AGENT_CUBE_AUTOMATION.md for complete guides.
 SUPPORT
 -------
 
-GitHub: https://github.com/aetheronhq/aetheron-connect-v2
-Issues: https://github.com/aetheronhq/aetheron-connect-v2/issues
+GitHub: https://github.com/aetheronhq/agent-cube
+Issues: https://github.com/aetheronhq/agent-cube/issues
 README_EOF
 
 echo "✅ README created: dist/README.txt"

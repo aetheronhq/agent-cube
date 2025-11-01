@@ -82,14 +82,14 @@ cursor-agent --print --force \
 
 ```bash
 # Create worktrees for each writer
-git worktree add ~/.cursor/worktrees/aetheron-connect-v2/writer-sonnet writer-sonnet/task-id
-git worktree add ~/.cursor/worktrees/aetheron-connect-v2/writer-codex writer-codex/task-id
+git worktree add ~/.cursor/worktrees/your-project/writer-sonnet writer-sonnet/task-id
+git worktree add ~/.cursor/worktrees/your-project/writer-codex writer-codex/task-id
 
 # Run agents in their own worktrees
-cd ~/.cursor/worktrees/aetheron-connect-v2/writer-sonnet
+cd ~/.cursor/worktrees/your-project/writer-sonnet
 cursor-agent --print --force --model sonnet-4.5-thinking "implement task"
 
-cd ~/.cursor/worktrees/aetheron-connect-v2/writer-codex
+cd ~/.cursor/worktrees/your-project/writer-codex
 cursor-agent --print --force --model sonnet-4.5-thinking "implement task"
 ```
 
@@ -157,7 +157,7 @@ cursor-agent --print --force --output-format stream-json --stream-partial-output
 chmod +x scripts/automation/stream-agent.sh
 
 ./scripts/automation/stream-agent.sh \
-  ~/.cursor/worktrees/aetheron-connect-v2/writer-sonnet \
+  ~/.cursor/worktrees/your-project/writer-sonnet \
   "Your prompt here"
 ```
 
@@ -221,15 +221,15 @@ cursor-agent --print --force --model sonnet-4.5-thinking \
 
 ### 1. Create Worktrees
 ```bash
-cd /Users/jacob/dev/aetheron-connect-v2
+cd /path/to/your-project
 
 # Create branches and worktrees
 git checkout main
 git branch writer-sonnet/task-id
 git branch writer-codex/task-id
 
-git worktree add ~/.cursor/worktrees/aetheron-connect-v2/writer-sonnet writer-sonnet/task-id
-git worktree add ~/.cursor/worktrees/aetheron-connect-v2/writer-codex writer-codex/task-id
+git worktree add ~/.cursor/worktrees/your-project/writer-sonnet writer-sonnet/task-id
+git worktree add ~/.cursor/worktrees/your-project/writer-codex writer-codex/task-id
 ```
 
 ### 2. Launch Both Writers in Parallel
@@ -239,7 +239,7 @@ mkdir -p .agent-sessions
 
 # Terminal 1: Writer A (Sonnet) - script auto-captures session ID
 ./scripts/automation/stream-agent.sh \
-  ~/.cursor/worktrees/aetheron-connect-v2/writer-sonnet \
+  ~/.cursor/worktrees/your-project/writer-sonnet \
   "$(cat implementation/phase-01/orchestration/task-id-writer-prompt.md)"
 
 # Copy session ID from script output (shown at end: "🔑 Session ID: xxx")
@@ -248,7 +248,7 @@ echo "# Writer A (Sonnet 4.5) - task-id implementation - $(date)" > .agent-sessi
 
 # Terminal 2: Writer B (Codex) - script auto-captures session ID
 ./scripts/automation/stream-agent.sh \
-  ~/.cursor/worktrees/aetheron-connect-v2/writer-codex \
+  ~/.cursor/worktrees/your-project/writer-codex \
   "$(cat implementation/phase-01/orchestration/task-id-writer-prompt.md)"
 
 # Copy session ID from script output
@@ -273,12 +273,12 @@ git log origin/writer-codex/task-id --oneline -1
 ```bash
 # Writer A verification
 ./scripts/automation/stream-agent.sh \
-  ~/.cursor/worktrees/aetheron-connect-v2/writer-sonnet \
+  ~/.cursor/worktrees/your-project/writer-sonnet \
   "You just completed task-id. Confirm: 1) Everything committed and pushed? 2) Meets all acceptance criteria? 3) Ready for panel review?"
 
 # Writer B verification
 ./scripts/automation/stream-agent.sh \
-  ~/.cursor/worktrees/aetheron-connect-v2/writer-codex \
+  ~/.cursor/worktrees/your-project/writer-codex \
   "You just completed task-id. Confirm: 1) Everything committed and pushed? 2) Meets all acceptance criteria? 3) Ready for panel review?"
 ```
 
@@ -292,7 +292,7 @@ cursor-agent --print --force --model sonnet-4.5-thinking \
 
 # OR: Create new agent (less efficient)
 ./scripts/automation/stream-agent.sh \
-  ~/.cursor/worktrees/aetheron-connect-v2/writer-codex \
+  ~/.cursor/worktrees/your-project/writer-codex \
   "Fix all 27 ESLint errors. Run pnpm lint --fix, then manually fix remaining. Commit and push when done."
 ```
 
@@ -374,19 +374,19 @@ cursor-agent --print --force --model composer-1 \
 **Commands used:**
 ```bash
 # 1. Create worktrees
-git worktree add ~/.cursor/worktrees/aetheron-connect-v2/writer-sonnet writer-sonnet/01-api-client-scaffold
-git worktree add ~/.cursor/worktrees/aetheron-connect-v2/writer-codex writer-codex/01-api-client-scaffold
+git worktree add ~/.cursor/worktrees/your-project/writer-sonnet writer-sonnet/01-api-client-scaffold
+git worktree add ~/.cursor/worktrees/your-project/writer-codex writer-codex/01-api-client-scaffold
 
 # 2. Launch Writer A (save session ID from first JSON line)
 ./scripts/automation/stream-agent.sh \
-  ~/.cursor/worktrees/aetheron-connect-v2/writer-sonnet \
+  ~/.cursor/worktrees/your-project/writer-sonnet \
   "$(cat implementation/phase-01/orchestration/01-api-client-scaffold-writer-prompt.md)" \
   | tee writer-a-output.log
 # Extract session_id: 789003f3-8585-40ae-802f-1f4b433e75aa
 
 # 3. Launch Writer B (parallel, save session ID)
 ./scripts/automation/stream-agent.sh \
-  ~/.cursor/worktrees/aetheron-connect-v2/writer-codex \
+  ~/.cursor/worktrees/your-project/writer-codex \
   "$(cat implementation/phase-01/orchestration/01-api-client-scaffold-writer-prompt.md)" \
   | tee writer-b-output.log
 # Extract session_id: abc123...
@@ -452,17 +452,17 @@ cursor-agent --print --force --model sonnet-4.5-thinking \
 ```bash
 # Judge 1 (Sonnet)
 ./scripts/automation/stream-agent.sh \
-  ~/.cursor/worktrees/aetheron-connect-v2/main \
+  ~/.cursor/worktrees/your-project/main \
   "You are Judge 1 (Claude Sonnet 4.5). $(cat panel-prompt.md)"
 
 # Judge 2 (GPT-5)
 ./scripts/automation/stream-agent.sh \
-  ~/.cursor/worktrees/aetheron-connect-v2/main \
+  ~/.cursor/worktrees/your-project/main \
   "You are Judge 2 (GPT-5 High Fast). $(cat panel-prompt.md)"
 
 # Judge 3 (Gemini)
 ./scripts/automation/stream-agent.sh \
-  ~/.cursor/worktrees/aetheron-connect-v2/main \
+  ~/.cursor/worktrees/your-project/main \
   "You are Judge 3 (Gemini 2.5 Pro). $(cat panel-prompt.md)"
 ```
 
