@@ -42,12 +42,18 @@ echo "📄 Prompt: $PROMPT_FILE"
 echo "📋 Review Type: $REVIEW_TYPE"
 echo ""
 
+# Create unique log files for each judge BEFORE launching
+TIMESTAMP=$(date +%s)
+LOG_FILE_1="/tmp/judge-1-$TASK_ID-$REVIEW_TYPE-$TIMESTAMP.json"
+LOG_FILE_2="/tmp/judge-2-$TASK_ID-$REVIEW_TYPE-$TIMESTAMP.json"
+LOG_FILE_3="/tmp/judge-3-$TASK_ID-$REVIEW_TYPE-$TIMESTAMP.json"
+
 # Judge 1 (Sonnet Thinking) - green
 (
   set +e  # Don't exit subshell on errors
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model sonnet-4.5-thinking \
-    "$(cat $TEMP_PROMPT_1)" 2>&1 | tee "/tmp/judge-1-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
+    "$(cat $TEMP_PROMPT_1)" 2>&1 | tee "$LOG_FILE_1" | \
     jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
       try (fromjson |
       def truncate_path:
@@ -96,13 +102,9 @@ JUDGE_1_PID=$!
 # Judge 2 (Codex High) - yellow
 (
   set +e  # Don't exit subshell on errors
-  LOG_FILE_2="/tmp/judge-2-$TASK_ID-$REVIEW_TYPE-$(date +%s).json"
-  ERROR_FILE_2="/tmp/judge-2-$TASK_ID-$REVIEW_TYPE-$(date +%s).err"
-  
-  # Capture stderr separately for debugging
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model gpt-5-codex-high \
-    "$(cat $TEMP_PROMPT_2)" 2>"$ERROR_FILE_2" | tee "$LOG_FILE_2" | \
+    "$(cat $TEMP_PROMPT_2)" 2>&1 | tee "$LOG_FILE_2" | \
     jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
       try (fromjson |
       def truncate_path:
@@ -153,7 +155,7 @@ JUDGE_2_PID=$!
   set +e  # Don't exit subshell on errors
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model grok \
-    "$(cat $TEMP_PROMPT_3)" 2>&1 | tee "/tmp/judge-3-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
+    "$(cat $TEMP_PROMPT_3)" 2>&1 | tee "$LOG_FILE_3" | \
     jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
       try (fromjson |
       def truncate_path:
@@ -247,19 +249,19 @@ echo ""
 # Extract session IDs
 mkdir -p "$PROJECT_ROOT/.agent-sessions"
 
+# Use the known log files instead of searching
 for i in 1 2 3; do
-  LOG=$(ls -t /tmp/judge-$i-$TASK_ID-$REVIEW_TYPE-*.json 2>/dev/null | head -1)
-  ERR=$(ls -t /tmp/judge-$i-$TASK_ID-$REVIEW_TYPE-*.err 2>/dev/null | head -1)
+  case $i in
+    1) LOG="$LOG_FILE_1" ;;
+    2) LOG="$LOG_FILE_2" ;;
+    3) LOG="$LOG_FILE_3" ;;
+  esac
   
   if [ -f "$LOG" ]; then
     LOG_SIZE=$(stat -f%z "$LOG" 2>/dev/null || stat -c%s "$LOG" 2>/dev/null)
     if [ "$LOG_SIZE" -eq 0 ]; then
       echo "🔑 Judge $i Session ID: (empty log - process may have failed or timed out)"
-      # Check for error file
-      if [ -f "$ERR" ] && [ -s "$ERR" ]; then
-        echo "   ⚠️  Error log: $ERR"
-        head -5 "$ERR" | sed 's/^/   /'
-      fi
+      echo "   💡 Check: $LOG"
     else
       SESSION=$(grep '"session_id"' "$LOG" | head -1 | jq -r '.session_id // "NOT_FOUND"')
       if [ "$SESSION" != "NOT_FOUND" ]; then
@@ -268,10 +270,11 @@ for i in 1 2 3; do
         echo "🔑 Judge $i Session ID: $SESSION"
       else
         echo "🔑 Judge $i Session ID: (not found in log)"
+        echo "   💡 Check: $LOG"
       fi
     fi
   else
-    echo "🔑 Judge $i Session ID: (log file missing)"
+    echo "🔑 Judge $i Session ID: (log file missing: $LOG)"
   fi
 done
 
