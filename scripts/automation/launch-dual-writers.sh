@@ -44,18 +44,16 @@ if [ ! -d "$WORKTREE_SONNET" ]; then
   echo "Creating worktree for Writer A (Sonnet)..."
   cd "$PROJECT_ROOT"
   git branch -D "writer-sonnet/$TASK_ID" 2>/dev/null || true
-  git checkout -b "writer-sonnet/$TASK_ID"
-  git worktree add "$WORKTREE_SONNET" "writer-sonnet/$TASK_ID"
-  git checkout main
+  # Create worktree with new branch directly (doesn't checkout in main repo)
+  git worktree add -b "writer-sonnet/$TASK_ID" "$WORKTREE_SONNET"
 fi
 
 if [ ! -d "$WORKTREE_CODEX" ]; then
   echo "Creating worktree for Writer B (Codex)..."
   cd "$PROJECT_ROOT"
   git branch -D "writer-codex/$TASK_ID" 2>/dev/null || true
-  git checkout -b "writer-codex/$TASK_ID"
-  git worktree add "$WORKTREE_CODEX" "writer-codex/$TASK_ID"
-  git checkout main
+  # Create worktree with new branch directly (doesn't checkout in main repo)
+  git worktree add -b "writer-codex/$TASK_ID" "$WORKTREE_CODEX"
 fi
 
 # Launch Writer A (Sonnet) - green
