@@ -96,9 +96,13 @@ JUDGE_1_PID=$!
 # Judge 2 (Codex High) - yellow
 (
   set +e  # Don't exit subshell on errors
+  LOG_FILE_2="/tmp/judge-2-$TASK_ID-$REVIEW_TYPE-$(date +%s).json"
+  ERROR_FILE_2="/tmp/judge-2-$TASK_ID-$REVIEW_TYPE-$(date +%s).err"
+  
+  # Capture stderr separately for debugging
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model gpt-5-codex-high \
-    "$(cat $TEMP_PROMPT_2)" 2>&1 | tee "/tmp/judge-2-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
+    "$(cat $TEMP_PROMPT_2)" 2>"$ERROR_FILE_2" | tee "$LOG_FILE_2" | \
     jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
       try (fromjson |
       def truncate_path:
@@ -245,13 +249,29 @@ mkdir -p "$PROJECT_ROOT/.agent-sessions"
 
 for i in 1 2 3; do
   LOG=$(ls -t /tmp/judge-$i-$TASK_ID-$REVIEW_TYPE-*.json 2>/dev/null | head -1)
+  ERR=$(ls -t /tmp/judge-$i-$TASK_ID-$REVIEW_TYPE-*.err 2>/dev/null | head -1)
+  
   if [ -f "$LOG" ]; then
-    SESSION=$(grep '"session_id"' "$LOG" | head -1 | jq -r '.session_id // "NOT_FOUND"')
-    if [ "$SESSION" != "NOT_FOUND" ]; then
-      echo "$SESSION" > "$PROJECT_ROOT/.agent-sessions/JUDGE_${i}_${TASK_ID}_${REVIEW_TYPE}_SESSION_ID.txt"
-      echo "# Judge $i - $TASK_ID - $REVIEW_TYPE - $(date)" > "$PROJECT_ROOT/.agent-sessions/JUDGE_${i}_${TASK_ID}_${REVIEW_TYPE}_SESSION_ID.txt.meta"
-      echo "🔑 Judge $i Session ID: $SESSION"
+    LOG_SIZE=$(stat -f%z "$LOG" 2>/dev/null || stat -c%s "$LOG" 2>/dev/null)
+    if [ "$LOG_SIZE" -eq 0 ]; then
+      echo "🔑 Judge $i Session ID: (empty log - process may have failed or timed out)"
+      # Check for error file
+      if [ -f "$ERR" ] && [ -s "$ERR" ]; then
+        echo "   ⚠️  Error log: $ERR"
+        head -5 "$ERR" | sed 's/^/   /'
+      fi
+    else
+      SESSION=$(grep '"session_id"' "$LOG" | head -1 | jq -r '.session_id // "NOT_FOUND"')
+      if [ "$SESSION" != "NOT_FOUND" ]; then
+        echo "$SESSION" > "$PROJECT_ROOT/.agent-sessions/JUDGE_${i}_${TASK_ID}_${REVIEW_TYPE}_SESSION_ID.txt"
+        echo "# Judge $i - $TASK_ID - $REVIEW_TYPE - $(date)" > "$PROJECT_ROOT/.agent-sessions/JUDGE_${i}_${TASK_ID}_${REVIEW_TYPE}_SESSION_ID.txt.meta"
+        echo "🔑 Judge $i Session ID: $SESSION"
+      else
+        echo "🔑 Judge $i Session ID: (not found in log)"
+      fi
     fi
+  else
+    echo "🔑 Judge $i Session ID: (log file missing)"
   fi
 done
 
