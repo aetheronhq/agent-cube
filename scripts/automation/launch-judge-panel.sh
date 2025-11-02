@@ -65,9 +65,10 @@ touch "$LOG_FILE_1" "$LOG_FILE_2" "$LOG_FILE_3"
           # Remove worktree paths - match project-name/worktree-name
           if ($path | test("/.cursor/worktrees/[^/]+/[^/]+/")) then
             $path | sub(".*/\\.cursor/worktrees/[^/]+/[^/]+/"; "~worktrees/")
-          # Remove PROJECT_ROOT prefix from paths
+          # Remove PROJECT_ROOT prefix from paths (escape regex special chars)
           else
-            $path | sub("^\($project_root)/?"; "")
+            ("^" + ($project_root | gsub("[.^$*+?()\\[\\]{}|]"; "\\\\&")) + "/?") as $pattern |
+            $path | sub($pattern; "")
           end
         else $path end;
       
@@ -122,9 +123,10 @@ JUDGE_1_PID=$!
           # Remove worktree paths - match project-name/worktree-name
           if ($path | test("/.cursor/worktrees/[^/]+/[^/]+/")) then
             $path | sub(".*/\\.cursor/worktrees/[^/]+/[^/]+/"; "~worktrees/")
-          # Remove PROJECT_ROOT prefix from paths
+          # Remove PROJECT_ROOT prefix from paths (escape regex special chars)
           else
-            $path | sub("^\($project_root)/?"; "")
+            ("^" + ($project_root | gsub("[.^$*+?()\\[\\]{}|]"; "\\\\&")) + "/?") as $pattern |
+            $path | sub($pattern; "")
           end
         else $path end;
       
@@ -179,9 +181,10 @@ JUDGE_2_PID=$!
           # Remove worktree paths - match project-name/worktree-name
           if ($path | test("/.cursor/worktrees/[^/]+/[^/]+/")) then
             $path | sub(".*/\\.cursor/worktrees/[^/]+/[^/]+/"; "~worktrees/")
-          # Remove PROJECT_ROOT prefix from paths
+          # Remove PROJECT_ROOT prefix from paths (escape regex special chars)
           else
-            $path | sub("^\($project_root)/?"; "")
+            ("^" + ($project_root | gsub("[.^$*+?()\\[\\]{}|]"; "\\\\&")) + "/?") as $pattern |
+            $path | sub($pattern; "")
           end
         else $path end;
       

@@ -27,9 +27,10 @@ cursor-agent --print --force --output-format stream-json --stream-partial-output
         # Remove worktree paths - show only worktree name
         if ($path | test("/.cursor/worktrees/[^/]+/[^/]+/")) then
           $path | sub(".*/\\.cursor/worktrees/[^/]+/[^/]+/"; "~worktrees/")
-        # Remove PROJECT_ROOT prefix from paths
+        # Remove PROJECT_ROOT prefix from paths (escape regex special chars)
         else
-          $path | sub("^\($project_root)/?"; "")
+          ("^" + ($project_root | gsub("[.^$*+?()\\[\\]{}|]"; "\\\\&")) + "/?") as $pattern |
+          $path | sub($pattern; "")
         end
       else
         $path
