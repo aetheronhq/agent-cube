@@ -54,7 +54,7 @@ fi
 
 if ! command -v cursor-agent &> /dev/null; then
     print_warning "cursor-agent is not installed (required to run agents)"
-    echo "Install cursor-agent: npm install -g @cursor/cli"
+    echo "Install cursor-agent: curl https://cursor.com/install -fsSL | bash"
     echo "Then authenticate: cursor-agent login"
     echo ""
 fi
