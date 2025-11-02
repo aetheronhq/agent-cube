@@ -44,6 +44,7 @@ echo ""
 
 # Judge 1 (Sonnet Thinking) - green
 (
+  set +e  # Don't exit subshell on errors
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model sonnet-4.5-thinking \
     "$(cat $TEMP_PROMPT_1)" 2>&1 | tee "/tmp/judge-1-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
@@ -94,6 +95,7 @@ JUDGE_1_PID=$!
 
 # Judge 2 (Codex High) - yellow
 (
+  set +e  # Don't exit subshell on errors
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model gpt-5-codex-high \
     "$(cat $TEMP_PROMPT_2)" 2>&1 | tee "/tmp/judge-2-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
@@ -144,6 +146,7 @@ JUDGE_2_PID=$!
 
 # Judge 3 (Composer) - magenta
 (
+  set +e  # Don't exit subshell on errors
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model composer-1 \
     "$(cat $TEMP_PROMPT_3)" 2>&1 | tee "/tmp/judge-3-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
@@ -196,6 +199,33 @@ echo "📊 Judge 1 (Sonnet): PID $JUDGE_1_PID"
 echo "📊 Judge 2 (Codex): PID $JUDGE_2_PID"
 echo "📊 Judge 3 (Composer): PID $JUDGE_3_PID"
 echo ""
+
+# Verify judges are running
+sleep 2
+FAILED=0
+JUDGE_PIDS=($JUDGE_1_PID $JUDGE_2_PID $JUDGE_3_PID)
+JUDGE_NAMES=("Judge 1 (Sonnet)" "Judge 2 (Codex)" "Judge 3 (Composer)")
+
+for i in 0 1 2; do
+  pid=${JUDGE_PIDS[$i]}
+  name="${JUDGE_NAMES[$i]}"
+  if ! kill -0 $pid 2>/dev/null; then
+    echo "⚠️  WARNING: $name (PID $pid) failed to start or crashed immediately!"
+    FAILED=1
+  else
+    echo "✅ $name (PID $pid) is running"
+  fi
+done
+
+if [ $FAILED -eq 1 ]; then
+  echo ""
+  echo "🔍 Debug: Log file sizes..."
+  ls -lh /tmp/judge-*-$TASK_ID-$REVIEW_TYPE-*.json 2>/dev/null | tail -10
+  echo ""
+  echo "💡 Tip: Check /tmp/judge-*.json files for error messages"
+fi
+echo ""
+
 echo "⏳ Waiting for all 3 judges to complete..."
 echo ""
 
