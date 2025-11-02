@@ -92,6 +92,11 @@ show_help() {
     echo "             Writer: sonnet | codex"
     echo "             Example: cube feedback codex 02-error-handler implementation/phase-02/orchestration/02-error-handler-synthesis-instructions.md"
     echo ""
+    echo -e "  ${GREEN}orchestrate${NC} prompt <task-file> [--copy]"
+    echo "             Generate orchestrator prompt for autonomous workflow execution"
+    echo "             Use --copy to copy to clipboard (paste into Cursor UI)"
+    echo "             Example: cube orchestrate prompt implementation/phase-01/tasks/01-api-client.md --copy"
+    echo ""
     echo -e "  ${GREEN}resume${NC}     <writer|judge> <task-id> <message>"
     echo "             Resume a writer or judge session with a message"
     echo "             Example: cube resume writer-codex 02-error-handler \"Please fix the lint errors\""
@@ -418,6 +423,167 @@ cmd_resume() {
     exec "$SCRIPT_DIR/automation/stream-agent.sh" "$worktree" --model "$model" --resume "$session_id" "$message"
 }
 
+# Orchestrate command - generate orchestrator prompt
+cmd_orchestrate() {
+    local subcommand="$1"
+    
+    if [ "$subcommand" != "prompt" ]; then
+        print_error "Unknown orchestrate subcommand: $subcommand"
+        echo ""
+        echo "Usage: cube orchestrate prompt <task-file> [--copy]"
+        exit 1
+    fi
+    
+    shift
+    local task_file="$1"
+    local copy_flag="$2"
+    
+    if [ -z "$task_file" ]; then
+        print_error "Task file is required"
+        echo ""
+        echo "Usage: cube orchestrate prompt <task-file> [--copy]"
+        exit 1
+    fi
+    
+    if [ ! -f "$task_file" ]; then
+        print_error "Task file not found: $task_file"
+        exit 1
+    fi
+    
+    # Read task file content
+    local task_content=$(cat "$task_file")
+    local task_filename=$(basename "$task_file")
+    
+    # Generate orchestrator prompt
+    local prompt="# Agent Cube Orchestrator
+
+You are an autonomous orchestrator for the Agent Cube parallel LLM coding workflow. Your goal is to complete the entire workflow from task spec to merged PR.
+
+## Task to Orchestrate
+
+**Task File:** \`$task_file\`
+
+\`\`\`markdown
+$task_content
+\`\`\`
+
+## Your Capabilities
+
+You can execute cube CLI commands by running them in your terminal. Available commands:
+
+- \`cube writers <task-id> <writer-prompt-file>\` - Launch dual writers
+- \`cube panel <task-id> <panel-prompt-file> <type>\` - Launch review panel
+- \`cube feedback <writer> <task-id> <feedback-file>\` - Send feedback to writer
+- \`cube status\` - Check active agent sessions
+- \`cube sessions\` - List all session IDs
+
+## Workflow Phases
+
+### Phase 1: Dual Writer Launch
+1. Generate a comprehensive writer prompt in \`/tmp/writer-prompt-\${task-id}.md\`
+2. Run: \`cube writers <task-id> /tmp/writer-prompt-\${task-id}.md\`
+3. Wait for completion (watch terminal output)
+4. Read writer outputs from their worktrees:
+   - Writer A (Sonnet): \`~/.cursor/worktrees/\${project}/writer-sonnet-\${task-id}/\`
+   - Writer B (Codex): \`~/.cursor/worktrees/\${project}/writer-codex-\${task-id}/\`
+
+### Phase 2: Initial Review Panel
+1. Analyze both writer outputs
+2. Compare against task requirements and planning docs
+3. Generate panel prompt in \`/tmp/panel-prompt-\${task-id}.md\`
+4. Run: \`cube panel <task-id> /tmp/panel-prompt-\${task-id}.md initial\`
+5. Wait for 3 judges to complete
+6. Read judge reviews from \`.agent-sessions/JUDGE_*_\${task-id}_*\`
+
+### Phase 3: Decision Making
+Based on judge votes, decide:
+- **If consensus APPROVE**: Pick winning writer, proceed to synthesis/peer-review
+- **If REQUEST_CHANGES**: Generate feedback, loop back to writer
+- **If MIXED**: Analyze concerns, decide on synthesis vs feedback
+
+### Phase 4: Synthesis (if needed)
+1. If both writers have valuable contributions, merge best parts
+2. Generate synthesis instructions
+3. Resume winning writer with synthesis prompt
+
+### Phase 5: Peer Review
+1. Generate peer review prompt in \`/tmp/peer-review-\${task-id}.md\`
+2. Run: \`cube panel <task-id> /tmp/peer-review-\${task-id}.md peer-review\`
+3. Interpret final votes
+
+### Phase 6: PR Creation
+1. If approved, create PR:
+   - Use winning writer's branch
+   - Write comprehensive PR description
+   - Reference task file and review decisions
+2. Run git commands to create PR
+3. Update Jira ticket (if task ID provided)
+
+## Important Rules
+
+1. **Generate prompts dynamically** - Don't use hardcoded prompts, generate them based on:
+   - Task requirements
+   - Planning docs (read from \`planning/\` directory)
+   - Current state of the workflow
+
+2. **Read actual outputs** - Don't assume, read the actual files from:
+   - Writer worktrees
+   - Judge session files
+   - Git diffs
+
+3. **Explain your reasoning** - Before each command, explain why you're doing it
+
+4. **Handle failures gracefully** - If something fails, diagnose and retry or adjust
+
+5. **Use actual project context** - Reference real planning docs, not invented ones
+
+6. **Be thorough** - Don't skip steps; this is production code
+
+## Available Context
+
+- **Project root**: \`$PROJECT_ROOT\`
+- **Task file**: \`$task_file\`
+- **Planning docs**: \`planning/\` directory
+- **Agent Cube docs**: \`AGENT_CUBE.md\` for workflow patterns
+
+## Your First Step
+
+Start by:
+1. Reading relevant planning docs for this task
+2. Understanding the acceptance criteria
+3. Generating the writer prompt
+4. Launching the dual writers
+
+Begin orchestration now!"
+
+    # Output or copy to clipboard
+    if [ "$copy_flag" = "--copy" ]; then
+        # Detect OS and copy to clipboard
+        if command -v pbcopy &> /dev/null; then
+            # macOS
+            echo "$prompt" | pbcopy
+            print_success "Orchestrator prompt copied to clipboard!"
+        elif command -v xclip &> /dev/null; then
+            # Linux with xclip
+            echo "$prompt" | xclip -selection clipboard
+            print_success "Orchestrator prompt copied to clipboard!"
+        elif command -v xsel &> /dev/null; then
+            # Linux with xsel
+            echo "$prompt" | xsel --clipboard --input
+            print_success "Orchestrator prompt copied to clipboard!"
+        elif [ -n "$WSL_DISTRO_NAME" ] || command -v clip.exe &> /dev/null; then
+            # WSL
+            echo "$prompt" | clip.exe
+            print_success "Orchestrator prompt copied to clipboard!"
+        else
+            print_warning "No clipboard utility found. Printing to stdout instead."
+            echo "$prompt"
+        fi
+    else
+        echo "$prompt"
+    fi
+}
+
 # Main command dispatcher
 main() {
     if [ $# -eq 0 ]; then
@@ -457,6 +623,10 @@ main() {
         resume)
             shift
             cmd_resume "$@"
+            ;;
+        orchestrate)
+            shift
+            cmd_orchestrate "$@"
             ;;
         *)
             print_error "Unknown command: $1"
