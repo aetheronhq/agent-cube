@@ -1,6 +1,6 @@
 ## 🤖 The Agent Cube has become sentient!
 
-Built itself a CLI tool to orchestrate parallel LLM coding workflows. Here's the full cycle:
+The Agent Cube has built itself a fully functional CLI tool to orchestrate the complete parallel LLM coding workflow:
 
 → **Dual Writers** (2 LLMs) code solutions independently in parallel
 → **Judge Panel** (3 LLMs) reviews and votes for the winner  
@@ -8,7 +8,7 @@ Built itself a CLI tool to orchestrate parallel LLM coding workflows. Here's the
 → **Peer Review** validates the final solution
 → **PR Creation** for human review
 
-**Bonus:** Optional Jira integration + works with any planning docs (OpenSpec.dev format gets bonus points!)
+**Bonus:** Optional Jira integration - picks up tasks, moves to In Progress, comments, and moves to Review when done
 
 **Install:**
 ```bash
@@ -18,5 +18,7 @@ cd agent-cube
 ```
 
 **Use:**
-Ask Cursor to run `cube --help`, read `AGENT_CUBE.md`, and point it to your specs. Then watch it go! 🚀
+Ask Cursor to run `cube --help`, read `AGENT_CUBE.md`, and point it to your specs (works with any planning doc format, bonus points for OpenSpec.dev).
+
+Then watch 6 agents work together to produce the best solution! 🚀
 
