@@ -48,6 +48,9 @@ LOG_FILE_1="/tmp/judge-1-$TASK_ID-$REVIEW_TYPE-$TIMESTAMP.json"
 LOG_FILE_2="/tmp/judge-2-$TASK_ID-$REVIEW_TYPE-$TIMESTAMP.json"
 LOG_FILE_3="/tmp/judge-3-$TASK_ID-$REVIEW_TYPE-$TIMESTAMP.json"
 
+# Pre-create log files to avoid race conditions
+touch "$LOG_FILE_1" "$LOG_FILE_2" "$LOG_FILE_3"
+
 # Judge 1 (Sonnet Thinking) - green
 (
   set +e  # Don't exit subshell on errors
