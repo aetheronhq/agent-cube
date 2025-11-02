@@ -1,5 +1,8 @@
 ## The Agent Cube — A Multi‑Agent Coding Workflow
 
+> **Framework Version:** 2.0 (Updated 2025-11-02)  
+> **Key Update:** Added explicit Architecture Compliance checks and "Prefer Existing Tools" principle after task failure where AI agents built custom solution instead of using required tools, despite panel approval.
+
 ### Purpose
 
 Orchestrate many LLM coding agents in parallel with near‑zero conflicts and production‑grade quality.
@@ -16,6 +19,7 @@ Orchestrate many LLM coding agents in parallel with near‑zero conflicts and pr
 
 - **KISS**: Minimalism, elegance, maintainability; simplest solution that meets requirements.
 - **Planning‑driven**: Planning docs are the golden source of truth; do not invent requirements.
+- **Prefer existing tools**: Always use established 3rd party libraries, generators, and tools over building custom solutions. Only build custom when no suitable option exists or planning docs explicitly require it.
 - **Type safety**: Strict static typing; no `any`/unsafe casts; tests for non‑trivial code.
 - **Security by default**: Tenancy from server auth context; server‑only secrets/flags; observability everywhere.
 - **Priorities**: P1 = quality (planning‑aligned, simplest solution); P2 = parallel speed (only when it doesn't threaten P1).
@@ -141,6 +145,7 @@ flowchart TD
 - You are agent X. Read your phase README, agent doc under `agents/`, task tickets under `tasks/`, and linked planning docs.
 - Edits within owned paths only; follow `index.ts` composition pattern; Integrator wires composition.
 - Implement acceptance criteria precisely; no extra fields or behaviors.
+- **Prefer existing tools**: Use established 3rd party libraries, generators, and tools over custom code. Only build custom when no suitable option exists or planning docs explicitly require it.
 - If you are a writer: identify your model and create branch `writer-<model-slug>/{task-id}` where `<model-slug>` matches your model (e.g., `sonnet` for Claude Sonnet 4.5, `codex` for GPT-5 Codex High). Do not coordinate with the other writer.
 - Quality before PR: lint/type/tests green; tenancy tests; migrations reversible; OpenAPI valid; required OTel attributes; structured logs; error envelope.
 - PR protocol: Title `[Agent X] {task-id} — {summary}`; scope to owned files; add "Integration Notes"; link task file and planning docs.
@@ -308,6 +313,19 @@ Summary:
 
 - What to build and why (1–2 sentences)
 
+## Required Reading (MANDATORY)
+
+**YOU MUST READ AND FOLLOW THESE PLANNING DOCS:**
+
+- `planning/<doc-1>.md` - [Why this matters for this task]
+- `planning/<doc-2>.md` - [Why this matters for this task]
+
+**Key Architectural Decisions (Non-Negotiable):**
+
+- [Specific architectural choice that must be followed]
+- [Tool/library that must be used, not alternatives]
+- [Pattern that must be implemented]
+
 Steps:
 
 1. …
@@ -319,6 +337,7 @@ Acceptance criteria:
 - [ ] Behavior …
 - [ ] Tests …
 - [ ] CI gates …
+- [ ] **Architecture Compliance:** Follows all planning docs listed above
 
 Affected paths (owned):
 
@@ -365,6 +384,25 @@ You are Agent <X> working on task <task-id>.md.
 **Task:**
 [Task description from task file]
 
+**MANDATORY: Required Reading**
+
+**YOU MUST READ AND FOLLOW THESE PLANNING DOCS:**
+
+- `planning/<doc-1>.md` - [Why this matters]
+- `planning/<doc-2>.md` - [Why this matters]
+
+**Key Architectural Decisions (Non-Negotiable):**
+
+- [Specific tool/library that MUST be used]
+- [Pattern that MUST be implemented]
+- [Architectural choice that cannot be changed]
+
+**YOUR IMPLEMENTATION MUST:**
+
+- Follow the architectural patterns specified in planning docs above
+- Use the exact tools/libraries specified (no alternatives without human approval)
+- Implement the patterns as documented (not as you think they should be)
+
 **Acceptance Criteria:**
 [From task file]
 
@@ -379,16 +417,19 @@ You are Agent <X> working on task <task-id>.md.
 - Owned paths: [path globs]
 - No composition file edits (Integrator wires `index.ts`)
 - Follow planning docs exactly; no invented fields/behaviors
+- **Prefer existing tools**: Use established 3rd party libraries/generators/tools over custom code. Only build custom when no suitable option exists or planning docs explicitly require it.
 - KISS/minimalism; simplest solution that meets acceptance
 - Strict TypeScript; no `any`/unsafe casts
   [Additional constraints specific to task]
 
 **Process:**
 
-1. Create branch: `writer-<model-slug>/<task-id>` (select `<model-slug>` based on your model)
-2. Implement per acceptance criteria
-3. Ensure CI passes (lint/typecheck)
-4. **REQUIRED: Commit and push branch**
+1. **FIRST:** Read all required planning docs listed above
+2. Create branch: `writer-<model-slug>/<task-id>` (select `<model-slug>` based on your model)
+3. Implement per acceptance criteria AND planning docs
+4. Verify architectural compliance (tools, patterns, decisions)
+5. Ensure CI passes (lint/typecheck)
+6. **REQUIRED: Commit and push branch**
 
    **⚠️ CRITICAL: You MUST commit and push your work. Uncommitted or unpushed changes will NOT be reviewed by the panel.**
    - Run `git add <files>`
@@ -396,7 +437,7 @@ You are Agent <X> working on task <task-id>.md.
    - Run `git push origin writer-<model-slug>/<task-id>`
    - Verify push succeeded: `git status` should show "Your branch is up to date with 'origin/...'"
 
-5. **REQUIRED: Provide final summary ONLY AFTER successful push:**
+7. **REQUIRED: Provide final summary ONLY AFTER successful push:**
    - State your branch name
    - Confirm push succeeded
    - Example: "Writer codex complete for <task-id>. Branch writer-codex/<task-id> pushed successfully."
@@ -408,6 +449,7 @@ You are Agent <X> working on task <task-id>.md.
 ### Code Review Checklist
 
 - Planning followed exactly (no invented fields/behaviors)
+- **Existing tools preferred**: Uses established 3rd party libraries/generators/tools where applicable (not custom code)
 - KISS/minimalism; no unnecessary abstractions
 - Strict typing; no `any`/unsafe casts
 - Tenancy enforced (if multi‑tenant); no `org_id` from clients
@@ -466,13 +508,19 @@ You are **[Judge 1 / Judge 2 / Judge 3]** on a 3-judge LLM Panel reviewing dual-
 
 **YOUR INDIVIDUAL REVIEW PROCESS (do not orchestrate others):**
 
-1. **Review both solutions** against acceptance criteria and planning docs
-2. **Assess compatibility** for potential synthesis:
+1. **Verify Architecture Compliance (CRITICAL):**
+   - Read the Required Reading section from task file
+   - Check: Does solution use the specified tools/libraries? (not alternatives)
+   - Check: Does solution implement the required patterns? (not custom approaches)
+   - Check: Does solution follow architectural decisions from planning docs?
+   - **This is a PASS/FAIL check** - wrong architecture = automatic failure
+2. **Review both solutions** against acceptance criteria and planning docs
+3. **Assess compatibility** for potential synthesis:
    - Same public API surface? (if applicable)
    - Compatible configurations?
    - Compatible owned paths?
    - Both CI green?
-3. **Evaluate against considerations** (brief notes, no numeric scores):
+4. **Evaluate against considerations** (brief notes, no numeric scores):
    - Planning conformance (follows docs exactly)
    - Simplicity (KISS/minimalism)
    - Type safety (if applicable)
@@ -484,6 +532,12 @@ You are **[Judge 1 / Judge 2 / Judge 3]** on a 3-judge LLM Panel reviewing dual-
 **YOUR OUTPUT FORMAT:**
 
 Provide YOUR individual review using this format:
+
+**Architecture Compliance (CRITICAL - PASS/FAIL):**
+
+- Writer A: [✓ PASS | ✗ FAIL] - [Does it use required tools/patterns from planning docs?]
+- Writer B: [✓ PASS | ✗ FAIL] - [Does it use required tools/patterns from planning docs?]
+- **If either writer FAILS architecture compliance, they are automatically disqualified**
 
 **Consideration Notes:**
 
@@ -506,7 +560,7 @@ Provide YOUR individual review using this format:
 - If Yes: What can be combined? [details]
 - If No: Why not? [conflicts]
 
-**Vote:** [A or B]
+**Vote:** [A or B | BOTH FAIL (if both failed architecture compliance)]
 
 **Rationale:** [2-3 sentences explaining vote]
 
@@ -572,6 +626,13 @@ Review the final PR code (after synthesis has been applied) against:
 
 **Code Review Checklist (verify each):**
 
+**Architecture Compliance (CRITICAL - PASS/FAIL):**
+
+- [ ] **Required tools/libraries used** (as specified in Required Reading section of task file)
+- [ ] **Required patterns implemented** (not custom alternatives)
+- [ ] **Architectural decisions followed** (from planning docs, no deviations)
+- [ ] **This is a PASS/FAIL check** - wrong architecture = REQUEST_CHANGES
+
 **Planning Conformance:**
 
 - [ ] Planning docs followed exactly (no invented fields/behaviors)
@@ -580,6 +641,7 @@ Review the final PR code (after synthesis has been applied) against:
 
 **Code Quality:**
 
+- [ ] **Existing tools preferred**: Uses established 3rd party libraries/generators/tools where applicable (not custom code unless required)
 - [ ] Simplicity: KISS/minimalism; no unnecessary abstractions
 - [ ] Strict typing: no `any`/unsafe casts; TypeScript strict mode
 - [ ] Owned paths respected (no composition file edits unless Integrator)
@@ -641,6 +703,7 @@ Provide YOUR individual review using this format:
 
 **Checklist Verification:**
 
+- **Architecture Compliance:** [✓ Pass | ✗ Fail | N/A] - [uses required tools/patterns from planning docs? If FAIL, this is blocking]
 - Planning Conformance: [✓ Pass | ✗ Fail | N/A] - [notes]
 - Code Quality: [✓ Pass | ✗ Fail | N/A] - [notes]
 - Security & Tenancy: [✓ Pass | ✗ Fail | N/A] - [notes]
