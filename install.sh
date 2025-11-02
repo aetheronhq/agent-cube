@@ -70,31 +70,35 @@ if [ -d "$INSTALL_DIR" ]; then
     rm -rf "$INSTALL_DIR"
 fi
 
-# Download files from GitHub
-REPO="aetheronhq/agent-cube"
-BRANCH="main"
-BASE_URL="https://raw.githubusercontent.com/$REPO/$BRANCH"
-
-print_info "Downloading from GitHub ($REPO/$BRANCH)..."
-
 mkdir -p "$INSTALL_DIR/scripts/automation"
 
-# Download main cube script
-curl -fsSL "$BASE_URL/scripts/cube" -o "$INSTALL_DIR/scripts/cube"
+# Install from local repository
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [ ! -f "$SCRIPT_DIR/scripts/cube" ]; then
+    print_error "scripts/cube not found. Please run this from the cloned agent-cube repository."
+    exit 1
+fi
+
+print_info "Installing from local repository..."
+
+cp "$SCRIPT_DIR/scripts/cube" "$INSTALL_DIR/scripts/cube"
 chmod +x "$INSTALL_DIR/scripts/cube"
 
-# Download automation scripts
-print_info "Downloading automation scripts..."
 for script in launch-dual-writers.sh launch-judge-panel.sh send-writer-feedback.sh stream-agent.sh; do
-    curl -fsSL "$BASE_URL/scripts/automation/$script" -o "$INSTALL_DIR/scripts/automation/$script"
+    if [ ! -f "$SCRIPT_DIR/scripts/automation/$script" ]; then
+        print_error "scripts/automation/$script not found"
+        exit 1
+    fi
+    cp "$SCRIPT_DIR/scripts/automation/$script" "$INSTALL_DIR/scripts/automation/$script"
     chmod +x "$INSTALL_DIR/scripts/automation/$script"
 done
 
-# Download documentation (optional, don't fail if missing)
-curl -fsSL "$BASE_URL/AGENT_CUBE.md" -o "$INSTALL_DIR/AGENT_CUBE.md" 2>/dev/null || true
-curl -fsSL "$BASE_URL/AGENT_CUBE_AUTOMATION.md" -o "$INSTALL_DIR/AGENT_CUBE_AUTOMATION.md" 2>/dev/null || true
+# Copy documentation
+[ -f "$SCRIPT_DIR/AGENT_CUBE.md" ] && cp "$SCRIPT_DIR/AGENT_CUBE.md" "$INSTALL_DIR/AGENT_CUBE.md"
+[ -f "$SCRIPT_DIR/AGENT_CUBE_AUTOMATION.md" ] && cp "$SCRIPT_DIR/AGENT_CUBE_AUTOMATION.md" "$INSTALL_DIR/AGENT_CUBE_AUTOMATION.md"
 
-print_success "Files installed to $INSTALL_DIR"
+print_success "Files installed from local repository"
 echo ""
 
 # Create bin directory if it doesn't exist
