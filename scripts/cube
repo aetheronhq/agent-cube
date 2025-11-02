@@ -250,14 +250,17 @@ cmd_feedback() {
     
     # Normalize writer name
     local writer_letter=""
+    local model=""
     case "$writer" in
         sonnet|writer-sonnet|a|A)
             writer="sonnet"
             writer_letter="A"
+            model="sonnet-4.5-thinking"
             ;;
         codex|writer-codex|b|B)
             writer="codex"
             writer_letter="B"
+            model="gpt-5-codex-high"
             ;;
         *)
             print_error "Invalid writer: $writer (must be 'sonnet' or 'codex')"
@@ -289,12 +292,18 @@ cmd_feedback() {
     
     local session_id=$(cat "$session_file")
     
+    # Read feedback from file
+    local feedback_message=$(cat "$PROJECT_ROOT/$feedback_file")
+    
     check_cursor_agent
     
     print_info "Sending feedback to writer-${writer} for task: $task_id"
     print_info "Session ID: $session_id"
+    print_info "Feedback file: $feedback_file"
     
-    exec "$SCRIPT_DIR/automation/send-writer-feedback.sh" "$task_id" "$writer" "$feedback_file" "$session_id"
+    # Export PROJECT_ROOT so stream-agent.sh can strip paths correctly
+    export PROJECT_ROOT
+    exec "$SCRIPT_DIR/automation/stream-agent.sh" "$worktree" --model "$model" --resume "$session_id" "$feedback_message"
 }
 
 # Show task status
