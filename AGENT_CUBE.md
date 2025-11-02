@@ -17,7 +17,22 @@ Orchestrate many LLM coding agents in parallel with near‑zero conflicts and pr
 
 ### Core Principles
 
-- **KISS**: Minimalism, elegance, maintainability; simplest solution that meets requirements.
+🎯 **#1: K.I.S.S (Keep It Simple, Stupid) — THE PRIMARY DIRECTIVE**
+
+Every design decision, abstraction, and line of code must justify its existence.
+
+- **Minimalistic**: Every line of code must earn its keep. Remove unnecessary abstractions.
+- **Clean**: Readable > clever. Explicit > implicit. Direct > wrapped.
+- **Elegant**: Simple solutions to complex problems. No gold plating or scope creep.
+- **Question everything**: If it's a pass-through wrapper → delete it. If it duplicates existing info → remove it. If it's "for future flexibility" → YAGNI.
+
+**Writers**: When implementing, constantly ask "Is this the simplest solution?"  
+**Judges**: Actively look for and call out unnecessary complexity, abstractions, or code duplication.
+
+---
+
+**Other Core Principles:**
+
 - **Planning‑driven**: Planning docs are the golden source of truth; do not invent requirements.
 - **Prefer existing tools**: Always use established 3rd party libraries, generators, and tools over building custom solutions. Only build custom when no suitable option exists or planning docs explicitly require it.
 - **Type safety**: Strict static typing; no `any`/unsafe casts; tests for non‑trivial code.
@@ -403,6 +418,15 @@ You are Agent <X> working on task <task-id>.md.
 - Use the exact tools/libraries specified (no alternatives without human approval)
 - Implement the patterns as documented (not as you think they should be)
 
+**🎯 PRIMARY DIRECTIVE: K.I.S.S (Keep It Simple, Stupid)**
+
+**CONTINUOUSLY ASK YOURSELF: "Is this the simplest solution?"**
+
+- **Minimalistic**: Every line of code must earn its keep. Delete unnecessary abstractions.
+- **Clean**: Readable > clever. Explicit > implicit. Direct > wrapped.
+- **Elegant**: Simple solutions to complex problems. No gold plating.
+- **Question everything**: Pass-through wrapper? Delete it. Duplicate type? Remove it. "For future flexibility"? YAGNI - don't build it.
+
 **Acceptance Criteria:**
 [From task file]
 
@@ -418,7 +442,6 @@ You are Agent <X> working on task <task-id>.md.
 - No composition file edits (Integrator wires `index.ts`)
 - Follow planning docs exactly; no invented fields/behaviors
 - **Prefer existing tools**: Use established 3rd party libraries/generators/tools over custom code. Only build custom when no suitable option exists or planning docs explicitly require it.
-- KISS/minimalism; simplest solution that meets acceptance
 - Strict TypeScript; no `any`/unsafe casts
   [Additional constraints specific to task]
 
@@ -508,21 +531,30 @@ You are **[Judge 1 / Judge 2 / Judge 3]** on a 3-judge LLM Panel reviewing dual-
 
 **YOUR INDIVIDUAL REVIEW PROCESS (do not orchestrate others):**
 
-1. **Verify Architecture Compliance (CRITICAL):**
+1. **Verify Architecture Compliance (CRITICAL - PASS/FAIL):**
    - Read the Required Reading section from task file
    - Check: Does solution use the specified tools/libraries? (not alternatives)
    - Check: Does solution implement the required patterns? (not custom approaches)
    - Check: Does solution follow architectural decisions from planning docs?
    - **This is a PASS/FAIL check** - wrong architecture = automatic failure
-2. **Review both solutions** against acceptance criteria and planning docs
-3. **Assess compatibility** for potential synthesis:
+
+2. **Verify K.I.S.S Compliance (CRITICAL - PRIMARY DIRECTIVE):**
+   - Check: Is this the simplest solution that meets requirements?
+   - Check: Every abstraction, wrapper, type justifies its existence?
+   - Check: No pass-through functions, duplicate types, or premature abstractions?
+   - Check: Clean and readable (explicit > implicit, direct > wrapped)?
+   - **Call out any unnecessary complexity** - this is a dealbreaker
+
+3. **Review both solutions** against acceptance criteria and planning docs
+
+4. **Assess compatibility** for potential synthesis:
    - Same public API surface? (if applicable)
    - Compatible configurations?
    - Compatible owned paths?
    - Both CI green?
-4. **Evaluate against considerations** (brief notes, no numeric scores):
+
+5. **Evaluate against other considerations** (brief notes, no numeric scores):
    - Planning conformance (follows docs exactly)
-   - Simplicity (KISS/minimalism)
    - Type safety (if applicable)
    - CI/CD standards (cache, parallel execution, PR gates)
    - Developer experience (hooks fast, clear errors)
@@ -539,10 +571,15 @@ Provide YOUR individual review using this format:
 - Writer B: [✓ PASS | ✗ FAIL] - [Does it use required tools/patterns from planning docs?]
 - **If either writer FAILS architecture compliance, they are automatically disqualified**
 
-**Consideration Notes:**
+**K.I.S.S Compliance (CRITICAL - PRIMARY DIRECTIVE):**
+
+- Writer A: [✓ PASS | ⚠️ CONCERNS | ✗ FAIL] - [Is this the simplest solution? Any unnecessary complexity?]
+- Writer B: [✓ PASS | ⚠️ CONCERNS | ✗ FAIL] - [Is this the simplest solution? Any unnecessary complexity?]
+- **Call out specific unnecessary code**: [List any pass-through wrappers, duplicate types, premature abstractions, etc.]
+
+**Other Consideration Notes:**
 
 - Planning conformance: [brief notes]
-- Simplicity: [brief notes]
 - Type safety: [brief notes]
 - CI/CD standards: [brief notes]
 - Developer experience: [brief notes]
@@ -633,6 +670,14 @@ Review the final PR code (after synthesis has been applied) against:
 - [ ] **Architectural decisions followed** (from planning docs, no deviations)
 - [ ] **This is a PASS/FAIL check** - wrong architecture = REQUEST_CHANGES
 
+**K.I.S.S Compliance (CRITICAL - PRIMARY DIRECTIVE):**
+
+- [ ] **Simplest solution**: Every abstraction, wrapper, type, and line of code justifies its existence
+- [ ] **No unnecessary code**: Pass-through functions deleted; duplicate types/enums removed; YAGNI enforced
+- [ ] **Clean & readable**: Explicit > implicit; direct > wrapped; readable > clever
+- [ ] **No gold plating**: Only what's needed, not what might be needed
+- [ ] **This is CRITICAL** - unnecessary complexity = REQUEST_CHANGES
+
 **Planning Conformance:**
 
 - [ ] Planning docs followed exactly (no invented fields/behaviors)
@@ -642,7 +687,6 @@ Review the final PR code (after synthesis has been applied) against:
 **Code Quality:**
 
 - [ ] **Existing tools preferred**: Uses established 3rd party libraries/generators/tools where applicable (not custom code unless required)
-- [ ] Simplicity: KISS/minimalism; no unnecessary abstractions
 - [ ] Strict typing: no `any`/unsafe casts; TypeScript strict mode
 - [ ] Owned paths respected (no composition file edits unless Integrator)
 
