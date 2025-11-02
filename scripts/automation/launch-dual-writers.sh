@@ -36,12 +36,17 @@ WORKTREE_CODEX="$WORKTREE_BASE/writer-codex-$TASK_ID"
 
 mkdir -p "$WORKTREE_BASE"
 
+# Ensure main repo is on main branch
+cd "$PROJECT_ROOT"
+git checkout main 2>/dev/null || git checkout -b main
+
 if [ ! -d "$WORKTREE_SONNET" ]; then
   echo "Creating worktree for Writer A (Sonnet)..."
   cd "$PROJECT_ROOT"
   git branch -D "writer-sonnet/$TASK_ID" 2>/dev/null || true
   git checkout -b "writer-sonnet/$TASK_ID"
   git worktree add "$WORKTREE_SONNET" "writer-sonnet/$TASK_ID"
+  git checkout main
 fi
 
 if [ ! -d "$WORKTREE_CODEX" ]; then
@@ -50,6 +55,7 @@ if [ ! -d "$WORKTREE_CODEX" ]; then
   git branch -D "writer-codex/$TASK_ID" 2>/dev/null || true
   git checkout -b "writer-codex/$TASK_ID"
   git worktree add "$WORKTREE_CODEX" "writer-codex/$TASK_ID"
+  git checkout main
 fi
 
 # Launch Writer A (Sonnet) - green
