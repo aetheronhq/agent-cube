@@ -62,7 +62,7 @@ source ~/.zshrc
 
 3. **cursor-agent CLI** - For running LLM agents
    ```bash
-   npm install -g @cursor/cli
+   curl https://cursor.com/install -fsSL | bash
    cursor-agent login
    ```
 
@@ -186,7 +186,7 @@ brew untap aetheronhq/cube
 Install cursor-agent:
 
 ```bash
-npm install -g @cursor/cli
+curl https://cursor.com/install -fsSL | bash
 export PATH="$HOME/.local/bin:$PATH"
 cursor-agent login
 ```

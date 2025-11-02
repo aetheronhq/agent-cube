@@ -47,7 +47,7 @@ cube sessions
 ## Prerequisites
 
 - **jq**: `brew install jq` (macOS) or `apt-get install jq` (Linux)
-- **cursor-agent**: `npm install -g @cursor/cli`
+- **cursor-agent**: `curl https://cursor.com/install -fsSL | bash`
 - **Cursor account**: `cursor-agent login`
 
 ## Documentation
