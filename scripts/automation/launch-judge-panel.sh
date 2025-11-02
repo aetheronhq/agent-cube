@@ -144,11 +144,11 @@ JUDGE_1_PID=$!
 ) &
 JUDGE_2_PID=$!
 
-# Judge 3 (Composer) - magenta
+# Judge 3 (Grok) - magenta
 (
   set +e  # Don't exit subshell on errors
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
-    --model composer-1 \
+    --model grok \
     "$(cat $TEMP_PROMPT_3)" 2>&1 | tee "/tmp/judge-3-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
     jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
       try (fromjson |
@@ -197,14 +197,14 @@ JUDGE_3_PID=$!
 
 echo "📊 Judge 1 (Sonnet): PID $JUDGE_1_PID"
 echo "📊 Judge 2 (Codex): PID $JUDGE_2_PID"
-echo "📊 Judge 3 (Composer): PID $JUDGE_3_PID"
+echo "📊 Judge 3 (Grok): PID $JUDGE_3_PID"
 echo ""
 
 # Verify judges are running
 sleep 2
 FAILED=0
 JUDGE_PIDS=($JUDGE_1_PID $JUDGE_2_PID $JUDGE_3_PID)
-JUDGE_NAMES=("Judge 1 (Sonnet)" "Judge 2 (Codex)" "Judge 3 (Composer)")
+JUDGE_NAMES=("Judge 1 (Sonnet)" "Judge 2 (Codex)" "Judge 3 (Grok)")
 
 for i in 0 1 2; do
   pid=${JUDGE_PIDS[$i]}
