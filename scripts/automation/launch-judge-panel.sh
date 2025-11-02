@@ -55,6 +55,13 @@ echo ""
           $path | sub("^\($project_root)/?"; "")
         else $path end;
       
+      def format_duration:
+        . as $ms |
+        if $ms < 1000 then "\($ms)ms"
+        elif $ms < 60000 then "\(($ms / 1000 | floor))s"
+        else "\(($ms / 60000 | floor))m \((($ms % 60000) / 1000 | floor))s"
+        end;
+      
       if .type == "system" and .subtype == "init" then "\u001b[32m[Judge 1]\u001b[0m 🤖 \(.model)"
       elif .type == "assistant" then
         if (.message.content[0].text // "") != "" and (.message.content[0].text | length) > 50 then "\u001b[32m[Judge 1]\u001b[0m 💭 \(.message.content[0].text)"
@@ -78,7 +85,7 @@ echo ""
           elif .tool_call.readToolCall.result.success then "\u001b[32m[Judge 1]\u001b[0m    ✅ \(.tool_call.readToolCall.result.success.totalLines // 0) lines"
           else empty end
         else empty end
-      elif .type == "result" then "\u001b[32m[Judge 1]\u001b[0m 🎯 Completed in \(.duration_ms // 0)ms"
+      elif .type == "result" then "\u001b[32m[Judge 1]\u001b[0m 🎯 Completed in \((.duration_ms // 0) | format_duration)"
       else empty end
       ) catch ("\u001b[32m[Judge 1]\u001b[0m ⚠️  Invalid JSON: " + .)
     '
@@ -97,6 +104,13 @@ JUDGE_1_PID=$!
         if ($path | type) == "string" then
           $path | sub("^\($project_root)/?"; "")
         else $path end;
+      
+      def format_duration:
+        . as $ms |
+        if $ms < 1000 then "\($ms)ms"
+        elif $ms < 60000 then "\(($ms / 1000 | floor))s"
+        else "\(($ms / 60000 | floor))m \((($ms % 60000) / 1000 | floor))s"
+        end;
       
       if .type == "system" and .subtype == "init" then "\u001b[33m[Judge 2]\u001b[0m 🤖 \(.model)"
       elif .type == "assistant" then
@@ -121,7 +135,7 @@ JUDGE_1_PID=$!
           elif .tool_call.readToolCall.result.success then "\u001b[33m[Judge 2]\u001b[0m    ✅ \(.tool_call.readToolCall.result.success.totalLines // 0) lines"
           else empty end
         else empty end
-      elif .type == "result" then "\u001b[33m[Judge 2]\u001b[0m 🎯 Completed in \(.duration_ms // 0)ms"
+      elif .type == "result" then "\u001b[33m[Judge 2]\u001b[0m 🎯 Completed in \((.duration_ms // 0) | format_duration)"
       else empty end
       ) catch ("\u001b[33m[Judge 2]\u001b[0m ⚠️  Invalid JSON: " + .)
     '
@@ -140,6 +154,13 @@ JUDGE_2_PID=$!
         if ($path | type) == "string" then
           $path | sub("^\($project_root)/?"; "")
         else $path end;
+      
+      def format_duration:
+        . as $ms |
+        if $ms < 1000 then "\($ms)ms"
+        elif $ms < 60000 then "\(($ms / 1000 | floor))s"
+        else "\(($ms / 60000 | floor))m \((($ms % 60000) / 1000 | floor))s"
+        end;
       
       if .type == "system" and .subtype == "init" then "\u001b[35m[Judge 3]\u001b[0m 🤖 \(.model)"
       elif .type == "assistant" then
@@ -164,7 +185,7 @@ JUDGE_2_PID=$!
           elif .tool_call.readToolCall.result.success then "\u001b[35m[Judge 3]\u001b[0m    ✅ \(.tool_call.readToolCall.result.success.totalLines // 0) lines"
           else empty end
         else empty end
-      elif .type == "result" then "\u001b[35m[Judge 3]\u001b[0m 🎯 Completed in \(.duration_ms // 0)ms"
+      elif .type == "result" then "\u001b[35m[Judge 3]\u001b[0m 🎯 Completed in \((.duration_ms // 0) | format_duration)"
       else empty end
       ) catch ("\u001b[35m[Judge 3]\u001b[0m ⚠️  Invalid JSON: " + .)
     '

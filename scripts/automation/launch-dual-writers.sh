@@ -70,6 +70,13 @@ fi
           $path | sub("^\($project_root)/?"; "")
         else $path end;
       
+      def format_duration:
+        . as $ms |
+        if $ms < 1000 then "\($ms)ms"
+        elif $ms < 60000 then "\(($ms / 1000 | floor))s"
+        else "\(($ms / 60000 | floor))m \((($ms % 60000) / 1000 | floor))s"
+        end;
+      
       if .type == "system" and .subtype == "init" then
         "\u001b[32m[Writer A]\u001b[0m 🤖 \(.model) | Session: \(.session_id)"
       elif .type == "assistant" then
@@ -105,7 +112,7 @@ fi
           elif .tool_call.readToolCall.result.success then "\u001b[32m[Writer A]\u001b[0m    ✅ \(.tool_call.readToolCall.result.success.totalLines // 0) lines"
           else empty end
         else empty end
-      elif .type == "result" then "\u001b[32m[Writer A]\u001b[0m 🎯 Completed in \(.duration_ms // 0)ms"
+      elif .type == "result" then "\u001b[32m[Writer A]\u001b[0m 🎯 Completed in \((.duration_ms // 0) | format_duration)"
       else empty end
       ) catch ("\u001b[32m[Writer A]\u001b[0m ⚠️  Invalid JSON: " + .)
     '
@@ -125,6 +132,13 @@ WRITER_A_PID=$!
         if ($path | type) == "string" then
           $path | sub("^\($project_root)/?"; "")
         else $path end;
+      
+      def format_duration:
+        . as $ms |
+        if $ms < 1000 then "\($ms)ms"
+        elif $ms < 60000 then "\(($ms / 1000 | floor))s"
+        else "\(($ms / 60000 | floor))m \((($ms % 60000) / 1000 | floor))s"
+        end;
       
       if .type == "system" and .subtype == "init" then
         "\u001b[34m[Writer B]\u001b[0m 🤖 \(.model) | Session: \(.session_id)"
@@ -161,7 +175,7 @@ WRITER_A_PID=$!
           elif .tool_call.readToolCall.result.success then "\u001b[34m[Writer B]\u001b[0m    ✅ \(.tool_call.readToolCall.result.success.totalLines // 0) lines"
           else empty end
         else empty end
-      elif .type == "result" then "\u001b[34m[Writer B]\u001b[0m 🎯 Completed in \(.duration_ms // 0)ms"
+      elif .type == "result" then "\u001b[34m[Writer B]\u001b[0m 🎯 Completed in \((.duration_ms // 0) | format_duration)"
       else empty end
       ) catch ("\u001b[34m[Writer B]\u001b[0m ⚠️  Invalid JSON: " + .)
     '

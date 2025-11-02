@@ -30,6 +30,13 @@ cursor-agent --print --force --output-format stream-json --stream-partial-output
         $path
       end;
     
+    def format_duration:
+      . as $ms |
+      if $ms < 1000 then "\($ms)ms"
+      elif $ms < 60000 then "\(($ms / 1000 | floor))s"
+      else "\(($ms / 60000 | floor))m \((($ms % 60000) / 1000 | floor))s"
+      end;
+    
     if .type == "system" and .subtype == "init" then
       "🤖 Model: \(.model)\n"
     elif .type == "assistant" then
@@ -90,7 +97,7 @@ cursor-agent --print --force --output-format stream-json --stream-partial-output
         empty
       end
     elif .type == "result" then
-      "\n🎯 Completed in \(.duration_ms // 0)ms"
+      "\n🎯 Completed in \((.duration_ms // 0) | format_duration)"
     else
       empty
     end
