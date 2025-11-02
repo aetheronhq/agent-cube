@@ -47,7 +47,8 @@ echo ""
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model sonnet-4.5-thinking \
     "$(cat $TEMP_PROMPT_1)" 2>&1 | tee "/tmp/judge-1-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
-    jq -r --unbuffered --arg project_root "$PROJECT_ROOT" '
+    jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+      try (fromjson |
       def truncate_path:
         . as $path |
         if ($path | type) == "string" then
@@ -79,6 +80,7 @@ echo ""
         else empty end
       elif .type == "result" then "\u001b[32m[Judge 1]\u001b[0m 🎯 Completed in \(.duration_ms // 0)ms"
       else empty end
+      ) catch ("\u001b[32m[Judge 1]\u001b[0m ⚠️  Invalid JSON: " + .)
     '
 ) &
 JUDGE_1_PID=$!
@@ -88,7 +90,8 @@ JUDGE_1_PID=$!
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model gpt-5-codex-high \
     "$(cat $TEMP_PROMPT_2)" 2>&1 | tee "/tmp/judge-2-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
-    jq -r --unbuffered --arg project_root "$PROJECT_ROOT" '
+    jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+      try (fromjson |
       def truncate_path:
         . as $path |
         if ($path | type) == "string" then
@@ -120,6 +123,7 @@ JUDGE_1_PID=$!
         else empty end
       elif .type == "result" then "\u001b[33m[Judge 2]\u001b[0m 🎯 Completed in \(.duration_ms // 0)ms"
       else empty end
+      ) catch ("\u001b[33m[Judge 2]\u001b[0m ⚠️  Invalid JSON: " + .)
     '
 ) &
 JUDGE_2_PID=$!
@@ -129,7 +133,8 @@ JUDGE_2_PID=$!
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model composer-1 \
     "$(cat $TEMP_PROMPT_3)" 2>&1 | tee "/tmp/judge-3-$TASK_ID-$REVIEW_TYPE-$(date +%s).json" | \
-    jq -r --unbuffered --arg project_root "$PROJECT_ROOT" '
+    jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+      try (fromjson |
       def truncate_path:
         . as $path |
         if ($path | type) == "string" then
@@ -161,6 +166,7 @@ JUDGE_2_PID=$!
         else empty end
       elif .type == "result" then "\u001b[35m[Judge 3]\u001b[0m 🎯 Completed in \(.duration_ms // 0)ms"
       else empty end
+      ) catch ("\u001b[35m[Judge 3]\u001b[0m ⚠️  Invalid JSON: " + .)
     '
 ) &
 JUDGE_3_PID=$!

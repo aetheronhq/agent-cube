@@ -19,7 +19,8 @@ LOG_FILE="/tmp/agent-$(basename "$WORKTREE_DIR")-$(date +%s).json"
 # Save raw JSON to log file AND pipe to jq for pretty output
 cursor-agent --print --force --output-format stream-json --stream-partial-output --model sonnet-4.5-thinking "$@" 2>&1 | \
   tee "$LOG_FILE" | \
-  jq -r --unbuffered --arg project_root "$PROJECT_ROOT" '
+  jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+    try (fromjson | 
     def truncate_path:
       . as $path |
       if ($path | type) == "string" then
@@ -93,6 +94,7 @@ cursor-agent --print --force --output-format stream-json --stream-partial-output
     else
       empty
     end
+    ) catch ("⚠️  Invalid JSON: " + .)
   '
 
 # Extract and display session ID from saved log

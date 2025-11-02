@@ -56,7 +56,8 @@ fi
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model sonnet-4.5-thinking \
     "$PROMPT" 2>&1 | tee "/tmp/writer-sonnet-$TASK_ID-$(date +%s).json" | \
-    jq -r --unbuffered --arg project_root "$PROJECT_ROOT" '
+    jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+      try (fromjson |
       def truncate_path:
         . as $path |
         if ($path | type) == "string" then
@@ -100,6 +101,7 @@ fi
         else empty end
       elif .type == "result" then "\u001b[32m[Writer A]\u001b[0m 🎯 Completed in \(.duration_ms // 0)ms"
       else empty end
+      ) catch ("\u001b[32m[Writer A]\u001b[0m ⚠️  Invalid JSON: " + .)
     '
 ) &
 WRITER_A_PID=$!
@@ -110,7 +112,8 @@ WRITER_A_PID=$!
   cursor-agent --print --force --output-format stream-json --stream-partial-output \
     --model gpt-5-codex-high \
     "$PROMPT" 2>&1 | tee "/tmp/writer-codex-$TASK_ID-$(date +%s).json" | \
-    jq -r --unbuffered --arg project_root "$PROJECT_ROOT" '
+    jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+      try (fromjson |
       def truncate_path:
         . as $path |
         if ($path | type) == "string" then
@@ -154,6 +157,7 @@ WRITER_A_PID=$!
         else empty end
       elif .type == "result" then "\u001b[34m[Writer B]\u001b[0m 🎯 Completed in \(.duration_ms // 0)ms"
       else empty end
+      ) catch ("\u001b[34m[Writer B]\u001b[0m ⚠️  Invalid JSON: " + .)
     '
 ) &
 WRITER_B_PID=$!
