@@ -14,7 +14,7 @@ The Agent Cube has built itself a fully functional CLI tool to orchestrate the c
 **Bonus Features:**
 
 - Optional Jira integration to update tickets, pick tasks from backlog, and auto-move to "Review"
-- Works with any planning doc format (bonus points for OpenAPI.dev, but not mandatory)
+- Works with any planning doc format (bonus points for OpenSpec.dev, but not mandatory)
 
 **To Install:**
 
