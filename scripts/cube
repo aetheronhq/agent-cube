@@ -83,9 +83,14 @@ show_help() {
     echo "             Example: cube writers 02-error-handler implementation/phase-02/orchestration/02-error-handler-writer-prompt.md"
     echo ""
     echo -e "  ${GREEN}panel${NC}      <task-id> <panel-prompt-file> [review-type]"
-    echo "             Launch 3-judge panel for solution selection or peer review"
-    echo "             Review types: initial (default), peer-review"
+    echo "             Launch 3-judge panel for initial solution selection"
+    echo "             Review types: initial (default)"
     echo "             Example: cube panel 02-error-handler implementation/phase-02/orchestration/02-error-handler-panel-prompt.md"
+    echo ""
+    echo -e "  ${GREEN}peer-review${NC} <task-id> <peer-review-prompt-file>"
+    echo "             Resume original 3 judges from initial panel for peer review"
+    echo "             Judges verify their initial concerns were addressed"
+    echo "             Example: cube peer-review 02-error-handler implementation/phase-02/orchestration/02-error-handler-peer-review-prompt.md"
     echo ""
     echo -e "  ${GREEN}feedback${NC}   <writer> <task-id> <feedback-file>"
     echo "             Send feedback to a writer (resumes their session)"
@@ -423,6 +428,260 @@ cmd_resume() {
     exec "$SCRIPT_DIR/automation/stream-agent.sh" "$worktree" --model "$model" --resume "$session_id" "$message"
 }
 
+# Peer review command - resume original judges from initial panel
+cmd_peer_review() {
+    local task_id="$1"
+    local peer_review_prompt="$2"
+    
+    if [ -z "$task_id" ] || [ -z "$peer_review_prompt" ]; then
+        print_error "Task ID and peer review prompt file are required"
+        echo ""
+        echo "Usage: cube peer-review <task-id> <peer-review-prompt-file>"
+        echo "Example: cube peer-review 02-error-handler implementation/phase-02/orchestration/02-error-handler-peer-review-prompt.md"
+        exit 1
+    fi
+    
+    if [ ! -f "$peer_review_prompt" ]; then
+        print_error "Peer review prompt file not found: $peer_review_prompt"
+        exit 1
+    fi
+    
+    check_cursor_agent
+    
+    # Find initial panel session IDs
+    local session_1=$(cat .agent-sessions/JUDGE_1_${task_id}_initial_SESSION_ID.txt 2>/dev/null)
+    local session_2=$(cat .agent-sessions/JUDGE_2_${task_id}_initial_SESSION_ID.txt 2>/dev/null)
+    local session_3=$(cat .agent-sessions/JUDGE_3_${task_id}_initial_SESSION_ID.txt 2>/dev/null)
+    
+    if [ -z "$session_1" ] || [ -z "$session_2" ] || [ -z "$session_3" ]; then
+        print_error "Could not find initial panel session IDs for task: $task_id"
+        echo ""
+        echo "Make sure you've run the initial panel first:"
+        echo "  cube panel $task_id <panel-prompt.md> initial"
+        echo ""
+        echo "Session files expected:"
+        echo "  .agent-sessions/JUDGE_1_${task_id}_initial_SESSION_ID.txt"
+        echo "  .agent-sessions/JUDGE_2_${task_id}_initial_SESSION_ID.txt"
+        echo "  .agent-sessions/JUDGE_3_${task_id}_initial_SESSION_ID.txt"
+        exit 1
+    fi
+    
+    print_info "Resuming original judge panel for peer review of task: $task_id"
+    print_info "Using initial panel session IDs"
+    echo ""
+    
+    # Read peer review prompt
+    local prompt_content=$(cat "$peer_review_prompt")
+    
+    # Create temp files for the prompt (one per judge)
+    local temp_prompt_1=$(mktemp)
+    local temp_prompt_2=$(mktemp)
+    local temp_prompt_3=$(mktemp)
+    echo "$prompt_content" > "$temp_prompt_1"
+    echo "$prompt_content" > "$temp_prompt_2"
+    echo "$prompt_content" > "$temp_prompt_3"
+    
+    # Cleanup on exit
+    trap "rm -f $temp_prompt_1 $temp_prompt_2 $temp_prompt_3" EXIT
+    
+    print_success "Resuming 3 judges from initial panel"
+    echo ""
+    
+    export PROJECT_ROOT
+    
+    # Create unique log files
+    TIMESTAMP=$(date +%s)
+    LOG_FILE_1="/tmp/judge-1-$task_id-peer-review-$TIMESTAMP.json"
+    LOG_FILE_2="/tmp/judge-2-$task_id-peer-review-$TIMESTAMP.json"
+    LOG_FILE_3="/tmp/judge-3-$task_id-peer-review-$TIMESTAMP.json"
+    touch "$LOG_FILE_1" "$LOG_FILE_2" "$LOG_FILE_3"
+    
+    # Resume Judge 1 (Sonnet) - green
+    (
+        set +e
+        cursor-agent --print --force --output-format stream-json --stream-partial-output \
+            --resume "$session_1" "$(cat $temp_prompt_1)" 2>&1 | tee "$LOG_FILE_1" | \
+        jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+            try (fromjson |
+            def truncate_path:
+                . as $path |
+                if ($path | type) == "string" then
+                    if ($path | test("/.cursor/worktrees/[^/]+/[^/]+/")) then
+                        $path | sub(".*/\\.cursor/worktrees/[^/]+/[^/]+/"; "~worktrees/")
+                    else
+                        ("^" + ($project_root | gsub("[.^$*+?()\\[\\]{}|]"; "\\\\&")) + "/?") as $pattern |
+                        $path | sub($pattern; "")
+                    end
+                else $path end;
+            
+            def format_duration:
+                . as $ms |
+                if $ms < 1000 then "\($ms)ms"
+                elif $ms < 60000 then "\(($ms / 1000 | floor))s"
+                else "\(($ms / 60000 | floor))m \((($ms % 60000) / 1000 | floor))s"
+                end;
+            
+            if .type == "system" and .subtype == "init" then "\u001b[32m[Judge 1]\u001b[0m 🤖 \(.model)"
+            elif .type == "assistant" then
+                if (.message.content[0].text // "") != "" and (.message.content[0].text | length) > 50 then "\u001b[32m[Judge 1]\u001b[0m 💭 \(.message.content[0].text)"
+                else empty end
+            elif .type == "tool_call" then
+                if .subtype == "started" then
+                    if .tool_call.shellToolCall then
+                        ((.tool_call.shellToolCall.args.command // "unknown") | sub("^cd [^ ]+ && "; "") | truncate_path) as $cmd |
+                        if ($cmd | length) > 60 then "\u001b[32m[Judge 1]\u001b[0m 🔧 \($cmd[:57])..."
+                        else "\u001b[32m[Judge 1]\u001b[0m 🔧 \($cmd)" end
+                    elif .tool_call.readToolCall then
+                        ((.tool_call.readToolCall.args.path // "unknown") | truncate_path) as $p |
+                        if ($p | length) > 50 then "\u001b[32m[Judge 1]\u001b[0m 📖 \($p[:47])..."
+                        else "\u001b[32m[Judge 1]\u001b[0m 📖 \($p)" end
+                    else empty end
+                elif .subtype == "completed" then
+                    if .tool_call.shellToolCall.result.success then
+                        if (.tool_call.shellToolCall.result.success.exitCode // 0) != 0 then
+                            "\u001b[32m[Judge 1]\u001b[0m    ❌ Exit: \(.tool_call.shellToolCall.result.success.exitCode)"
+                        else empty end
+                    elif .tool_call.readToolCall.result.success then "\u001b[32m[Judge 1]\u001b[0m    ✅ \(.tool_call.readToolCall.result.success.totalLines // 0) lines"
+                    else empty end
+                else empty end
+            elif .type == "result" then "\u001b[32m[Judge 1]\u001b[0m 🎯 Completed in \((.duration_ms // 0) | format_duration)"
+            else empty end
+            ) catch ("\u001b[32m[Judge 1]\u001b[0m ⚠️  Invalid JSON: " + .)
+        '
+    ) &
+    JUDGE_1_PID=$!
+    
+    # Resume Judge 2 (Codex) - yellow
+    (
+        set +e
+        cursor-agent --print --force --output-format stream-json --stream-partial-output \
+            --resume "$session_2" "$(cat $temp_prompt_2)" 2>&1 | tee "$LOG_FILE_2" | \
+        jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+            try (fromjson |
+            def truncate_path:
+                . as $path |
+                if ($path | type) == "string" then
+                    if ($path | test("/.cursor/worktrees/[^/]+/[^/]+/")) then
+                        $path | sub(".*/\\.cursor/worktrees/[^/]+/[^/]+/"; "~worktrees/")
+                    else
+                        ("^" + ($project_root | gsub("[.^$*+?()\\[\\]{}|]"; "\\\\&")) + "/?") as $pattern |
+                        $path | sub($pattern; "")
+                    end
+                else $path end;
+            
+            def format_duration:
+                . as $ms |
+                if $ms < 1000 then "\($ms)ms"
+                elif $ms < 60000 then "\(($ms / 1000 | floor))s"
+                else "\(($ms / 60000 | floor))m \((($ms % 60000) / 1000 | floor))s"
+                end;
+            
+            if .type == "system" and .subtype == "init" then "\u001b[33m[Judge 2]\u001b[0m 🤖 \(.model)"
+            elif .type == "assistant" then
+                if (.message.content[0].text // "") != "" and (.message.content[0].text | length) > 50 then "\u001b[33m[Judge 2]\u001b[0m 💭 \(.message.content[0].text)"
+                else empty end
+            elif .type == "tool_call" then
+                if .subtype == "started" then
+                    if .tool_call.shellToolCall then
+                        ((.tool_call.shellToolCall.args.command // "unknown") | sub("^cd [^ ]+ && "; "") | truncate_path) as $cmd |
+                        if ($cmd | length) > 60 then "\u001b[33m[Judge 2]\u001b[0m 🔧 \($cmd[:57])..."
+                        else "\u001b[33m[Judge 2]\u001b[0m 🔧 \($cmd)" end
+                    elif .tool_call.readToolCall then
+                        ((.tool_call.readToolCall.args.path // "unknown") | truncate_path) as $p |
+                        if ($p | length) > 50 then "\u001b[33m[Judge 2]\u001b[0m 📖 \($p[:47])..."
+                        else "\u001b[33m[Judge 2]\u001b[0m 📖 \($p)" end
+                    else empty end
+                elif .subtype == "completed" then
+                    if .tool_call.shellToolCall.result.success then
+                        if (.tool_call.shellToolCall.result.success.exitCode // 0) != 0 then
+                            "\u001b[33m[Judge 2]\u001b[0m    ❌ Exit: \(.tool_call.shellToolCall.result.success.exitCode)"
+                        else empty end
+                    elif .tool_call.readToolCall.result.success then "\u001b[33m[Judge 2]\u001b[0m    ✅ \(.tool_call.readToolCall.result.success.totalLines // 0) lines"
+                    else empty end
+                else empty end
+            elif .type == "result" then "\u001b[33m[Judge 2]\u001b[0m 🎯 Completed in \((.duration_ms // 0) | format_duration)"
+            else empty end
+            ) catch ("\u001b[33m[Judge 2]\u001b[0m ⚠️  Invalid JSON: " + .)
+        '
+    ) &
+    JUDGE_2_PID=$!
+    
+    # Resume Judge 3 (Grok) - magenta
+    (
+        set +e
+        cursor-agent --print --force --output-format stream-json --stream-partial-output \
+            --resume "$session_3" "$(cat $temp_prompt_3)" 2>&1 | tee "$LOG_FILE_3" | \
+        jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+            try (fromjson |
+            def truncate_path:
+                . as $path |
+                if ($path | type) == "string" then
+                    if ($path | test("/.cursor/worktrees/[^/]+/[^/]+/")) then
+                        $path | sub(".*/\\.cursor/worktrees/[^/]+/[^/]+/"; "~worktrees/")
+                    else
+                        ("^" + ($project_root | gsub("[.^$*+?()\\[\\]{}|]"; "\\\\&")) + "/?") as $pattern |
+                        $path | sub($pattern; "")
+                    end
+                else $path end;
+            
+            def format_duration:
+                . as $ms |
+                if $ms < 1000 then "\($ms)ms"
+                elif $ms < 60000 then "\(($ms / 1000 | floor))s"
+                else "\(($ms / 60000 | floor))m \((($ms % 60000) / 1000 | floor))s"
+                end;
+            
+            if .type == "system" and .subtype == "init" then "\u001b[35m[Judge 3]\u001b[0m 🤖 \(.model)"
+            elif .type == "assistant" then
+                if (.message.content[0].text // "") != "" and (.message.content[0].text | length) > 50 then "\u001b[35m[Judge 3]\u001b[0m 💭 \(.message.content[0].text)"
+                else empty end
+            elif .type == "tool_call" then
+                if .subtype == "started" then
+                    if .tool_call.shellToolCall then
+                        ((.tool_call.shellToolCall.args.command // "unknown") | sub("^cd [^ ]+ && "; "") | truncate_path) as $cmd |
+                        if ($cmd | length) > 60 then "\u001b[35m[Judge 3]\u001b[0m 🔧 \($cmd[:57])..."
+                        else "\u001b[35m[Judge 3]\u001b[0m 🔧 \($cmd)" end
+                    elif .tool_call.readToolCall then
+                        ((.tool_call.readToolCall.args.path // "unknown") | truncate_path) as $p |
+                        if ($p | length) > 50 then "\u001b[35m[Judge 3]\u001b[0m 📖 \($p[:47])..."
+                        else "\u001b[35m[Judge 3]\u001b[0m 📖 \($p)" end
+                    else empty end
+                elif .subtype == "completed" then
+                    if .tool_call.shellToolCall.result.success then
+                        if (.tool_call.shellToolCall.result.success.exitCode // 0) != 0 then
+                            "\u001b[35m[Judge 3]\u001b[0m    ❌ Exit: \(.tool_call.shellToolCall.result.success.exitCode)"
+                        else empty end
+                    elif .tool_call.readToolCall.result.success then "\u001b[35m[Judge 3]\u001b[0m    ✅ \(.tool_call.readToolCall.result.success.totalLines // 0) lines"
+                    else empty end
+                else empty end
+            elif .type == "result" then "\u001b[35m[Judge 3]\u001b[0m 🎯 Completed in \((.duration_ms // 0) | format_duration)"
+            else empty end
+            ) catch ("\u001b[35m[Judge 3]\u001b[0m ⚠️  Invalid JSON: " + .)
+        '
+    ) &
+    JUDGE_3_PID=$!
+    
+    echo "📊 Judge 1 (Sonnet) resumed: PID $JUDGE_1_PID"
+    echo "📊 Judge 2 (Codex) resumed: PID $JUDGE_2_PID"
+    echo "📊 Judge 3 (Grok) resumed: PID $JUDGE_3_PID"
+    echo ""
+    echo "⏳ Waiting for all 3 judges to complete peer review..."
+    echo ""
+    
+    # Wait for all
+    wait $JUDGE_1_PID; JUDGE_1_EXIT=$?
+    wait $JUDGE_2_PID; JUDGE_2_EXIT=$?
+    wait $JUDGE_3_PID; JUDGE_3_EXIT=$?
+    
+    echo ""
+    echo "✅ Judge 1 completed with exit code: $JUDGE_1_EXIT"
+    echo "✅ Judge 2 completed with exit code: $JUDGE_2_EXIT"
+    echo "✅ Judge 3 completed with exit code: $JUDGE_3_EXIT"
+    echo ""
+    
+    print_success "Peer review complete!"
+}
+
 # Orchestrate command - generate orchestrator prompt
 cmd_orchestrate() {
     local subcommand="$1"
@@ -472,7 +731,8 @@ $task_content
 You can execute cube CLI commands by running them in your terminal. Available commands:
 
 - \`cube writers <task-id> <writer-prompt-file>\` - Launch dual writers
-- \`cube panel <task-id> <panel-prompt-file> <type>\` - Launch review panel
+- \`cube panel <task-id> <panel-prompt-file> initial\` - Launch initial review panel (3 new judges)
+- \`cube peer-review <task-id> <peer-review-prompt-file>\` - Resume original 3 judges for peer review
 - \`cube feedback <writer> <task-id> <feedback-file>\` - Send feedback to writer
 - \`cube status\` - Check active agent sessions
 - \`cube sessions\` - List all session IDs
@@ -508,8 +768,9 @@ Based on judge votes, decide:
 
 ### Phase 5: Peer Review
 1. Generate peer review prompt in \`/tmp/peer-review-\${task-id}.md\`
-2. Run: \`cube panel <task-id> /tmp/peer-review-\${task-id}.md peer-review\`
-3. Interpret final votes
+2. Run: \`cube peer-review <task-id> /tmp/peer-review-\${task-id}.md\`
+3. Original 3 judges verify their concerns were addressed
+4. Interpret final votes
 
 ### Phase 6: PR Creation
 1. If approved, create PR:
@@ -608,6 +869,10 @@ main() {
         panel)
             shift
             cmd_panel "$@"
+            ;;
+        peer-review)
+            shift
+            cmd_peer_review "$@"
             ;;
         feedback)
             shift
