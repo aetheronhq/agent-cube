@@ -82,23 +82,31 @@ fi
 
 print_info "Installing from local repository..."
 
-cp "$SCRIPT_DIR/scripts/cube" "$INSTALL_DIR/scripts/cube"
-chmod +x "$INSTALL_DIR/scripts/cube"
+# Check if we're in a git repository
+if [ -d "$SCRIPT_DIR/.git" ]; then
+    print_info "Git repository detected - creating direct symlinks (dev mode)"
+    INSTALL_DIR="$SCRIPT_DIR"
+else
+    print_info "Non-git directory - copying files to $INSTALL_DIR"
+    
+    cp "$SCRIPT_DIR/scripts/cube" "$INSTALL_DIR/scripts/cube"
+    chmod +x "$INSTALL_DIR/scripts/cube"
+    
+    for script in launch-dual-writers.sh launch-judge-panel.sh send-writer-feedback.sh stream-agent.sh; do
+        if [ ! -f "$SCRIPT_DIR/scripts/automation/$script" ]; then
+            print_error "scripts/automation/$script not found"
+            exit 1
+        fi
+        cp "$SCRIPT_DIR/scripts/automation/$script" "$INSTALL_DIR/scripts/automation/$script"
+        chmod +x "$INSTALL_DIR/scripts/automation/$script"
+    done
+    
+    # Copy documentation
+    [ -f "$SCRIPT_DIR/AGENT_CUBE.md" ] && cp "$SCRIPT_DIR/AGENT_CUBE.md" "$INSTALL_DIR/AGENT_CUBE.md"
+    [ -f "$SCRIPT_DIR/AGENT_CUBE_AUTOMATION.md" ] && cp "$SCRIPT_DIR/AGENT_CUBE_AUTOMATION.md" "$INSTALL_DIR/AGENT_CUBE_AUTOMATION.md"
+fi
 
-for script in launch-dual-writers.sh launch-judge-panel.sh send-writer-feedback.sh stream-agent.sh; do
-    if [ ! -f "$SCRIPT_DIR/scripts/automation/$script" ]; then
-        print_error "scripts/automation/$script not found"
-        exit 1
-    fi
-    cp "$SCRIPT_DIR/scripts/automation/$script" "$INSTALL_DIR/scripts/automation/$script"
-    chmod +x "$INSTALL_DIR/scripts/automation/$script"
-done
-
-# Copy documentation
-[ -f "$SCRIPT_DIR/AGENT_CUBE.md" ] && cp "$SCRIPT_DIR/AGENT_CUBE.md" "$INSTALL_DIR/AGENT_CUBE.md"
-[ -f "$SCRIPT_DIR/AGENT_CUBE_AUTOMATION.md" ] && cp "$SCRIPT_DIR/AGENT_CUBE_AUTOMATION.md" "$INSTALL_DIR/AGENT_CUBE_AUTOMATION.md"
-
-print_success "Files installed from local repository"
+print_success "Files installed from: $INSTALL_DIR"
 echo ""
 
 # Create bin directory if it doesn't exist
