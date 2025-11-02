@@ -28,11 +28,13 @@ echo "🎯 Launching Dual Writers for Task: $TASK_ID"
 echo "📄 Prompt: $PROMPT_FILE"
 echo ""
 
-# Create worktrees if they don't exist
-WORKTREE_SONNET="$HOME/.cursor/worktrees/your-project/writer-sonnet"
-WORKTREE_CODEX="$HOME/.cursor/worktrees/your-project/writer-codex"
+# Create worktrees with task-id for uniqueness (allows parallel tasks)
+PROJECT_NAME=$(basename "$PROJECT_ROOT")
+WORKTREE_BASE="$HOME/.cursor/worktrees/$PROJECT_NAME"
+WORKTREE_SONNET="$WORKTREE_BASE/writer-sonnet-$TASK_ID"
+WORKTREE_CODEX="$WORKTREE_BASE/writer-codex-$TASK_ID"
 
-mkdir -p "$HOME/.cursor/worktrees/your-project"
+mkdir -p "$WORKTREE_BASE"
 
 if [ ! -d "$WORKTREE_SONNET" ]; then
   echo "Creating worktree for Writer A (Sonnet)..."

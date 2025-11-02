@@ -5,8 +5,15 @@
 set -e
 
 VERSION="1.0.0"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Resolve symlink to get actual script location
+SCRIPT_SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SCRIPT_SOURCE" ]; do
+  SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+  SCRIPT_SOURCE="$(readlink "$SCRIPT_SOURCE")"
+  [[ $SCRIPT_SOURCE != /* ]] && SCRIPT_SOURCE="$SCRIPT_DIR/$SCRIPT_SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+PROJECT_ROOT="$(pwd)"
 
 # Ensure ~/.local/bin is in PATH for cursor-agent
 export PATH="$HOME/.local/bin:$PATH"
@@ -253,10 +260,12 @@ cmd_feedback() {
         exit 1
     fi
     
-    # Find worktree
-    local worktree="$HOME/.cursor/worktrees/your-project/writer-${writer}"
+    # Find worktree with task-id
+    local project_name=$(basename "$PROJECT_ROOT")
+    local worktree="$HOME/.cursor/worktrees/$project_name/writer-${writer}-${task_id}"
     if [ ! -d "$worktree" ]; then
         print_error "Worktree not found: $worktree"
+        print_info "Expected: writer-${writer}-${task_id}"
         exit 1
     fi
     
@@ -379,10 +388,12 @@ cmd_resume() {
             ;;
     esac
     
-    # Find worktree
-    local worktree="$HOME/.cursor/worktrees/your-project/writer-${writer_name}"
+    # Find worktree with task-id
+    local project_name=$(basename "$PROJECT_ROOT")
+    local worktree="$HOME/.cursor/worktrees/$project_name/writer-${writer_name}-${task_id}"
     if [ ! -d "$worktree" ]; then
         print_error "Worktree not found: $worktree"
+        print_info "Expected: writer-${writer_name}-${task_id}"
         exit 1
     fi
     
