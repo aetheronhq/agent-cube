@@ -67,7 +67,13 @@ fi
       def truncate_path:
         . as $path |
         if ($path | type) == "string" then
-          $path | sub("^\($project_root)/?"; "")
+          # Remove worktree paths - match project-name/worktree-name
+          if ($path | test("/.cursor/worktrees/[^/]+/[^/]+/")) then
+            $path | sub(".*/\\.cursor/worktrees/[^/]+/[^/]+/"; "~worktrees/")
+          # Remove PROJECT_ROOT prefix from paths
+          else
+            $path | sub("^\($project_root)/?"; "")
+          end
         else $path end;
       
       def format_duration:
@@ -130,7 +136,13 @@ WRITER_A_PID=$!
       def truncate_path:
         . as $path |
         if ($path | type) == "string" then
-          $path | sub("^\($project_root)/?"; "")
+          # Remove worktree paths - match project-name/worktree-name
+          if ($path | test("/.cursor/worktrees/[^/]+/[^/]+/")) then
+            $path | sub(".*/\\.cursor/worktrees/[^/]+/[^/]+/"; "~worktrees/")
+          # Remove PROJECT_ROOT prefix from paths
+          else
+            $path | sub("^\($project_root)/?"; "")
+          end
         else $path end;
       
       def format_duration:

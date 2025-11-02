@@ -62,7 +62,13 @@ touch "$LOG_FILE_1" "$LOG_FILE_2" "$LOG_FILE_3"
       def truncate_path:
         . as $path |
         if ($path | type) == "string" then
-          $path | sub("^\($project_root)/?"; "")
+          # Remove worktree paths - match project-name/worktree-name
+          if ($path | test("/.cursor/worktrees/[^/]+/[^/]+/")) then
+            $path | sub(".*/\\.cursor/worktrees/[^/]+/[^/]+/"; "~worktrees/")
+          # Remove PROJECT_ROOT prefix from paths
+          else
+            $path | sub("^\($project_root)/?"; "")
+          end
         else $path end;
       
       def format_duration:
@@ -113,7 +119,13 @@ JUDGE_1_PID=$!
       def truncate_path:
         . as $path |
         if ($path | type) == "string" then
-          $path | sub("^\($project_root)/?"; "")
+          # Remove worktree paths - match project-name/worktree-name
+          if ($path | test("/.cursor/worktrees/[^/]+/[^/]+/")) then
+            $path | sub(".*/\\.cursor/worktrees/[^/]+/[^/]+/"; "~worktrees/")
+          # Remove PROJECT_ROOT prefix from paths
+          else
+            $path | sub("^\($project_root)/?"; "")
+          end
         else $path end;
       
       def format_duration:
@@ -164,7 +176,13 @@ JUDGE_2_PID=$!
       def truncate_path:
         . as $path |
         if ($path | type) == "string" then
-          $path | sub("^\($project_root)/?"; "")
+          # Remove worktree paths - match project-name/worktree-name
+          if ($path | test("/.cursor/worktrees/[^/]+/[^/]+/")) then
+            $path | sub(".*/\\.cursor/worktrees/[^/]+/[^/]+/"; "~worktrees/")
+          # Remove PROJECT_ROOT prefix from paths
+          else
+            $path | sub("^\($project_root)/?"; "")
+          end
         else $path end;
       
       def format_duration:
