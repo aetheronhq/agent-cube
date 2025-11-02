@@ -24,8 +24,13 @@ cursor-agent --print --force --output-format stream-json --stream-partial-output
     def truncate_path:
       . as $path |
       if ($path | type) == "string" then
+        # Remove worktree paths - show only worktree name
+        if ($path | test("/.cursor/worktrees/[^/]+/")) then
+          $path | sub(".*/\\.cursor/worktrees/[^/]+/"; "~worktrees/")
         # Remove PROJECT_ROOT prefix from paths
-        $path | sub("^\($project_root)/?"; "")
+        else
+          $path | sub("^\($project_root)/?"; "")
+        end
       else
         $path
       end;
