@@ -1,6 +1,6 @@
 ## 🤖 The Agent Cube has become sentient!
 
-The Agent Cube has built itself a fully functional CLI tool to orchestrate the complete parallel LLM coding workflow:
+The Agent Cube has built itself a fully functional CLI tool to orchestrate parallel LLM coding workflows:
 
 → **Dual Writers** (2 LLMs) code solutions independently in parallel
 → **Judge Panel** (3 LLMs) reviews and votes for the winner  
@@ -8,7 +8,7 @@ The Agent Cube has built itself a fully functional CLI tool to orchestrate the c
 → **Peer Review** validates the final solution
 → **PR Creation** for human review
 
-**Bonus:** Optional Jira integration - picks up tasks, moves to In Progress, comments, and moves to Review when done
+**Bonus:** Optional Jira MCP use - picks up tasks, moves to In Progress, comments, and moves to Review when done
 
 **Install:**
 ```bash
