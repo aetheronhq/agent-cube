@@ -56,6 +56,22 @@ echo "📄 Prompt: $PROMPT_FILE"
 echo "📋 Review Type: $REVIEW_TYPE"
 echo ""
 
+# Fetch latest changes from writer branches if they exist
+echo "🔄 Fetching latest changes from writer branches..."
+git fetch --all --quiet 2>/dev/null || true
+
+# Check which writer branches exist and show their status
+if git rev-parse --verify "writer-sonnet/$TASK_ID" >/dev/null 2>&1; then
+  SONNET_COMMIT=$(git rev-parse --short "writer-sonnet/$TASK_ID" 2>/dev/null)
+  echo "  📍 writer-sonnet/$TASK_ID: $SONNET_COMMIT"
+fi
+
+if git rev-parse --verify "writer-codex/$TASK_ID" >/dev/null 2>&1; then
+  CODEX_COMMIT=$(git rev-parse --short "writer-codex/$TASK_ID" 2>/dev/null)
+  echo "  📍 writer-codex/$TASK_ID: $CODEX_COMMIT"
+fi
+echo ""
+
 # Create unique log files for each judge BEFORE launching
 TIMESTAMP=$(date +%s)
 LOG_FILE_1="/tmp/judge-1-$TASK_ID-$REVIEW_TYPE-$TIMESTAMP.json"
@@ -65,6 +81,12 @@ LOG_FILE_3="/tmp/judge-3-$TASK_ID-$REVIEW_TYPE-$TIMESTAMP.json"
 # Pre-create log files to avoid race conditions
 touch "$LOG_FILE_1" "$LOG_FILE_2" "$LOG_FILE_3"
 
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "⚖️  JUDGES: Review the latest code from writer branches"
+echo "   Use: git diff main...writer-sonnet/$TASK_ID"
+echo "   Use: git diff main...writer-codex/$TASK_ID"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
 echo "🚀 Starting Judge 1..."
 
 # Judge 1 (Sonnet Thinking) - green

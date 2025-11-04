@@ -580,6 +580,22 @@ cmd_peer_review() {
     print_info "Using initial panel session IDs"
     echo ""
     
+    # Fetch latest changes from writer branches
+    print_info "Fetching latest changes from writer branches..."
+    git fetch --all --quiet 2>/dev/null || true
+    
+    # Show current branch commits
+    if git rev-parse --verify "writer-sonnet/$task_id" >/dev/null 2>&1; then
+        local sonnet_commit=$(git rev-parse --short "writer-sonnet/$task_id" 2>/dev/null)
+        echo -e "  ${GREEN}📍 writer-sonnet/$task_id: $sonnet_commit${NC}"
+    fi
+    
+    if git rev-parse --verify "writer-codex/$task_id" >/dev/null 2>&1; then
+        local codex_commit=$(git rev-parse --short "writer-codex/$task_id" 2>/dev/null)
+        echo -e "  ${BLUE}📍 writer-codex/$task_id: $codex_commit${NC}"
+    fi
+    echo ""
+    
     # Read peer review prompt
     local prompt_content=$(cat "$peer_review_prompt")
     
@@ -595,6 +611,12 @@ cmd_peer_review() {
     trap "rm -f $temp_prompt_1 $temp_prompt_2 $temp_prompt_3" EXIT
     
     print_success "Resuming 3 judges from initial panel"
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "⚖️  JUDGES: Review the latest code from writer branches"
+    echo "   Use: git diff main...writer-sonnet/$task_id"
+    echo "   Use: git diff main...writer-codex/$task_id"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     
     export PROJECT_ROOT

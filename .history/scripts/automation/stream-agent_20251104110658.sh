@@ -1,0 +1,153 @@
+#!/bin/bash
+# stream-agent.sh - Clean real-time agent output with session ID capture
+
+WORKTREE_DIR="$1"
+cd "$WORKTREE_DIR" || exit 1
+shift
+
+export PATH="$HOME/.local/bin:$PATH"
+
+# PROJECT_ROOT should be passed as env var from calling script
+# If not set, try to detect it (look for .git directory)
+if [ -z "$PROJECT_ROOT" ]; then
+  PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+fi
+
+# Optional: SESSION_FILE_PATH for saving session ID immediately
+# Should be passed as env var from calling script (e.g., .agent-sessions/WRITER_A_taskid_SESSION_ID.txt)
+export SESSION_FILE_PATH
+
+# Generate log file path based on worktree
+LOG_FILE="/tmp/agent-$(basename "$WORKTREE_DIR")-$(date +%s).json"
+
+# Background process to watch for session ID and save it immediately
+if [ -n "$SESSION_FILE_PATH" ]; then
+  (
+    while [ ! -f "$LOG_FILE" ]; do sleep 0.1; done
+    SESSION_ID=""
+    while [ -z "$SESSION_ID" ]; do
+      SESSION_ID=$(grep -m 1 '"session_id"' "$LOG_FILE" 2>/dev/null | jq -r '.session_id // ""' 2>/dev/null)
+      [ -z "$SESSION_ID" ] && sleep 0.1
+    done
+    mkdir -p "$(dirname "$SESSION_FILE_PATH")"
+    echo "$SESSION_ID" > "$SESSION_FILE_PATH"
+    echo "# Session started - $(date)" > "$SESSION_FILE_PATH.meta"
+  ) &
+  SESSION_WATCHER_PID=$!
+fi
+
+# Save raw JSON to log file AND pipe to jq for pretty output
+cursor-agent --print --force --output-format stream-json --stream-partial-output --model sonnet-4.5-thinking "$@" 2>&1 | \
+  tee "$LOG_FILE" | \
+  jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+    try (fromjson | 
+    def truncate_path:
+      . as $path |
+      if ($path | type) == "string" then
+        # Remove worktree paths - show only worktree name
+        if ($path | test("/.cursor/worktrees/[^/]+/[^/]+/")) then
+          $path | sub(".*/\\.cursor/worktrees/[^/]+/[^/]+/"; "~worktrees/")
+        # Remove PROJECT_ROOT prefix from paths (escape regex special chars)
+        else
+          ("^" + ($project_root | gsub("[.^$*+?()\\[\\]{}|]"; "\\\\&")) + "/?") as $pattern |
+          $path | sub($pattern; "")
+        end
+      else
+        $path
+      end;
+    
+    def format_duration:
+      . as $ms |
+      if $ms < 1000 then "\($ms)ms"
+      elif $ms < 60000 then "\(($ms / 1000 | floor))s"
+      else "\(($ms / 60000 | floor))m \((($ms % 60000) / 1000 | floor))s"
+      end;
+    
+    if .type == "system" and .subtype == "init" then
+      "🤖 Model: \(.model) | Session: \(.session_id)\n"
+    elif .type == "assistant" then
+      # Only show complete messages (non-delta)
+      if (.message.content[0].text // "") != "" and (.message.content[0].text | length) > 50 then
+        "💭 \(.message.content[0].text)\n"
+      else
+        empty
+      end
+    elif .type == "tool_call" then
+      if .subtype == "started" then
+        if .tool_call.shellToolCall then
+          # Strip repo path from command and truncate long commands
+          (.tool_call.shellToolCall.args.command // "unknown") as $cmd |
+          ($cmd | sub("^cd [^ ]+ && "; "") | truncate_path) as $clean |
+          if ($clean | length) > 60 then
+            "🔧 \($clean[:57])..."
+          else
+            "🔧 \($clean)"
+          end
+        elif .tool_call.writeToolCall then
+          (.tool_call.writeToolCall.args.path // "unknown" | truncate_path) as $p |
+          if ($p | length) > 50 then
+            "📝 \($p[:47])..."
+          else
+            "📝 \($p)"
+          end
+        elif .tool_call.editToolCall then
+          (.tool_call.editToolCall.args.path // "unknown" | truncate_path) as $p |
+          if ($p | length) > 50 then
+            "✏️  \($p[:47])..."
+          else
+            "✏️  \($p)"
+          end
+        elif .tool_call.readToolCall then
+          (.tool_call.readToolCall.args.path // "unknown" | truncate_path) as $p |
+          if ($p | length) > 50 then
+            "📖 \($p[:47])..."
+          else
+            "📖 \($p)"
+          end
+        else
+          "🔧 Tool: \(.tool_call | keys[0])"
+        end
+      elif .subtype == "completed" then
+        if .tool_call.shellToolCall.result.success then
+          if (.tool_call.shellToolCall.result.success.exitCode // 0) != 0 then
+            "   ❌ Exit: \(.tool_call.shellToolCall.result.success.exitCode)"
+          else empty end
+        elif .tool_call.writeToolCall.result.success then
+          "   ✅ \(.tool_call.writeToolCall.result.success.linesCreated // 0) lines"
+        elif .tool_call.editToolCall.result.success then
+          "   ✅ Applied"
+        else
+          "   ✅ Done"
+        end
+      else
+        empty
+      end
+    elif .type == "result" then
+      "\n🎯 Completed in \((.duration_ms // 0) | format_duration)"
+    else
+      empty
+    end
+    ) catch ("⚠️  Invalid JSON: " + .)
+  '
+
+# Clean up session watcher background process if it exists
+if [ -n "$SESSION_WATCHER_PID" ]; then
+  kill $SESSION_WATCHER_PID 2>/dev/null || true
+  wait $SESSION_WATCHER_PID 2>/dev/null || true
+fi
+
+# Extract and display session ID from saved log
+echo ""
+echo "📝 Raw log saved: $LOG_FILE"
+SESSION_ID=$(grep '"session_id"' "$LOG_FILE" | head -1 | jq -r '.session_id // "NOT_FOUND"')
+if [ "$SESSION_ID" != "NOT_FOUND" ]; then
+  echo "🔑 Session ID: $SESSION_ID"
+  if [ -n "$SESSION_FILE_PATH" ]; then
+    echo "💾 Session saved: $SESSION_FILE_PATH"
+  fi
+  echo ""
+  echo "To resume this agent, use:"
+  echo "  cube resume <writer> <task-id> \"<feedback message>\""
+  echo ""
+  echo "Or see: cube status | cube sessions"
+fi
