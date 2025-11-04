@@ -2,12 +2,14 @@
 
 from rich.console import Console
 from rich.text import Text
+import sys
 
 console = Console()
+console_err = Console(stderr=True)
 
 def print_error(message: str) -> None:
     """Print an error message in red."""
-    console.print(f"[bold red]❌ Error: {message}[/bold red]", err=True)
+    console_err.print(f"[bold red]❌ Error: {message}[/bold red]")
 
 def print_success(message: str) -> None:
     """Print a success message in green."""
