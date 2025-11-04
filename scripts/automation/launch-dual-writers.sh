@@ -261,7 +261,56 @@ fi
 echo ""
 echo "🎯 Both writers completed. Session IDs saved to .agent-sessions/"
 echo ""
+
+# Ensure writers committed and pushed their changes
+echo "📤 Ensuring all changes are committed and pushed..."
+echo ""
+
+# Writer A (Sonnet)
+cd "$WORKTREE_SONNET" || exit 1
+if [ -n "$(git status --porcelain)" ]; then
+  echo "💾 Writer A: Committing uncommitted changes..."
+  git add -A
+  git commit -m "Writer A (Sonnet) - Task: $TASK_ID
+
+Auto-commit of remaining changes at end of session." || true
+  echo "📤 Writer A: Pushing to origin..."
+  git push origin "writer-sonnet/$TASK_ID" || echo "⚠️  Warning: Push failed for Writer A"
+else
+  echo "✅ Writer A: All changes already committed"
+  # Still push in case there are unpushed commits
+  if [ -n "$(git log origin/writer-sonnet/$TASK_ID..HEAD 2>/dev/null)" ]; then
+    echo "📤 Writer A: Pushing unpushed commits..."
+    git push origin "writer-sonnet/$TASK_ID" || echo "⚠️  Warning: Push failed for Writer A"
+  fi
+fi
+echo ""
+
+# Writer B (Codex)
+cd "$WORKTREE_CODEX" || exit 1
+if [ -n "$(git status --porcelain)" ]; then
+  echo "💾 Writer B: Committing uncommitted changes..."
+  git add -A
+  git commit -m "Writer B (Codex) - Task: $TASK_ID
+
+Auto-commit of remaining changes at end of session." || true
+  echo "📤 Writer B: Pushing to origin..."
+  git push origin "writer-codex/$TASK_ID" || echo "⚠️  Warning: Push failed for Writer B"
+else
+  echo "✅ Writer B: All changes already committed"
+  # Still push in case there are unpushed commits
+  if [ -n "$(git log origin/writer-codex/$TASK_ID..HEAD 2>/dev/null)" ]; then
+    echo "📤 Writer B: Pushing unpushed commits..."
+    git push origin "writer-codex/$TASK_ID" || echo "⚠️  Warning: Push failed for Writer B"
+  fi
+fi
+echo ""
+
+cd "$PROJECT_ROOT" || exit 1
+
+echo "✅ All changes committed and pushed!"
+echo ""
 echo "Next steps:"
 echo "  1. Review both branches"
-echo "  2. Run: ./scripts/automation/launch-judge-panel.sh $TASK_ID <panel-prompt-file>"
+echo "  2. Run: cube panel $TASK_ID <panel-prompt-file>"
 

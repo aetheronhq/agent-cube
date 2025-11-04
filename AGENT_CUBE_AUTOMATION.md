@@ -496,6 +496,58 @@ cursor-agent --print --force --model sonnet-4.5-thinking \
 
 ---
 
+## 📋 Best Practices for Writer Prompts
+
+When creating prompts for writers, **always** include instructions to commit and push their work:
+
+### Essential Instructions
+
+Add this to every writer prompt:
+
+```markdown
+## Final Steps - CRITICAL
+
+After completing all tasks:
+
+1. **Commit your changes:**
+   ```bash
+   git add -A
+   git commit -m "Task: <task-id> - <brief description>
+   
+   - List of changes
+   - Made by Writer <A/B>"
+   ```
+
+2. **Push to your branch:**
+   ```bash
+   git push origin writer-<model>/<task-id>
+   ```
+
+3. **Verify push succeeded:**
+   ```bash
+   git log origin/writer-<model>/<task-id>..HEAD
+   # Should show no unpushed commits
+   ```
+
+⚠️ **CRITICAL**: The judge panel needs your pushed changes to review!
+```
+
+### Automatic Fallback
+
+The `cube writers` command automatically commits and pushes any remaining changes after writers complete. However:
+
+- **Best practice**: Writers should commit and push themselves
+- **Reason**: Better commit messages and incremental commits
+- **Fallback**: Auto-commit only catches uncommitted work at the end
+
+### Why This Matters
+
+- Judges review from remote branches (via `git fetch`)
+- Uncommitted/unpushed changes won't be reviewed
+- Auto-commit is a safety net, not the primary strategy
+
+---
+
 ## Key Learnings
 
 1. **Always use `sonnet-4.5-thinking`** - Better reasoning, fewer errors
