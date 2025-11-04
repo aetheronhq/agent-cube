@@ -37,7 +37,21 @@ echo "$PROMPT_CONTENT" > "$TEMP_PROMPT_3"
 # Cleanup temp files on exit
 trap "rm -f $TEMP_PROMPT_1 $TEMP_PROMPT_2 $TEMP_PROMPT_3" EXIT
 
-echo "🎯 Launching 3-Judge Panel for Task: $TASK_ID"
+# Check if resume mode
+if [ "$RESUME_MODE" = "true" ]; then
+  echo "🎯 Resuming 3-Judge Panel for Task: $TASK_ID"
+  RESUME_1=$(cat "$PROJECT_ROOT/.agent-sessions/JUDGE_1_${TASK_ID}_${REVIEW_TYPE}_SESSION_ID.txt")
+  RESUME_2=$(cat "$PROJECT_ROOT/.agent-sessions/JUDGE_2_${TASK_ID}_${REVIEW_TYPE}_SESSION_ID.txt")
+  RESUME_3=$(cat "$PROJECT_ROOT/.agent-sessions/JUDGE_3_${TASK_ID}_${REVIEW_TYPE}_SESSION_ID.txt")
+  echo "📄 Session 1: $RESUME_1"
+  echo "📄 Session 2: $RESUME_2"
+  echo "📄 Session 3: $RESUME_3"
+else
+  echo "🎯 Launching 3-Judge Panel for Task: $TASK_ID"
+  RESUME_1=""
+  RESUME_2=""
+  RESUME_3=""
+fi
 echo "📄 Prompt: $PROMPT_FILE"
 echo "📋 Review Type: $REVIEW_TYPE"
 echo ""
@@ -51,13 +65,21 @@ LOG_FILE_3="/tmp/judge-3-$TASK_ID-$REVIEW_TYPE-$TIMESTAMP.json"
 # Pre-create log files to avoid race conditions
 touch "$LOG_FILE_1" "$LOG_FILE_2" "$LOG_FILE_3"
 
+echo "🚀 Starting Judge 1..."
+
 # Judge 1 (Sonnet Thinking) - green
 (
   set +e  # Don't exit subshell on errors
-  cursor-agent --print --force --output-format stream-json --stream-partial-output \
-    --model sonnet-4.5-thinking \
-    "$(cat $TEMP_PROMPT_1)" 2>&1 | tee "$LOG_FILE_1" | \
-    jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+  if [ -n "$RESUME_1" ]; then
+    cursor-agent --print --force --output-format stream-json --stream-partial-output \
+      --model sonnet-4.5-thinking \
+      --resume "$RESUME_1" "$(cat $TEMP_PROMPT_1)" 2>&1 | tee "$LOG_FILE_1"
+  else
+    cursor-agent --print --force --output-format stream-json --stream-partial-output \
+      --model sonnet-4.5-thinking \
+      "$(cat $TEMP_PROMPT_1)" 2>&1 | tee "$LOG_FILE_1"
+  fi
+) | jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
       try (fromjson |
       def truncate_path:
         . as $path |
@@ -105,17 +127,24 @@ touch "$LOG_FILE_1" "$LOG_FILE_2" "$LOG_FILE_3"
       elif .type == "result" then "\u001b[32m[Judge 1]\u001b[0m 🎯 Completed in \((.duration_ms // 0) | format_duration)"
       else empty end
       ) catch ("\u001b[32m[Judge 1]\u001b[0m ⚠️  Invalid JSON: " + .)
-    '
-) &
+    ' &
 JUDGE_1_PID=$!
+echo "✅ Judge 1 launched (PID: $JUDGE_1_PID)"
+echo "🚀 Starting Judge 2..."
 
 # Judge 2 (Codex High) - yellow
 (
   set +e  # Don't exit subshell on errors
-  cursor-agent --print --force --output-format stream-json --stream-partial-output \
-    --model gpt-5-codex-high \
-    "$(cat $TEMP_PROMPT_2)" 2>&1 | tee "$LOG_FILE_2" | \
-    jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+  if [ -n "$RESUME_2" ]; then
+    cursor-agent --print --force --output-format stream-json --stream-partial-output \
+      --model gpt-5-codex-high \
+      --resume "$RESUME_2" "$(cat $TEMP_PROMPT_2)" 2>&1 | tee "$LOG_FILE_2"
+  else
+    cursor-agent --print --force --output-format stream-json --stream-partial-output \
+      --model gpt-5-codex-high \
+      "$(cat $TEMP_PROMPT_2)" 2>&1 | tee "$LOG_FILE_2"
+  fi
+) | jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
       try (fromjson |
       def truncate_path:
         . as $path |
@@ -163,17 +192,24 @@ JUDGE_1_PID=$!
       elif .type == "result" then "\u001b[33m[Judge 2]\u001b[0m 🎯 Completed in \((.duration_ms // 0) | format_duration)"
       else empty end
       ) catch ("\u001b[33m[Judge 2]\u001b[0m ⚠️  Invalid JSON: " + .)
-    '
-) &
+    ' &
 JUDGE_2_PID=$!
+echo "✅ Judge 2 launched (PID: $JUDGE_2_PID)"
+echo "🚀 Starting Judge 3..."
 
 # Judge 3 (Grok) - magenta
 (
   set +e  # Don't exit subshell on errors
-  cursor-agent --print --force --output-format stream-json --stream-partial-output \
-    --model grok \
-    "$(cat $TEMP_PROMPT_3)" 2>&1 | tee "$LOG_FILE_3" | \
-    jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+  if [ -n "$RESUME_3" ]; then
+    cursor-agent --print --force --output-format stream-json --stream-partial-output \
+      --model grok \
+      --resume "$RESUME_3" "$(cat $TEMP_PROMPT_3)" 2>&1 | tee "$LOG_FILE_3"
+  else
+    cursor-agent --print --force --output-format stream-json --stream-partial-output \
+      --model grok \
+      "$(cat $TEMP_PROMPT_3)" 2>&1 | tee "$LOG_FILE_3"
+  fi
+) | jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
       try (fromjson |
       def truncate_path:
         . as $path |
@@ -221,10 +257,11 @@ JUDGE_2_PID=$!
       elif .type == "result" then "\u001b[35m[Judge 3]\u001b[0m 🎯 Completed in \((.duration_ms // 0) | format_duration)"
       else empty end
       ) catch ("\u001b[35m[Judge 3]\u001b[0m ⚠️  Invalid JSON: " + .)
-    '
-) &
+    ' &
 JUDGE_3_PID=$!
-
+echo "✅ Judge 3 launched (PID: $JUDGE_3_PID)"
+echo ""
+echo "📊 All judges launched successfully!"
 echo "📊 Judge 1 (Sonnet): PID $JUDGE_1_PID"
 echo "📊 Judge 2 (Codex): PID $JUDGE_2_PID"
 echo "📊 Judge 3 (Grok): PID $JUDGE_3_PID"

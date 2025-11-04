@@ -18,6 +18,31 @@ PROJECT_ROOT="$(pwd)"
 # Ensure ~/.local/bin is in PATH for cursor-agent
 export PATH="$HOME/.local/bin:$PATH"
 
+# Auto-update cube if running from a git repo on main branch
+auto_update_cube() {
+    local cube_repo_root="$(cd "$SCRIPT_DIR/.." && git rev-parse --show-toplevel 2>/dev/null)"
+    if [ -n "$cube_repo_root" ]; then
+        local current_branch=$(cd "$cube_repo_root" && git rev-parse --abbrev-ref HEAD 2>/dev/null)
+        if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
+            cd "$cube_repo_root" || return
+            git fetch origin "$current_branch" --quiet 2>/dev/null
+            local local_commit=$(git rev-parse HEAD)
+            local remote_commit=$(git rev-parse "origin/$current_branch" 2>/dev/null)
+            
+            if [ -n "$remote_commit" ] && [ "$local_commit" != "$remote_commit" ]; then
+                echo -e "${CYAN}🔄 Updating cube...${NC}"
+                if git pull --quiet origin "$current_branch" 2>/dev/null; then
+                    echo -e "${GREEN}✅ Cube updated successfully${NC}"
+                    echo ""
+                fi
+            fi
+            cd "$PROJECT_ROOT" || return
+        fi
+    fi
+}
+
+auto_update_cube
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -78,18 +103,20 @@ show_help() {
     echo "  cube <command> [options]"
     echo ""
     echo -e "${YELLOW}COMMANDS:${NC}"
-    echo -e "  ${GREEN}writers${NC}    <task-id> <prompt-file>"
+    echo -e "  ${GREEN}writers${NC}    <task-id> <prompt-file> [--resume]"
     echo "             Launch dual writers for a task"
+    echo "             Use --resume to continue existing sessions"
     echo "             Example: cube writers 02-error-handler implementation/phase-02/orchestration/02-error-handler-writer-prompt.md"
     echo ""
-    echo -e "  ${GREEN}panel${NC}      <task-id> <panel-prompt-file> [review-type]"
+    echo -e "  ${GREEN}panel${NC}      <task-id> <panel-prompt-file> [review-type] [--resume]"
     echo "             Launch 3-judge panel for initial solution selection"
     echo "             Review types: initial (default)"
+    echo "             Use --resume to continue existing judge sessions"
     echo "             Example: cube panel 02-error-handler implementation/phase-02/orchestration/02-error-handler-panel-prompt.md"
     echo ""
-    echo -e "  ${GREEN}peer-review${NC} <task-id> <peer-review-prompt-file>"
-    echo "             Resume original 3 judges from initial panel for peer review"
-    echo "             Judges verify their initial concerns were addressed"
+    echo -e "  ${GREEN}peer-review${NC} <task-id> <peer-review-prompt-file> [--fresh]"
+    echo "             Resume original 3 judges from initial panel for peer review (default)"
+    echo "             Use --fresh to launch new judges instead of resuming"
     echo "             Example: cube peer-review 02-error-handler implementation/phase-02/orchestration/02-error-handler-peer-review-prompt.md"
     echo ""
     echo -e "  ${GREEN}feedback${NC}   <writer> <task-id> <feedback-file>"
@@ -194,9 +221,10 @@ install_cube() {
 cmd_writers() {
     local task_id="$1"
     local prompt_file="$2"
+    local resume_flag="$3"
     
     if [ -z "$task_id" ] || [ -z "$prompt_file" ]; then
-        print_error "Usage: cube writers <task-id> <prompt-file>"
+        print_error "Usage: cube writers <task-id> <prompt-file> [--resume]"
         echo "Example: cube writers 02-error-handler implementation/phase-02/orchestration/02-error-handler-writer-prompt.md"
         exit 1
     fi
@@ -208,7 +236,28 @@ cmd_writers() {
     
     check_cursor_agent
     
-    print_info "Launching dual writers for task: $task_id"
+    # Check if --resume flag is used
+    if [ "$resume_flag" = "--resume" ]; then
+        local session_a="$PROJECT_ROOT/.agent-sessions/WRITER_A_${task_id}_SESSION_ID.txt"
+        local session_b="$PROJECT_ROOT/.agent-sessions/WRITER_B_${task_id}_SESSION_ID.txt"
+        
+        if [ ! -f "$session_a" ] || [ ! -f "$session_b" ]; then
+            print_error "Cannot resume: existing sessions not found for task: $task_id"
+            echo ""
+            echo "Session files expected:"
+            echo "  $session_a"
+            echo "  $session_b"
+            echo ""
+            echo "Run without --resume to start new sessions, or use 'cube sessions' to see available sessions"
+            exit 1
+        fi
+        
+        print_info "Resuming dual writers for task: $task_id"
+        export RESUME_MODE="true"
+    else
+        print_info "Launching dual writers for task: $task_id"
+    fi
+    
     exec "$SCRIPT_DIR/automation/launch-dual-writers.sh" "$task_id" "$prompt_file"
 }
 
@@ -216,10 +265,11 @@ cmd_writers() {
 cmd_panel() {
     local task_id="$1"
     local panel_prompt="$2"
-    local review_type="${3:-initial}"
+    local arg3="$3"
+    local arg4="$4"
     
     if [ -z "$task_id" ] || [ -z "$panel_prompt" ]; then
-        print_error "Usage: cube panel <task-id> <panel-prompt-file> [review-type]"
+        print_error "Usage: cube panel <task-id> <panel-prompt-file> [review-type] [--resume]"
         echo "Example: cube panel 02-error-handler implementation/phase-02/orchestration/02-error-handler-panel-prompt.md"
         exit 1
     fi
@@ -229,9 +279,48 @@ cmd_panel() {
         exit 1
     fi
     
+    # Parse arguments - could be review-type and/or --resume in any order
+    local review_type="initial"
+    local resume_flag=""
+    
+    if [ "$arg3" = "--resume" ]; then
+        resume_flag="--resume"
+    elif [ -n "$arg3" ] && [ "$arg3" != "--resume" ]; then
+        review_type="$arg3"
+    fi
+    
+    if [ "$arg4" = "--resume" ]; then
+        resume_flag="--resume"
+    elif [ -n "$arg4" ] && [ "$arg4" != "--resume" ]; then
+        review_type="$arg4"
+    fi
+    
     check_cursor_agent
     
-    print_info "Launching judge panel for task: $task_id (review type: $review_type)"
+    # Check if --resume flag is used
+    if [ "$resume_flag" = "--resume" ]; then
+        local session_1="$PROJECT_ROOT/.agent-sessions/JUDGE_1_${task_id}_${review_type}_SESSION_ID.txt"
+        local session_2="$PROJECT_ROOT/.agent-sessions/JUDGE_2_${task_id}_${review_type}_SESSION_ID.txt"
+        local session_3="$PROJECT_ROOT/.agent-sessions/JUDGE_3_${task_id}_${review_type}_SESSION_ID.txt"
+        
+        if [ ! -f "$session_1" ] || [ ! -f "$session_2" ] || [ ! -f "$session_3" ]; then
+            print_error "Cannot resume: existing judge sessions not found for task: $task_id (review type: $review_type)"
+            echo ""
+            echo "Session files expected:"
+            echo "  $session_1"
+            echo "  $session_2"
+            echo "  $session_3"
+            echo ""
+            echo "Run without --resume to start new sessions, or use 'cube sessions' to see available sessions"
+            exit 1
+        fi
+        
+        print_info "Resuming judge panel for task: $task_id (review type: $review_type)"
+        export RESUME_MODE="true"
+    else
+        print_info "Launching judge panel for task: $task_id (review type: $review_type)"
+    fi
+    
     exec "$SCRIPT_DIR/automation/launch-judge-panel.sh" "$task_id" "$panel_prompt" "$review_type"
 }
 
@@ -301,8 +390,9 @@ cmd_feedback() {
     print_info "Session ID: $session_id"
     print_info "Feedback file: $feedback_file"
     
-    # Export PROJECT_ROOT so stream-agent.sh can strip paths correctly
+    # Export PROJECT_ROOT and SESSION_FILE_PATH so stream-agent.sh can save session immediately
     export PROJECT_ROOT
+    export SESSION_FILE_PATH="$session_file"
     exec "$SCRIPT_DIR/automation/stream-agent.sh" "$worktree" --model "$model" --resume "$session_id" "$feedback_message"
 }
 
@@ -432,8 +522,9 @@ cmd_resume() {
     print_info "Session ID: $session_id"
     print_info "Message: $message"
     
-    # Export PROJECT_ROOT so stream-agent.sh can strip paths correctly
+    # Export PROJECT_ROOT and SESSION_FILE_PATH so stream-agent.sh can save session immediately
     export PROJECT_ROOT
+    export SESSION_FILE_PATH="$session_file"
     exec "$SCRIPT_DIR/automation/stream-agent.sh" "$worktree" --model "$model" --resume "$session_id" "$message"
 }
 
@@ -441,11 +532,12 @@ cmd_resume() {
 cmd_peer_review() {
     local task_id="$1"
     local peer_review_prompt="$2"
+    local fresh_flag="$3"
     
     if [ -z "$task_id" ] || [ -z "$peer_review_prompt" ]; then
         print_error "Task ID and peer review prompt file are required"
         echo ""
-        echo "Usage: cube peer-review <task-id> <peer-review-prompt-file>"
+        echo "Usage: cube peer-review <task-id> <peer-review-prompt-file> [--fresh]"
         echo "Example: cube peer-review 02-error-handler implementation/phase-02/orchestration/02-error-handler-peer-review-prompt.md"
         exit 1
     fi
@@ -457,7 +549,14 @@ cmd_peer_review() {
     
     check_cursor_agent
     
-    # Find initial panel session IDs
+    # Check if --fresh flag is used
+    if [ "$fresh_flag" = "--fresh" ]; then
+        print_info "Launching fresh judge panel for peer review of task: $task_id"
+        export RESUME_MODE=""
+        exec "$SCRIPT_DIR/automation/launch-judge-panel.sh" "$task_id" "$peer_review_prompt" "peer-review"
+    fi
+    
+    # Default: resume original judges from initial panel
     local session_1=$(cat .agent-sessions/JUDGE_1_${task_id}_initial_SESSION_ID.txt 2>/dev/null)
     local session_2=$(cat .agent-sessions/JUDGE_2_${task_id}_initial_SESSION_ID.txt 2>/dev/null)
     local session_3=$(cat .agent-sessions/JUDGE_3_${task_id}_initial_SESSION_ID.txt 2>/dev/null)
@@ -472,6 +571,8 @@ cmd_peer_review() {
         echo "  .agent-sessions/JUDGE_1_${task_id}_initial_SESSION_ID.txt"
         echo "  .agent-sessions/JUDGE_2_${task_id}_initial_SESSION_ID.txt"
         echo "  .agent-sessions/JUDGE_3_${task_id}_initial_SESSION_ID.txt"
+        echo ""
+        echo "Or use --fresh to launch new judges instead"
         exit 1
     fi
     

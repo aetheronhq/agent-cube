@@ -130,21 +130,12 @@ cursor-agent --print --force --output-format stream-json --stream-partial-output
     ) catch ("⚠️  Invalid JSON: " + .)
   '
 
-# Clean up session watcher background process if it exists
-if [ -n "$SESSION_WATCHER_PID" ]; then
-  kill $SESSION_WATCHER_PID 2>/dev/null || true
-  wait $SESSION_WATCHER_PID 2>/dev/null || true
-fi
-
 # Extract and display session ID from saved log
 echo ""
 echo "📝 Raw log saved: $LOG_FILE"
 SESSION_ID=$(grep '"session_id"' "$LOG_FILE" | head -1 | jq -r '.session_id // "NOT_FOUND"')
 if [ "$SESSION_ID" != "NOT_FOUND" ]; then
   echo "🔑 Session ID: $SESSION_ID"
-  if [ -n "$SESSION_FILE_PATH" ]; then
-    echo "💾 Session saved: $SESSION_FILE_PATH"
-  fi
   echo ""
   echo "To resume this agent, use:"
   echo "  cube resume <writer> <task-id> \"<feedback message>\""

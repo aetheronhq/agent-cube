@@ -20,26 +20,10 @@ export SESSION_FILE_PATH
 # Generate log file path based on worktree
 LOG_FILE="/tmp/agent-$(basename "$WORKTREE_DIR")-$(date +%s).json"
 
-# Background process to watch for session ID and save it immediately
-if [ -n "$SESSION_FILE_PATH" ]; then
-  (
-    while [ ! -f "$LOG_FILE" ]; do sleep 0.1; done
-    SESSION_ID=""
-    while [ -z "$SESSION_ID" ]; do
-      SESSION_ID=$(grep -m 1 '"session_id"' "$LOG_FILE" 2>/dev/null | jq -r '.session_id // ""' 2>/dev/null)
-      [ -z "$SESSION_ID" ] && sleep 0.1
-    done
-    mkdir -p "$(dirname "$SESSION_FILE_PATH")"
-    echo "$SESSION_ID" > "$SESSION_FILE_PATH"
-    echo "# Session started - $(date)" > "$SESSION_FILE_PATH.meta"
-  ) &
-  SESSION_WATCHER_PID=$!
-fi
-
 # Save raw JSON to log file AND pipe to jq for pretty output
 cursor-agent --print --force --output-format stream-json --stream-partial-output --model sonnet-4.5-thinking "$@" 2>&1 | \
   tee "$LOG_FILE" | \
-  jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+  jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" --arg session_file "$SESSION_FILE_PATH" '
     try (fromjson | 
     def truncate_path:
       . as $path |
@@ -64,6 +48,10 @@ cursor-agent --print --force --output-format stream-json --stream-partial-output
       end;
     
     if .type == "system" and .subtype == "init" then
+      (if $session_file != "" then
+        (.session_id | @text) as $sid |
+        "echo \($sid) > \($session_file); mkdir -p $(dirname \($session_file)); echo \($sid) > \($session_file); echo \"# Session started - $(date)\" > \($session_file).meta" | @sh | "bash -c \(.)"
+      else empty end) |
       "🤖 Model: \(.model) | Session: \(.session_id)\n"
     elif .type == "assistant" then
       # Only show complete messages (non-delta)
@@ -130,21 +118,12 @@ cursor-agent --print --force --output-format stream-json --stream-partial-output
     ) catch ("⚠️  Invalid JSON: " + .)
   '
 
-# Clean up session watcher background process if it exists
-if [ -n "$SESSION_WATCHER_PID" ]; then
-  kill $SESSION_WATCHER_PID 2>/dev/null || true
-  wait $SESSION_WATCHER_PID 2>/dev/null || true
-fi
-
 # Extract and display session ID from saved log
 echo ""
 echo "📝 Raw log saved: $LOG_FILE"
 SESSION_ID=$(grep '"session_id"' "$LOG_FILE" | head -1 | jq -r '.session_id // "NOT_FOUND"')
 if [ "$SESSION_ID" != "NOT_FOUND" ]; then
   echo "🔑 Session ID: $SESSION_ID"
-  if [ -n "$SESSION_FILE_PATH" ]; then
-    echo "💾 Session saved: $SESSION_FILE_PATH"
-  fi
   echo ""
   echo "To resume this agent, use:"
   echo "  cube resume <writer> <task-id> \"<feedback message>\""

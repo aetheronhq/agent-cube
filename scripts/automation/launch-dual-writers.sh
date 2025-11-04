@@ -24,7 +24,18 @@ fi
 
 PROMPT=$(cat "$PROJECT_ROOT/$PROMPT_FILE")
 
-echo "🎯 Launching Dual Writers for Task: $TASK_ID"
+# Check if resume mode
+if [ "$RESUME_MODE" = "true" ]; then
+  echo "🎯 Resuming Dual Writers for Task: $TASK_ID"
+  RESUME_A=$(cat "$PROJECT_ROOT/.agent-sessions/WRITER_A_${TASK_ID}_SESSION_ID.txt")
+  RESUME_B=$(cat "$PROJECT_ROOT/.agent-sessions/WRITER_B_${TASK_ID}_SESSION_ID.txt")
+  echo "📄 Session A: $RESUME_A"
+  echo "📄 Session B: $RESUME_B"
+else
+  echo "🎯 Launching Dual Writers for Task: $TASK_ID"
+  RESUME_A=""
+  RESUME_B=""
+fi
 echo "📄 Prompt: $PROMPT_FILE"
 echo ""
 
@@ -59,10 +70,16 @@ fi
 # Launch Writer A (Sonnet) - green
 (
   cd "$WORKTREE_SONNET"
-  cursor-agent --print --force --output-format stream-json --stream-partial-output \
-    --model sonnet-4.5-thinking \
-    "$PROMPT" 2>&1 | tee "/tmp/writer-sonnet-$TASK_ID-$(date +%s).json" | \
-    jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+  if [ -n "$RESUME_A" ]; then
+    cursor-agent --print --force --output-format stream-json --stream-partial-output \
+      --model sonnet-4.5-thinking \
+      --resume "$RESUME_A" "$PROMPT" 2>&1 | tee "/tmp/writer-sonnet-$TASK_ID-$(date +%s).json"
+  else
+    cursor-agent --print --force --output-format stream-json --stream-partial-output \
+      --model sonnet-4.5-thinking \
+      "$PROMPT" 2>&1 | tee "/tmp/writer-sonnet-$TASK_ID-$(date +%s).json"
+  fi
+) | jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
       try (fromjson |
       def truncate_path:
         . as $path |
@@ -122,17 +139,22 @@ fi
       elif .type == "result" then "\u001b[32m[Writer A]\u001b[0m 🎯 Completed in \((.duration_ms // 0) | format_duration)"
       else empty end
       ) catch ("\u001b[32m[Writer A]\u001b[0m ⚠️  Invalid JSON: " + .)
-    '
-) &
+    ' &
 WRITER_A_PID=$!
 
 # Launch Writer B (Codex) - blue
 (
   cd "$WORKTREE_CODEX"
-  cursor-agent --print --force --output-format stream-json --stream-partial-output \
-    --model gpt-5-codex-high \
-    "$PROMPT" 2>&1 | tee "/tmp/writer-codex-$TASK_ID-$(date +%s).json" | \
-    jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
+  if [ -n "$RESUME_B" ]; then
+    cursor-agent --print --force --output-format stream-json --stream-partial-output \
+      --model gpt-5-codex-high \
+      --resume "$RESUME_B" "$PROMPT" 2>&1 | tee "/tmp/writer-codex-$TASK_ID-$(date +%s).json"
+  else
+    cursor-agent --print --force --output-format stream-json --stream-partial-output \
+      --model gpt-5-codex-high \
+      "$PROMPT" 2>&1 | tee "/tmp/writer-codex-$TASK_ID-$(date +%s).json"
+  fi
+) | jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
       try (fromjson |
       def truncate_path:
         . as $path |
@@ -192,8 +214,7 @@ WRITER_A_PID=$!
       elif .type == "result" then "\u001b[34m[Writer B]\u001b[0m 🎯 Completed in \((.duration_ms // 0) | format_duration)"
       else empty end
       ) catch ("\u001b[34m[Writer B]\u001b[0m ⚠️  Invalid JSON: " + .)
-    '
-) &
+    ' &
 WRITER_B_PID=$!
 
 echo "📊 Writer A (Sonnet): PID $WRITER_A_PID"
