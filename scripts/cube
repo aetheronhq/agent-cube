@@ -167,7 +167,7 @@ show_help() {
     echo "  cube feedback codex 03-auth-middleware implementation/phase-03/orchestration/03-auth-middleware-synthesis.md"
     echo ""
     echo "  # Launch peer review"
-    echo "  cube panel 03-auth-middleware implementation/phase-03/orchestration/03-auth-middleware-peer-review.md peer-review"
+    echo "  cube peer-review 03-auth-middleware implementation/phase-03/orchestration/03-auth-middleware-peer-review.md"
     echo ""
     echo -e "${YELLOW}DOCUMENTATION:${NC}"
     echo "  See AGENT_CUBE.md and AGENT_CUBE_AUTOMATION.md for full workflow details"
