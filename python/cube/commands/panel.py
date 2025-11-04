@@ -1,0 +1,42 @@
+"""Panel command."""
+
+import asyncio
+from pathlib import Path
+import typer
+
+from ..core.agent import check_cursor_agent
+from ..core.output import print_error
+from ..core.config import PROJECT_ROOT
+from ..automation.judge_panel import launch_judge_panel
+
+def panel_command(
+    task_id: str,
+    panel_prompt_file: str,
+    review_type: str = "initial",
+    resume: bool = False
+) -> None:
+    """Launch 3-judge panel for solution review."""
+    
+    if not check_cursor_agent():
+        print_error("cursor-agent CLI is not installed")
+        print()
+        print("Install cursor-agent:")
+        print("  npm install -g @cursor/cli")
+        print()
+        print("After installation, authenticate with:")
+        print("  cursor-agent login")
+        print()
+        raise typer.Exit(1)
+    
+    prompt_path = PROJECT_ROOT / panel_prompt_file
+    
+    if not prompt_path.exists():
+        print_error(f"Panel prompt file not found: {panel_prompt_file}")
+        raise typer.Exit(1)
+    
+    try:
+        asyncio.run(launch_judge_panel(task_id, prompt_path, review_type, resume))
+    except Exception as e:
+        print_error(f"Failed to launch panel: {e}")
+        raise typer.Exit(1)
+
