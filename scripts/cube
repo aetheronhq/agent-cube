@@ -632,6 +632,7 @@ cmd_peer_review() {
     (
         set +e
         cursor-agent --print --force --output-format stream-json --stream-partial-output \
+            --model sonnet-4.5-thinking \
             --resume "$session_1" "$(cat $temp_prompt_1)" 2>&1 | tee "$LOG_FILE_1" | \
         jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
             try (fromjson |
@@ -687,6 +688,7 @@ cmd_peer_review() {
     (
         set +e
         cursor-agent --print --force --output-format stream-json --stream-partial-output \
+            --model gpt-5-codex-high \
             --resume "$session_2" "$(cat $temp_prompt_2)" 2>&1 | tee "$LOG_FILE_2" | \
         jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
             try (fromjson |
@@ -742,6 +744,7 @@ cmd_peer_review() {
     (
         set +e
         cursor-agent --print --force --output-format stream-json --stream-partial-output \
+            --model grok \
             --resume "$session_3" "$(cat $temp_prompt_3)" 2>&1 | tee "$LOG_FILE_3" | \
         jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
             try (fromjson |
