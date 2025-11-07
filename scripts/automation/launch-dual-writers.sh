@@ -32,7 +32,7 @@ if [ "$RESUME_MODE" = "true" ]; then
   echo "📄 Session A: $RESUME_A"
   echo "📄 Session B: $RESUME_B"
 else
-  echo "🎯 Launching Dual Writers for Task: $TASK_ID"
+echo "🎯 Launching Dual Writers for Task: $TASK_ID"
   RESUME_A=""
   RESUME_B=""
 fi
@@ -41,7 +41,7 @@ echo ""
 
 # Create worktrees with task-id for uniqueness (allows parallel tasks)
 PROJECT_NAME=$(basename "$PROJECT_ROOT")
-WORKTREE_BASE="$HOME/.cursor/worktrees/$PROJECT_NAME"
+WORKTREE_BASE="$HOME/.cube/worktrees/$PROJECT_NAME"
 WORKTREE_SONNET="$WORKTREE_BASE/writer-sonnet-$TASK_ID"
 WORKTREE_CODEX="$WORKTREE_BASE/writer-codex-$TASK_ID"
 
@@ -75,8 +75,8 @@ fi
       --model sonnet-4.5-thinking \
       --resume "$RESUME_A" "$PROMPT" 2>&1 | tee "/tmp/writer-sonnet-$TASK_ID-$(date +%s).json"
   else
-    cursor-agent --print --force --output-format stream-json --stream-partial-output \
-      --model sonnet-4.5-thinking \
+  cursor-agent --print --force --output-format stream-json --stream-partial-output \
+    --model sonnet-4.5-thinking \
       "$PROMPT" 2>&1 | tee "/tmp/writer-sonnet-$TASK_ID-$(date +%s).json"
   fi
 ) | jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '
@@ -150,8 +150,8 @@ WRITER_A_PID=$!
       --model gpt-5-codex-high \
       --resume "$RESUME_B" "$PROMPT" 2>&1 | tee "/tmp/writer-codex-$TASK_ID-$(date +%s).json"
   else
-    cursor-agent --print --force --output-format stream-json --stream-partial-output \
-      --model gpt-5-codex-high \
+  cursor-agent --print --force --output-format stream-json --stream-partial-output \
+    --model gpt-5-codex-high \
       "$PROMPT" 2>&1 | tee "/tmp/writer-codex-$TASK_ID-$(date +%s).json"
   fi
 ) | jq -rR --unbuffered --arg project_root "$PROJECT_ROOT" '

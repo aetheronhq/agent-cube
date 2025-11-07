@@ -1,0 +1,57 @@
+# Agent Cube Configuration
+# Customize models and CLI tools for each persona
+
+version: "1.0.0"
+
+# CLI tool to use for each model
+# gemini CLI: npm install -g @google/gemini-cli
+# Then authenticate: gemini (choose Login with Google)
+cli_tools:
+  sonnet-4.5-thinking: cursor-agent
+  gpt-5-codex-high: cursor-agent
+  grok: cursor-agent
+  gemini-2.5-pro: gemini
+
+# Writer personas
+writers:
+  writer_a:
+    name: "sonnet"
+    model: "sonnet-4.5-thinking"
+    label: "Writer A"
+    color: "green"
+    
+  writer_b:
+    name: "codex"
+    model: "gpt-5-codex-high"
+    label: "Writer B"
+    color: "blue"
+
+# Judge personas
+judges:
+  judge_1:
+    model: "sonnet-4.5-thinking"
+    label: "Judge 1"
+    color: "green"
+    
+  judge_2:
+    model: "gpt-5-codex-high"
+    label: "Judge 2"
+    color: "yellow"
+    
+  judge_3:
+    model: "grok"
+    label: "Judge 3"
+    color: "magenta"
+
+# Paths
+paths:
+  worktree_base: "~/.cube/worktrees"
+  sessions_dir: ".agent-sessions"
+  
+# Behavior
+behavior:
+  auto_commit: true
+  auto_push: true
+  auto_update: true
+  session_recording_at_start: true
+

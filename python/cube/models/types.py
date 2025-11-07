@@ -23,6 +23,7 @@ class JudgeInfo:
     number: int
     model: str
     color: str
+    label: str
     task_id: str
     review_type: str
     session_id: Optional[str] = None

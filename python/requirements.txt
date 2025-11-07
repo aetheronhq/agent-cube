@@ -3,4 +3,5 @@ rich>=13.0.0
 aiofiles>=23.0.0
 gitpython>=3.1.0
 typing-extensions>=4.0.0
+pyyaml>=6.0.0
 

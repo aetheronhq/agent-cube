@@ -364,7 +364,7 @@ cmd_feedback() {
     
     # Find worktree with task-id
     local project_name=$(basename "$PROJECT_ROOT")
-    local worktree="$HOME/.cursor/worktrees/$project_name/writer-${writer}-${task_id}"
+    local worktree="$HOME/.cube/worktrees/$project_name/writer-${writer}-${task_id}"
     if [ ! -d "$worktree" ]; then
         print_error "Worktree not found: $worktree"
         print_info "Expected: writer-${writer}-${task_id}"
@@ -499,7 +499,7 @@ cmd_resume() {
     
     # Find worktree with task-id
     local project_name=$(basename "$PROJECT_ROOT")
-    local worktree="$HOME/.cursor/worktrees/$project_name/writer-${writer_name}-${task_id}"
+    local worktree="$HOME/.cube/worktrees/$project_name/writer-${writer_name}-${task_id}"
     if [ ! -d "$worktree" ]; then
         print_error "Worktree not found: $worktree"
         print_info "Expected: writer-${writer_name}-${task_id}"

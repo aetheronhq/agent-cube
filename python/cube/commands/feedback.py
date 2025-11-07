@@ -8,8 +8,6 @@ from ..core.agent import check_cursor_agent, run_agent
 from ..core.session import load_session
 from ..core.output import print_error, print_info, console
 from ..core.config import PROJECT_ROOT, MODELS, get_worktree_path, WRITER_LETTERS
-from ..automation.stream import parse_and_format_stream
-
 async def send_feedback_async(
     writer: str,
     task_id: str,
@@ -18,8 +16,18 @@ async def send_feedback_async(
     worktree: Path
 ) -> None:
     """Send feedback to a writer asynchronously."""
+    from ..automation.stream import format_stream_message
+    from ..core.user_config import load_config, get_writer_config
+    from ..core.parsers.registry import get_parser
+    
+    wconfig = get_writer_config(f"writer_{'a' if writer == 'sonnet' else 'b'}")
+    model = wconfig.model
+    
+    config = load_config()
+    cli_name = config.cli_tools.get(model, "cursor-agent")
+    parser = get_parser(cli_name)
+    
     feedback_message = feedback_file.read_text()
-    model = MODELS[writer]
     
     stream = run_agent(
         worktree,
@@ -32,11 +40,12 @@ async def send_feedback_async(
     writer_label = f"Writer {WRITER_LETTERS[writer]}"
     color = "green" if writer == "sonnet" else "blue"
     
-    parsed_stream = parse_and_format_stream(stream, writer_label, color)
-    
-    async for formatted, _ in parsed_stream:
-        if formatted:
-            console.print(formatted)
+    async for line in stream:
+        msg = parser.parse(line)
+        if msg:
+            formatted = format_stream_message(msg, writer_label, color)
+            if formatted:
+                console.print(formatted)
 
 def feedback_command(
     writer: str,
@@ -74,12 +83,11 @@ def feedback_command(
         raise typer.Exit(1)
     
     print_info(f"Sending feedback to writer-{writer} for task: {task_id}")
-    print_info(f"Session ID: {session_id}")
-    print_info(f"Feedback file: {feedback_file}")
+    console.print()
+    console.print("[yellow]📋 Resuming session:[/yellow]")
+    console.print(f"  Session ID: [cyan]{session_id}[/cyan]")
+    console.print(f"  Feedback: {feedback_file}")
+    console.print()
     
-    try:
-        asyncio.run(send_feedback_async(writer, task_id, feedback_path, session_id, worktree))
-    except Exception as e:
-        print_error(f"Failed to send feedback: {e}")
-        raise typer.Exit(1)
+    asyncio.run(send_feedback_async(writer, task_id, feedback_path, session_id, worktree))
 

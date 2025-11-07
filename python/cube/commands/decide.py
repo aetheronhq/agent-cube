@@ -1,0 +1,107 @@
+"""Decide command - aggregate judge decisions."""
+
+import json
+import typer
+from pathlib import Path
+
+from ..core.decision_parser import parse_all_decisions, aggregate_decisions, get_decision_file_path
+from ..core.output import print_error, print_success, print_warning, print_info, console
+from ..core.config import PROJECT_ROOT
+from ..core.session import load_session
+
+def decide_command(task_id: str) -> None:
+    """Aggregate judge decisions and determine next action."""
+    
+    console.print(f"[cyan]📊 Analyzing panel decisions for: {task_id}[/cyan]")
+    console.print()
+    
+    decisions = parse_all_decisions(task_id)
+    
+    if not decisions:
+        print_error("No decision files found")
+        console.print()
+        console.print("Expected decision files:")
+        for judge_num in [1, 2, 3]:
+            decision_file = get_decision_file_path(judge_num, task_id)
+            console.print(f"  {decision_file}")
+        console.print()
+        
+        console.print("Missing decisions from:")
+        for judge_num in [1, 2, 3]:
+            decision_file = get_decision_file_path(judge_num, task_id)
+            if not decision_file.exists():
+                session_id = load_session(f"JUDGE_{judge_num}", f"{task_id}_panel")
+                if session_id:
+                    console.print(f"  [yellow]Judge {judge_num}[/yellow] (session: {session_id})")
+                    console.print(f"    Resume: [cyan]cube resume judge-{judge_num} {task_id} \"Write decision file\"[/cyan]")
+                else:
+                    console.print(f"  [red]Judge {judge_num}[/red] (no session)")
+        
+        raise typer.Exit(1)
+    
+    if len(decisions) < 3:
+        missing = [j for j in [1, 2, 3] if not any(d.judge == j for d in decisions)]
+        print_warning(f"Only {len(decisions)}/3 decisions found. Missing: Judge {', '.join(map(str, missing))}")
+        console.print()
+    
+    for d in decisions:
+        color = "green" if d.decision == "APPROVED" else ("yellow" if d.decision == "REQUEST_CHANGES" else "red")
+        console.print(f"[{color}]Judge {d.judge}:[/{color}] {d.decision} → Winner: {d.winner} (A: {d.scores_a}, B: {d.scores_b})")
+    
+    console.print()
+    console.print("━" * 60)
+    
+    result = aggregate_decisions(decisions)
+    
+    if result["consensus"]:
+        print_success(f"Consensus: APPROVED ({result['votes']['approve']}/3)")
+    else:
+        print_warning(f"No consensus: {result['votes']['approve']} approve, {result['votes']['request_changes']} request changes")
+    
+    console.print()
+    console.print(f"[bold]🏆 Winner: Writer {result['winner']}[/bold]")
+    console.print(f"📊 Average Scores: A={result['avg_score_a']}, B={result['avg_score_b']}")
+    console.print()
+    
+    if result["blocker_issues"]:
+        print_warning(f"{len(result['blocker_issues'])} blocker issue(s) found:")
+        for issue in result["blocker_issues"]:
+            console.print(f"  • {issue}")
+        console.print()
+    
+    console.print("━" * 60)
+    console.print()
+    
+    action_color = "green" if result["next_action"] == "MERGE" else "yellow"
+    console.print(f"[bold {action_color}]Next Action: {result['next_action']}[/bold {action_color}]")
+    console.print()
+    
+    if result["next_action"] == "MERGE":
+        winner = result["winner"].lower()
+        winner_name = "sonnet" if winner == "a" else "codex"
+        console.print("Ready to merge!")
+        console.print(f"  git checkout writer-{winner_name}/{task_id}")
+        console.print(f"  git merge --ff-only main  # if clean")
+    
+    elif result["next_action"] == "SYNTHESIS":
+        winner = result["winner"].lower()
+        winner_name = "sonnet" if winner == "a" else "codex"
+        console.print("Synthesis needed (winner has blockers):")
+        console.print(f"  1. Create: .prompts/synthesis-{task_id}.md")
+        console.print(f"  2. Run: cube feedback {winner_name} {task_id} .prompts/synthesis-{task_id}.md")
+        console.print(f"  3. After fixes: cube peer-review {task_id} .prompts/peer-review-{task_id}.md")
+    
+    elif result["next_action"] == "FEEDBACK":
+        console.print("Major changes needed:")
+        console.print(f"  1. Create feedback for both writers")
+        console.print(f"  2. Resume with: cube feedback <writer> {task_id} .prompts/feedback-{task_id}.md")
+    
+    console.print()
+    
+    save_path = PROJECT_ROOT / ".prompts" / "decisions" / f"{task_id}-aggregated.json"
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(save_path, 'w') as f:
+        json.dump(result, f, indent=2, default=str)
+    
+    print_success(f"Aggregated decision saved: {save_path}")
+

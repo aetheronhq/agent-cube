@@ -1,0 +1,249 @@
+Metadata-Version: 2.4
+Name: cube-py
+Version: 1.0.0
+Summary: Agent Cube CLI - Parallel LLM Coding Workflow Orchestrator
+Home-page: https://github.com/aetheronhq/agent-cube
+Author: Aetheron
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: typer>=0.9.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: aiofiles>=23.0.0
+Requires-Dist: gitpython>=3.1.0
+Requires-Dist: typing-extensions>=4.0.0
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# Cube-py - Agent Cube CLI (Python Implementation)
+
+Python implementation of the Agent Cube CLI for orchestrating parallel LLM coding workflows.
+
+## Features
+
+- **Dual Writers**: Launch two LLM agents in parallel to solve the same task
+- **Judge Panel**: 3-judge panel to review and select best solution
+- **Peer Review**: Resume original judges for verification
+- **Session Management**: Track and resume agent sessions
+- **Auto-commit/push**: Automatically commit and push writer changes
+- **Colored Output**: Real-time color-coded progress tracking
+- **Async Execution**: Efficient parallel agent execution with asyncio
+
+## Requirements
+
+- Python 3.10+
+- cursor-agent CLI (install with `npm install -g @cursor/cli`)
+- Git
+
+## Installation
+
+### From Source (Development)
+
+```bash
+cd python
+pip install -e .
+```
+
+This installs `cube-py` as an editable package and adds the `cube-py` command to your PATH.
+
+### Manual Installation
+
+```bash
+cd python
+pip install -r requirements.txt
+```
+
+Then run with:
+
+```bash
+python -m cube.cli <command>
+```
+
+## Usage
+
+### Authenticate cursor-agent
+
+Before using cube-py, authenticate with cursor-agent:
+
+```bash
+cursor-agent login
+```
+
+### Commands
+
+#### Launch Dual Writers
+
+```bash
+cube-py writers <task-id> <prompt-file>
+
+# Resume existing sessions
+cube-py writers <task-id> <prompt-file> --resume
+```
+
+#### Launch Judge Panel
+
+```bash
+cube-py panel <task-id> <panel-prompt-file>
+
+# Resume existing judges
+cube-py panel <task-id> <panel-prompt-file> --resume
+```
+
+#### Send Feedback to Writer
+
+```bash
+cube-py feedback <writer> <task-id> <feedback-file>
+
+# Writer: sonnet or codex
+cube-py feedback codex 02-task feedback.md
+```
+
+#### Resume a Session
+
+```bash
+cube-py resume <writer> <task-id> "<message>"
+
+# Example
+cube-py resume writer-sonnet 02-task "Fix the lint errors"
+```
+
+#### Peer Review
+
+```bash
+# Resume original judges (default)
+cube-py peer-review <task-id> <peer-review-prompt-file>
+
+# Launch fresh judges
+cube-py peer-review <task-id> <peer-review-prompt-file> --fresh
+```
+
+#### Check Status
+
+```bash
+cube-py status <task-id>
+```
+
+#### List Sessions
+
+```bash
+cube-py sessions
+```
+
+#### Generate Orchestrator Prompt
+
+```bash
+cube-py orchestrate prompt <task-file>
+
+# Copy to clipboard
+cube-py orchestrate prompt <task-file> --copy
+```
+
+#### Version
+
+```bash
+cube-py --version
+```
+
+### Help
+
+```bash
+cube-py --help
+cube-py <command> --help
+```
+
+## Workflow Example
+
+```bash
+# 1. Launch dual writers
+cube-py writers my-task prompt.md
+
+# 2. Review both solutions
+cube-py status my-task
+
+# 3. Launch judge panel
+cube-py panel my-task panel-prompt.md
+
+# 4. Send synthesis feedback to winner
+cube-py feedback codex my-task synthesis.md
+
+# 5. Launch peer review
+cube-py peer-review my-task peer-review-prompt.md
+```
+
+## Project Structure
+
+```
+python/
+├── cube/
+│   ├── cli.py              # Main CLI entry point
+│   ├── commands/           # Command implementations
+│   ├── core/              # Core utilities
+│   ├── models/            # Data models
+│   └── automation/        # Parallel execution
+├── requirements.txt
+├── setup.py
+└── README.md
+```
+
+## Differences from Bash Version
+
+The Python version provides identical functionality but with:
+
+- Better code organization and maintainability
+- Type hints for better IDE support
+- Async/await for cleaner parallel execution
+- Rich library for better terminal output
+- Easier to extend and test
+
+## Development
+
+### Running Tests
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests (when implemented)
+pytest
+```
+
+### Code Quality
+
+The Python implementation follows:
+
+- PEP 8 style guidelines
+- Type hints throughout
+- Docstrings for all public functions
+- Async/await for I/O operations
+
+## Compatibility
+
+The Python version is fully compatible with the bash version:
+
+- Same session file format
+- Same git branch/worktree structure
+- Same command-line interface
+- Can be used interchangeably
+
+## License
+
+MIT License - See LICENSE file in repository root.
+
+## Related Documentation
+
+- `../AGENT_CUBE.md` - Core Agent Cube framework
+- `../AGENT_CUBE_AUTOMATION.md` - Automation workflows
+- `../README.md` - Main project README
+

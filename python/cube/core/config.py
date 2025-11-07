@@ -9,7 +9,7 @@ VERSION: Final[str] = "1.0.0"
 PROJECT_ROOT: Path = Path.cwd()
 HOME_DIR: Path = Path.home()
 
-WORKTREE_BASE: Path = HOME_DIR / ".cursor" / "worktrees"
+WORKTREE_BASE: Path = HOME_DIR / ".cube" / "worktrees"
 SESSIONS_DIR_NAME: Final[str] = ".agent-sessions"
 
 def get_sessions_dir() -> Path:

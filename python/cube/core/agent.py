@@ -1,9 +1,10 @@
-"""cursor-agent subprocess management."""
+"""Agent execution with pluggable CLI adapters (ports and adapters pattern)."""
 
-import asyncio
 from pathlib import Path
 from typing import AsyncGenerator, Optional
-import os
+
+from .adapters.registry import get_adapter
+from .user_config import load_config
 
 async def run_agent(
     worktree: Path,
@@ -12,43 +13,22 @@ async def run_agent(
     session_id: Optional[str] = None,
     resume: bool = False
 ) -> AsyncGenerator[str, None]:
-    """Run cursor-agent subprocess and yield JSON output lines."""
+    """Run agent using appropriate CLI adapter.
     
-    env = os.environ.copy()
-    env["PATH"] = f"{Path.home() / '.local' / 'bin'}:{env.get('PATH', '')}"
+    Uses config to determine which CLI tool to use for each model.
+    Supports: cursor-agent, gemini, and future CLI tools via adapters.
+    """
     
-    cmd = [
-        "cursor-agent",
-        "--print",
-        "--force",
-        "--output-format", "stream-json",
-        "--stream-partial-output",
-        "--model", model
-    ]
+    config = load_config()
+    cli_name = config.cli_tools.get(model, "cursor-agent")
     
-    if resume and session_id:
-        cmd.extend(["--resume", session_id])
+    adapter = get_adapter(cli_name)
     
-    cmd.append(prompt)
-    
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-        cwd=worktree,
-        env=env
-    )
-    
-    if process.stdout:
-        async for line in process.stdout:
-            decoded_line = line.decode('utf-8', errors='replace').strip()
-            if decoded_line:
-                yield decoded_line
-    
-    await process.wait()
+    async for line in adapter.run(worktree, model, prompt, session_id, resume):
+        yield line
 
 def check_cursor_agent() -> bool:
-    """Check if cursor-agent is installed and available."""
-    import shutil
-    return shutil.which("cursor-agent") is not None
+    """Check if cursor-agent is installed (legacy function)."""
+    from .adapters.cursor_adapter import CursorAdapter
+    return CursorAdapter().check_installed()
 

@@ -5,7 +5,7 @@ from pathlib import Path
 import typer
 
 from ..core.agent import check_cursor_agent
-from ..core.output import print_error, print_info
+from ..core.output import print_error, print_info, console
 from ..core.config import PROJECT_ROOT
 from ..automation.dual_writers import launch_dual_writers
 
@@ -36,9 +36,5 @@ def writers_command(
         print_error(f"Prompt file not found: {prompt_file}")
         raise typer.Exit(1)
     
-    try:
-        asyncio.run(launch_dual_writers(task_id, prompt_path, resume))
-    except Exception as e:
-        print_error(f"Failed to launch writers: {e}")
-        raise typer.Exit(1)
+    asyncio.run(launch_dual_writers(task_id, prompt_path, resume))
 

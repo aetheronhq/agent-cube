@@ -2,6 +2,7 @@
 
 import typer
 from typing_extensions import Annotated
+import sys
 
 from .core.updater import auto_update
 from .core.config import VERSION
@@ -14,7 +15,9 @@ from .commands.panel import panel_command
 from .commands.feedback import feedback_command
 from .commands.resume import resume_command
 from .commands.peer_review import peer_review_command
-from .commands.orchestrate import orchestrate_prompt_command
+from .commands.orchestrate import orchestrate_prompt_command, orchestrate_auto_command
+from .commands.run import run_command
+from .commands.decide import decide_command
 
 app = typer.Typer(
     name="cube-py",
@@ -44,17 +47,26 @@ def writers(
     resume: Annotated[bool, typer.Option("--resume", help="Resume existing writer sessions")] = False
 ):
     """Launch dual writers for a task."""
-    writers_command(task_id, prompt_file, resume)
+    try:
+        writers_command(task_id, prompt_file, resume)
+    except Exception as e:
+        from .core.output import console_err
+        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        sys.exit(1)
 
 @app.command(name="panel")
 def panel(
     task_id: Annotated[str, typer.Argument(help="Task ID for the panel")],
     panel_prompt_file: Annotated[str, typer.Argument(help="Path to the panel prompt file")],
-    review_type: Annotated[str, typer.Argument(help="Review type (initial, peer-review, etc.)")] = "initial",
     resume: Annotated[bool, typer.Option("--resume", help="Resume existing judge sessions")] = False
 ):
     """Launch 3-judge panel for solution review."""
-    panel_command(task_id, panel_prompt_file, review_type, resume)
+    try:
+        panel_command(task_id, panel_prompt_file, resume)
+    except Exception as e:
+        from .core.output import console_err
+        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        sys.exit(1)
 
 @app.command(name="feedback")
 def feedback(
@@ -97,17 +109,25 @@ def sessions():
 
 @app.command(name="orchestrate")
 def orchestrate(
-    subcommand: Annotated[str, typer.Argument(help="Subcommand (prompt)")],
+    subcommand: Annotated[str, typer.Argument(help="Subcommand (prompt|auto)")],
     task_file: Annotated[str, typer.Argument(help="Path to the task file")],
-    copy: Annotated[bool, typer.Option("--copy", help="Copy to clipboard")] = False
+    copy: Annotated[bool, typer.Option("--copy", help="Copy to clipboard (prompt only)")] = False
 ):
-    """Generate orchestrator prompt for autonomous workflow execution."""
-    if subcommand != "prompt":
+    """Generate orchestrator prompt or run autonomous orchestration."""
+    if subcommand == "prompt":
+        orchestrate_prompt_command(task_file, copy)
+    elif subcommand == "auto":
+        try:
+            import asyncio
+            asyncio.run(orchestrate_auto_command(task_file))
+        except Exception as e:
+            from .core.output import console_err
+            console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+            sys.exit(1)
+    else:
         typer.echo(f"Unknown subcommand: {subcommand}")
-        typer.echo("Usage: cube-py orchestrate prompt <task-file> [--copy]")
+        typer.echo("Usage: cube orchestrate prompt|auto <task-file> [--copy]")
         raise typer.Exit(1)
-    
-    orchestrate_prompt_command(task_file, copy)
 
 @app.command(name="install")
 def install():
@@ -118,6 +138,32 @@ def install():
 def version_cmd():
     """Show version information."""
     version_command()
+
+@app.command(name="run")
+def run(
+    model: Annotated[str, typer.Argument(help="Model to use (gemini-2.5-pro, sonnet-4.5-thinking, etc.)")],
+    prompt: Annotated[str, typer.Argument(help="Prompt text")],
+    directory: Annotated[str, typer.Option("--directory", "-d", help="Directory to run in")] = "."
+):
+    """Run a single agent with specified model."""
+    try:
+        run_command(model, prompt, directory)
+    except Exception as e:
+        from .core.output import console_err
+        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        sys.exit(1)
+
+@app.command(name="decide")
+def decide(
+    task_id: Annotated[str, typer.Argument(help="Task ID to aggregate decisions for")]
+):
+    """Aggregate judge decisions and determine next action."""
+    try:
+        decide_command(task_id)
+    except Exception as e:
+        from .core.output import console_err
+        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        sys.exit(1)
 
 if __name__ == "__main__":
     app()
