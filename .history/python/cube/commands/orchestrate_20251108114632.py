@@ -198,13 +198,8 @@ Begin orchestration now!"""
     
     return prompt
 
-async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None:
-    """Fully autonomous orchestration - runs entire workflow.
-    
-    Args:
-        task_file: Path to task file
-        resume_from: Phase number to resume from (1-10)
-    """
+async def orchestrate_auto_command(task_file: str) -> None:
+    """Fully autonomous orchestration - runs entire workflow."""
     
     task_path = PROJECT_ROOT / task_file
     
@@ -217,36 +212,25 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
     
     console.print(f"[bold cyan]🤖 Agent Cube Autonomous Orchestration[/bold cyan]")
     console.print(f"Task: {task_id}")
-    if resume_from > 1:
-        console.print(f"[yellow]Resuming from Phase {resume_from}[/yellow]")
     console.print()
     
-    writer_prompt_path = prompts_dir / f"writer-prompt-{task_id}.md"
-    panel_prompt_path = prompts_dir / f"panel-prompt-{task_id}.md"
+    console.print("[yellow]═══ Phase 1: Generate Writer Prompt ═══[/yellow]")
+    writer_prompt_path = await generate_writer_prompt(task_id, task_path.read_text(), prompts_dir)
     
-    if resume_from <= 1:
-        console.print("[yellow]═══ Phase 1: Generate Writer Prompt ═══[/yellow]")
-        writer_prompt_path = await generate_writer_prompt(task_id, task_path.read_text(), prompts_dir)
+    console.print()
+    console.print("[yellow]═══ Phase 2: Dual Writers Execute ═══[/yellow]")
+    await launch_dual_writers(task_id, writer_prompt_path, resume_mode=False)
     
-    if resume_from <= 2:
-        console.print()
-        console.print("[yellow]═══ Phase 2: Dual Writers Execute ═══[/yellow]")
-        await launch_dual_writers(task_id, writer_prompt_path, resume_mode=False)
+    console.print()
+    console.print("[yellow]═══ Phase 3: Generate Panel Prompt ═══[/yellow]")
+    panel_prompt_path = await generate_panel_prompt(task_id, prompts_dir)
     
-    if resume_from <= 3:
-        console.print()
-        console.print("[yellow]═══ Phase 3: Generate Panel Prompt ═══[/yellow]")
-        panel_prompt_path = await generate_panel_prompt(task_id, prompts_dir)
+    console.print()
+    console.print("[yellow]═══ Phase 4: Judge Panel Review ═══[/yellow]")
+    await launch_judge_panel(task_id, panel_prompt_path, "panel", resume_mode=False)
     
-    if resume_from <= 4:
-        console.print()
-        console.print("[yellow]═══ Phase 4: Judge Panel Review ═══[/yellow]")
-        await launch_judge_panel(task_id, panel_prompt_path, "panel", resume_mode=False)
-    
-    if resume_from <= 5:
-        console.print()
-        console.print("[yellow]═══ Phase 5: Aggregate Decisions ═══[/yellow]")
-    
+    console.print()
+    console.print("[yellow]═══ Phase 5: Aggregate Decisions ═══[/yellow]")
     result = run_decide_and_get_result(task_id)
     
     if result["next_action"] == "SYNTHESIS":
@@ -537,7 +521,8 @@ Include the worktree location and git commands for reviewing."""
             return
     
     print_info(f"Launching peer review for Winner: Writer {winner_name}")
-    await launch_judge_panel(task_id, peer_review_path, "panel", resume_mode=True)
+    from .peer_review import peer_review_command
+    peer_review_command(task_id, str(peer_review_path), fresh=False)
 
 async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):
     """Address minor issues from peer review."""

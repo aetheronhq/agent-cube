@@ -111,7 +111,8 @@ def sessions():
 def orchestrate(
     subcommand: Annotated[str, typer.Argument(help="Subcommand (prompt|auto)")],
     task_file: Annotated[str, typer.Argument(help="Path to the task file")],
-    copy: Annotated[bool, typer.Option("--copy", help="Copy to clipboard (prompt only)")] = False
+    copy: Annotated[bool, typer.Option("--copy", help="Copy to clipboard (prompt only)")] = False,
+    resume_from: Annotated[int, typer.Option("--resume-from", help="Resume from phase number (1-10)")] = 1
 ):
     """Generate orchestrator prompt or run autonomous orchestration."""
     if subcommand == "prompt":
@@ -119,14 +120,14 @@ def orchestrate(
     elif subcommand == "auto":
         try:
             import asyncio
-            asyncio.run(orchestrate_auto_command(task_file))
+            asyncio.run(orchestrate_auto_command(task_file, resume_from))
         except Exception as e:
             from .core.output import console_err
             console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
             sys.exit(1)
     else:
         typer.echo(f"Unknown subcommand: {subcommand}")
-        typer.echo("Usage: cube orchestrate prompt|auto <task-file> [--copy]")
+        typer.echo("Usage: cube orchestrate prompt|auto <task-file> [--copy] [--resume-from N]")
         raise typer.Exit(1)
 
 @app.command(name="install")
