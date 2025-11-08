@@ -25,11 +25,17 @@ class GeminiParser(ParserAdapter):
             
             if msg_type == "message" and data.get("role") == "assistant":
                 content = data.get("content", "")
-                if content and len(content) > 50:
-                    return StreamMessage(
-                        type="assistant",
-                        content=content
-                    )
+                if content:
+                    if len(content) > 200:
+                        return StreamMessage(
+                            type="assistant",
+                            content=content
+                        )
+                    else:
+                        return StreamMessage(
+                            type="thinking",
+                            content=content
+                        )
             
             if msg_type == "tool_use":
                 tool_name = data.get("tool_name", "")

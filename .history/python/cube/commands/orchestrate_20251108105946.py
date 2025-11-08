@@ -273,26 +273,6 @@ async def orchestrate_auto_command(task_file: str) -> None:
             console.print()
             print_warning("Peer review requested more changes - manual intervention needed")
     
-    elif result["next_action"] == "FEEDBACK":
-        console.print()
-        console.print("[yellow]═══ Phase 6: Generate Feedback for Both Writers ═══[/yellow]")
-        
-        feedback_a_path = prompts_dir / f"feedback-a-{task_id}.md"
-        feedback_b_path = prompts_dir / f"feedback-b-{task_id}.md"
-        
-        console.print("Creating feedback prompts for both writers...")
-        console.print(f"  {feedback_a_path}")
-        console.print(f"  {feedback_b_path}")
-        console.print()
-        print_warning("Manual step: Create feedback for each writer based on judge reviews")
-        console.print()
-        console.print("Then resume:")
-        console.print(f"  cube feedback sonnet {task_id} .prompts/feedback-a-{task_id}.md")
-        console.print(f"  cube feedback codex {task_id} .prompts/feedback-b-{task_id}.md")
-        console.print()
-        console.print("After fixes, re-run panel:")
-        console.print(f"  cube panel {task_id} .prompts/panel-prompt-{task_id}.md")
-    
     elif result["next_action"] == "MERGE":
         console.print()
         console.print("[yellow]═══ Phase 6: Create PR ═══[/yellow]")
