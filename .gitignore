@@ -1,15 +1,5 @@
-# Distribution
-/dist/
-
-# Agent sessions (project-specific)
-.agent-sessions/
-
-# Temp files
+node_modules/
 *.log
-/tmp/
-
-# OS
 .DS_Store
-
-__pycache__/
-*.pyc
+coverage/
+dist/
