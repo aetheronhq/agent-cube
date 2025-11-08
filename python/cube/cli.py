@@ -2,6 +2,7 @@
 
 import typer
 from typing_extensions import Annotated
+from typing import Optional
 import sys
 
 from .core.updater import auto_update
@@ -18,6 +19,7 @@ from .commands.peer_review import peer_review_command
 from .commands.orchestrate import orchestrate_prompt_command, orchestrate_auto_command
 from .commands.run import run_command
 from .commands.decide import decide_command
+from .commands.logs import logs_command
 
 app = typer.Typer(
     name="cube-py",
@@ -165,6 +167,15 @@ def decide(
         from .core.output import console_err
         console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
         sys.exit(1)
+
+@app.command(name="logs")
+def logs(
+    task_id: Annotated[Optional[str], typer.Argument(help="Task ID to view logs for")] = None,
+    agent: Annotated[Optional[str], typer.Argument(help="Specific agent (writer-a, judge-1, etc.)")] = None,
+    tail: Annotated[int, typer.Option("--tail", "-n", help="Number of lines to show")] = 50
+):
+    """View agent log files."""
+    logs_command(task_id, agent, tail)
 
 if __name__ == "__main__":
     app()
