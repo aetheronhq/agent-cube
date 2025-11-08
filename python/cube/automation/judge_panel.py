@@ -44,10 +44,12 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
             from ..core.config import WORKTREE_BASE
             run_dir = WORKTREE_BASE.parent if cli_name == "gemini" else PROJECT_ROOT
             
+            judge_specific_prompt = prompt.replace("{judge_number}", str(judge_info.number))
+            
             stream = run_agent(
                 run_dir,
                 judge_info.model,
-                prompt,
+                judge_specific_prompt,
                 session_id=session_id,
                 resume=resume
             )
@@ -132,7 +134,17 @@ Use read_file or git commands to review the updated code.
 
 """
     else:
-        review_instructions = f"""# Code Review Locations
+        judge_assignments = f"""# YOUR JUDGE NUMBER
+
+You are **Judge {{judge_number}}** in this panel.
+
+When creating your decision file, use judge number {{judge_number}}.
+
+---
+
+"""
+    
+    review_instructions = f"""# Code Review Locations
 
 ## Writer A (Sonnet) Implementation
 
@@ -191,7 +203,7 @@ Use read_file or git commands to view their code.
 
 """
     
-    prompt = review_instructions + base_prompt
+    prompt = judge_assignments + review_instructions + base_prompt
     
     judges: List[JudgeInfo] = []
     for judge_num in [1, 2, 3]:
