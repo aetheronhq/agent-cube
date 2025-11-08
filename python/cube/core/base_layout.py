@@ -108,8 +108,15 @@ class BaseThinkingLayout:
             visible = list(self.buffers[box_id])[-self.lines_per_box:]
             self.layout[box_id].update(self._create_panel(title, visible))
         
-        output_text = "\n".join(list(self.output_lines)[-20:])
-        self.layout["output"].update(output_text)
+        recent_output = list(self.output_lines)
+        output_text = "\n".join(recent_output)
+        
+        from rich.console import Console
+        from rich.text import Text
+        temp_console = Console(width=100, legacy_windows=False)
+        text = Text.from_markup(output_text)
+        
+        self.layout["output"].update(text)
     
     def close(self) -> None:
         """Stop the live display."""
