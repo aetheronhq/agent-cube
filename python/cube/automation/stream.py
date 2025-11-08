@@ -138,6 +138,15 @@ def parse_stream_message(line: str) -> Optional[StreamMessage]:
     except Exception:
         return None
 
+def get_max_path_width() -> int:
+    """Get maximum path width based on terminal width."""
+    import os
+    try:
+        term_width = os.get_terminal_size().columns
+        return max(40, term_width - 30)
+    except:
+        return 80
+
 def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Optional[str]:
     """Format a stream message for display."""
     
@@ -152,33 +161,37 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
             return f"[{color}][{prefix}][/{color}] 💭 {msg.content}"
         return None
     
+    max_width = get_max_path_width()
+    
     if msg.type == "tool_call" and msg.subtype == "started":
         if msg.tool_name == "shell" and msg.tool_args:
-            cmd = msg.tool_args.get("command", "")
-            if len(cmd) > 60:
-                cmd = cmd[:57] + "..."
+            cmd = strip_worktree_path(msg.tool_args.get("command", ""))
+            if len(cmd) > max_width:
+                cmd = cmd[:max_width - 3] + "..."
             return f"[{color}][{prefix}][/{color}] 🔧 {cmd}"
         
         elif msg.tool_name == "write" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", ""))
-            if len(path) > 50:
-                path = path[:47] + "..."
+            if len(path) > max_width:
+                path = path[:max_width - 3] + "..."
             return f"[{color}][{prefix}][/{color}] 📝 {path}"
         
         elif msg.tool_name == "edit" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", ""))
-            if len(path) > 50:
-                path = path[:47] + "..."
+            if len(path) > max_width:
+                path = path[:max_width - 3] + "..."
             return f"[{color}][{prefix}][/{color}] ✏️  {path}"
         
         elif msg.tool_name == "read" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", ""))
-            if len(path) > 50:
-                path = path[:47] + "..."
+            if len(path) > max_width:
+                path = path[:max_width - 3] + "..."
             return f"[{color}][{prefix}][/{color}] 📖 {path}"
         
         elif msg.tool_name == "ls" and msg.tool_args:
-            path = msg.tool_args.get("path", ".")
+            path = strip_worktree_path(msg.tool_args.get("path", "."))
+            if len(path) > max_width:
+                path = path[:max_width - 3] + "..."
             return f"[{color}][{prefix}][/{color}] 📂 ls {path}"
         
         elif msg.tool_name == "todos" and msg.tool_args:
