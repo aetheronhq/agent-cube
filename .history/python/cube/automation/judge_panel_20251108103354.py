@@ -278,9 +278,6 @@ Use read_file or git commands to view their code.
         run_judge(judges[2], prompt, resume_mode)
     )
     
-    from ..core.triple_layout import get_triple_layout
-    get_triple_layout().close()
-    
     console.print()
     console.print("✅ All judges completed")
     console.print()

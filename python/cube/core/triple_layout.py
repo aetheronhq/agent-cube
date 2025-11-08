@@ -1,23 +1,27 @@
-"""Dual writer layout."""
+"""Triple judge layout for panel/peer-review commands."""
 
 from .base_layout import BaseThinkingLayout
 
-class DualWriterLayout:
-    """Fixed layout with Writer A/B thinking boxes + output region."""
+class TripleJudgeLayout:
+    """Fixed layout with 3 judge thinking boxes + output region."""
     
     _instance = None
     
     @classmethod
     def get_instance(cls):
         if cls._instance is None:
-            boxes = {"writer_a": "Writer A", "writer_b": "Writer B"}
-            cls._instance = BaseThinkingLayout(boxes, lines_per_box=3)
+            boxes = {
+                "judge_1": "Judge 1",
+                "judge_2": "Judge 2",
+                "judge_3": "Judge 3"
+            }
+            cls._instance = BaseThinkingLayout(boxes, lines_per_box=2)
         return cls._instance
     
     @classmethod
-    def add_thinking(cls, writer: str, text: str):
-        """Add thinking from Writer A or B."""
-        box_id = "writer_a" if writer == "A" else "writer_b"
+    def add_thinking(cls, judge_num: int, text: str):
+        """Add thinking from a specific judge."""
+        box_id = f"judge_{judge_num}"
         cls.get_instance().add_thinking(box_id, text)
     
     @classmethod
@@ -43,7 +47,8 @@ class DualWriterLayout:
             cls._instance.close()
         cls._instance = None
 
-def get_dual_layout():
-    """Get the dual layout."""
-    return DualWriterLayout
+def get_triple_layout():
+    """Get the triple layout."""
+    return TripleJudgeLayout
+
 

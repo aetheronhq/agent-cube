@@ -41,21 +41,12 @@ async def send_feedback_async(
     writer_label = f"Writer {WRITER_LETTERS[writer]}"
     color = "green" if writer == "sonnet" else "blue"
     
-    layout = SingleAgentLayout(title=writer_label)
-    layout.start()
-    
     async for line in stream:
         msg = parser.parse(line)
         if msg:
             formatted = format_stream_message(msg, writer_label, color)
-            if formatted:
-                if formatted.startswith("[thinking]"):
-                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                    layout.add_thinking(thinking_text)
-                else:
-                    layout.add_output(formatted)
-    
-    layout.close()
+            if formatted and not formatted.startswith("[thinking]"):
+                console.print(formatted)
 
 def feedback_command(
     writer: str,

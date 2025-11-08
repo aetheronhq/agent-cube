@@ -23,8 +23,6 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
     config = load_user_config()
     cli_name = config.cli_tools.get(judge_info.model, "cursor-agent")
     parser = get_parser(cli_name)
-    layout = get_triple_layout()
-    layout.start()
     
     log_file = Path(f"/tmp/judge-{judge_info.number}-{judge_info.task_id}-{judge_info.review_type}-{int(datetime.now().timestamp())}.json")
     
@@ -63,12 +61,8 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                         judge_info.session_id = msg.session_id
                     
                     formatted = format_stream_message(msg, f"Judge {judge_info.number}", judge_info.color)
-                    if formatted:
-                        if formatted.startswith("[thinking]"):
-                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(judge_info.number, thinking_text)
-                        else:
-                            layout.add_output(formatted)
+                    if formatted and not formatted.startswith("[thinking]"):
+                        console.print(formatted)
     finally:
         watcher.stop()
     
@@ -277,9 +271,6 @@ Use read_file or git commands to view their code.
         run_judge(judges[1], prompt, resume_mode),
         run_judge(judges[2], prompt, resume_mode)
     )
-    
-    from ..core.triple_layout import get_triple_layout
-    get_triple_layout().close()
     
     console.print()
     console.print("✅ All judges completed")

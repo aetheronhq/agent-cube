@@ -63,12 +63,8 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                         judge_info.session_id = msg.session_id
                     
                     formatted = format_stream_message(msg, f"Judge {judge_info.number}", judge_info.color)
-                    if formatted:
-                        if formatted.startswith("[thinking]"):
-                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(judge_info.number, thinking_text)
-                        else:
-                            layout.add_output(formatted)
+                    if formatted and not formatted.startswith("[thinking]"):
+                        console.print(formatted)
     finally:
         watcher.stop()
     
@@ -277,9 +273,6 @@ Use read_file or git commands to view their code.
         run_judge(judges[1], prompt, resume_mode),
         run_judge(judges[2], prompt, resume_mode)
     )
-    
-    from ..core.triple_layout import get_triple_layout
-    get_triple_layout().close()
     
     console.print()
     console.print("✅ All judges completed")
