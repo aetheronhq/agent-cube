@@ -44,7 +44,7 @@ async def send_feedback_async(
         msg = parser.parse(line)
         if msg:
             formatted = format_stream_message(msg, writer_label, color)
-            if formatted:
+            if formatted and not formatted.startswith("[thinking]"):
                 console.print(formatted)
 
 def feedback_command(

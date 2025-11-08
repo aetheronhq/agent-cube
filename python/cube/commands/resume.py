@@ -39,7 +39,7 @@ async def resume_async(
         msg = parser.parse(line)
         if msg:
             formatted = format_stream_message(msg, target, color)
-            if formatted:
+            if formatted and not formatted.startswith("[thinking]"):
                 console.print(formatted)
 
 def resume_command(

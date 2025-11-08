@@ -136,8 +136,8 @@ async def launch_dual_writers(
         run_writer(writers[1], prompt, resume_mode)
     )
     
-    from ..core.dual_layout import get_dual_layout
-    get_dual_layout().close()
+    from ..core.dual_teleprompt import get_dual_teleprompt
+    get_dual_teleprompt().close()
     
     console.print()
     console.print("✅ Both writers completed")

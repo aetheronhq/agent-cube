@@ -21,13 +21,12 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     from ..automation.stream import format_stream_message
     from ..core.user_config import load_config as load_user_config
     from ..core.parsers.registry import get_parser
-    from ..core.dual_layout import get_dual_layout
+    from ..core.teleprompt import ThinkingTeleprompter
     
     config = load_user_config()
     cli_name = config.cli_tools.get(writer_info.model, "cursor-agent")
     parser = get_parser(cli_name)
-    layout = get_dual_layout()
-    layout.start()
+    teleprompt = ThinkingTeleprompter(lines=3, width=100, prefix=writer_info.label)
     
     log_file = Path(f"/tmp/writer-{writer_info.name}-{writer_info.task_id}-{int(datetime.now().timestamp())}.json")
     
@@ -64,9 +63,10 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
                     if formatted:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(writer_info.letter, thinking_text)
+                            teleprompt.add_token(thinking_text)
                         else:
-                            layout.add_output(formatted)
+                            teleprompt.close()
+                            console.print(formatted)
     finally:
         watcher.stop()
     
@@ -136,8 +136,8 @@ async def launch_dual_writers(
         run_writer(writers[1], prompt, resume_mode)
     )
     
-    from ..core.dual_layout import get_dual_layout
-    get_dual_layout().close()
+    from ..core.shared_teleprompt import get_shared_teleprompt
+    get_shared_teleprompt().close()
     
     console.print()
     console.print("✅ Both writers completed")

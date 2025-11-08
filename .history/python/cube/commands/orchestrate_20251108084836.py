@@ -290,7 +290,7 @@ Include: context, requirements, steps, constraints, anti-patterns, success crite
     async for line in stream:
         msg = parser.parse(line)
         if msg:
-            formatted = format_stream_message(msg, "Prompter", "cyan")
+            formatted = format_stream_message(msg, "Orchestrator", "cyan")
             if formatted and not formatted.startswith("[thinking]"):
                 console.print(formatted)
         
@@ -321,12 +321,6 @@ Include evaluation criteria, scoring rubric, and decision JSON format."""
     stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
     
     async for line in stream:
-        msg = parser.parse(line)
-        if msg:
-            formatted = format_stream_message(msg, "Prompter", "cyan")
-            if formatted and not formatted.startswith("[thinking]"):
-                console.print(formatted)
-        
         if panel_prompt_path.exists():
             print_success(f"Created: {panel_prompt_path}")
             break
@@ -390,12 +384,6 @@ Be specific about what needs to change!"""
         stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
         
         async for line in stream:
-            msg = parser.parse(line)
-            if msg:
-                formatted = format_stream_message(msg, "Prompter", "cyan")
-                if formatted and not formatted.startswith("[thinking]"):
-                    console.print(formatted)
-            
             if synthesis_path.exists():
                 print_success(f"Created: {synthesis_path}")
                 break
@@ -410,53 +398,12 @@ Be specific about what needs to change!"""
 
 async def run_peer_review(task_id: str, result: dict, prompts_dir: Path):
     """Phase 7: Run peer review."""
-    winner = "sonnet" if result["winner"] == "A" else "codex"
-    winner_name = result["winner"]
-    
     peer_review_path = prompts_dir / f"peer-review-{task_id}.md"
     
     if not peer_review_path.exists():
-        console.print("Generating peer review prompt...")
-        
-        prompt = f"""Generate a peer review prompt for the WINNING writer.
-
-## Context
-
-Task: {task_id}
-Winner: Writer {winner_name} ({winner})
-Branch: writer-{winner}/{task_id}
-
-## Your Task
-
-Create a peer review prompt that tells the 3 judges to:
-1. Review ONLY Writer {winner_name}'s updated implementation
-2. Verify synthesis changes were made correctly
-3. Confirm all blocker issues are resolved
-4. Write decision JSON: `.prompts/decisions/judge-{{{{N}}}}-{task_id}-peer-review.json`
-
-Save to: `.prompts/peer-review-{task_id}.md`
-
-Include the worktree location and git commands for reviewing."""
-        
-        parser = get_parser("cursor-agent")
-        stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
-        
-        async for line in stream:
-            msg = parser.parse(line)
-            if msg:
-                formatted = format_stream_message(msg, "Prompter", "cyan")
-                if formatted and not formatted.startswith("[thinking]"):
-                    console.print(formatted)
-            
-            if peer_review_path.exists():
-                print_success(f"Created: {peer_review_path}")
-                break
-        
-        if not peer_review_path.exists():
-            console.print(f"Create manually: {peer_review_path}")
-            return
+        console.print(f"Create peer review prompt: {peer_review_path}")
+        return
     
-    print_info(f"Launching peer review for Winner: Writer {winner_name}")
     from .peer_review import peer_review_command
     peer_review_command(task_id, str(peer_review_path), fresh=False)
 

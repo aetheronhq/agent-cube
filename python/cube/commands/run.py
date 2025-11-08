@@ -18,8 +18,6 @@ async def run_single_agent(
     worktree: Path
 ) -> None:
     """Run a single agent and stream output."""
-    from ..core.teleprompt import ThinkingTeleprompter
-    
     config = load_config()
     cli_name = config.cli_tools.get(model, "cursor-agent")
     
@@ -31,7 +29,6 @@ async def run_single_agent(
         raise RuntimeError(f"{cli_name} not installed")
     
     parser = get_parser(cli_name)
-    teleprompt = ThinkingTeleprompter(lines=3, width=100)
     
     console.print(f"[cyan]🤖 Running {model} with {cli_name}[/cyan]")
     console.print()
@@ -48,15 +45,9 @@ async def run_single_agent(
         msg = parser.parse(line)
         if msg:
             formatted = format_stream_message(msg, "Agent", "cyan")
-            if formatted:
-                if formatted.startswith("[thinking]"):
-                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                    teleprompt.add_token(thinking_text)
-                else:
-                    teleprompt.close()
-                    console.print(formatted)
+            if formatted and not formatted.startswith("[thinking]"):
+                console.print(formatted)
     
-    teleprompt.close()
     console.print()
     console.print("[green]✅ Completed[/green]")
 

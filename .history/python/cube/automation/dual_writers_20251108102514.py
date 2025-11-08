@@ -64,9 +64,9 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
                     if formatted:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(writer_info.letter, thinking_text)
+                            teleprompt.add_token(writer_info.letter, thinking_text)
                         else:
-                            layout.add_output(formatted)
+                            console.print(formatted)
     finally:
         watcher.stop()
     
@@ -136,8 +136,8 @@ async def launch_dual_writers(
         run_writer(writers[1], prompt, resume_mode)
     )
     
-    from ..core.dual_layout import get_dual_layout
-    get_dual_layout().close()
+    from ..core.dual_teleprompt import get_dual_teleprompt
+    get_dual_teleprompt().close()
     
     console.print()
     console.print("✅ Both writers completed")

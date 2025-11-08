@@ -176,6 +176,14 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
             if len(path) > 50:
                 path = path[:47] + "..."
             return f"[{color}][{prefix}][/{color}] 📖 {path}"
+        
+        elif msg.tool_name == "ls" and msg.tool_args:
+            path = msg.tool_args.get("path", ".")
+            return f"[{color}][{prefix}][/{color}] 📂 ls {path}"
+        
+        elif msg.tool_name == "todos" and msg.tool_args:
+            count = msg.tool_args.get("count", 0)
+            return f"[{color}][{prefix}][/{color}] 📋 {count} todos"
     
     if msg.type == "tool_call" and msg.subtype == "completed":
         if msg.exit_code is not None and msg.exit_code != 0:

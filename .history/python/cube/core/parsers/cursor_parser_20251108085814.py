@@ -52,16 +52,6 @@ class CursorParser(ParserAdapter):
                         msg.tool_name = "write"
                         msg.tool_args = {"path": path}
                         return msg
-                    elif "lsToolCall" in tool_call:
-                        path = tool_call["lsToolCall"].get("args", {}).get("path", ".")
-                        msg.tool_name = "ls"
-                        msg.tool_args = {"path": path}
-                        return msg
-                    elif "updateTodosToolCall" in tool_call:
-                        todos = tool_call["updateTodosToolCall"].get("args", {}).get("todos", [])
-                        msg.tool_name = "todos"
-                        msg.tool_args = {"count": len(todos)}
-                        return msg
                 
                 elif msg.subtype == "completed":
                     if "readToolCall" in tool_call:

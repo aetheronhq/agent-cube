@@ -60,7 +60,7 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                         judge_info.session_id = msg.session_id
                     
                     formatted = format_stream_message(msg, f"Judge {judge_info.number}", judge_info.color)
-                    if formatted:
+                    if formatted and not formatted.startswith("[thinking]"):
                         console.print(formatted)
     finally:
         watcher.stop()
