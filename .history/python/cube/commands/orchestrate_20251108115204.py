@@ -573,13 +573,11 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
     if minor_fixes_path.exists():
         from .feedback import send_feedback_async
         from ..core.session import load_session
-        from ..core.config import WORKTREE_BASE
-        from pathlib import Path
+        from ..core.config import get_worktree_path
         
         session_id = load_session(f"WRITER_{'A' if winner == 'sonnet' else 'B'}", task_id)
         if session_id:
-            project_name = Path(PROJECT_ROOT).name
-            worktree = WORKTREE_BASE / project_name / f"writer-{winner}-{task_id}"
+            worktree = get_worktree_path(task_id, winner)
             await send_feedback_async(winner, task_id, minor_fixes_path, session_id, worktree)
 
 async def create_pr(task_id: str, winner: str):
