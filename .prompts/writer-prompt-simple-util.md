@@ -1,220 +1,383 @@
-# Writer Prompt: String Utility Functions
+# Task: Add String Utility Functions
+
+You are a Writer working on creating a TypeScript string utilities module.
+
+## Model Identification
+
+**Identify your model and create the appropriate branch:**
+
+- If you are **Claude Sonnet 4.5**: Create branch `writer-sonnet/string-utils`
+- If you are **GPT-5 Codex High**: Create branch `writer-codex/string-utils`
+- If you are another model: Create branch `writer-<model-slug>/string-utils`
+
+**Do not coordinate with the other writer.** Work independently.
+
+## 🎯 PRIMARY DIRECTIVE: K.I.S.S (Keep It Simple, Stupid)
+
+**CONTINUOUSLY ASK YOURSELF: "Is this the simplest solution?"**
+
+- **Minimalistic**: Every line of code must earn its keep. No unnecessary abstractions.
+- **Clean**: Readable > clever. Explicit > implicit. Direct > wrapped.
+- **Elegant**: Simple solutions to complex problems. No gold plating.
+- **Question everything**: Pass-through wrapper? Delete it. Duplicate type? Remove it. "For future flexibility"? YAGNI - don't build it.
 
 ## Context
 
-You are participating in a dual-writer workflow where two AI agents independently implement the same task. Your implementation will be compared against another writer's approach, with differences analyzed by a judge panel to select the best solution.
-
-**Your Goal:** Implement a clean, type-safe TypeScript utility module for string manipulation functions.
-
-## Task Overview
-
-Create a simple TypeScript utility module with string helper functions that can be used across the codebase.
+Create a simple TypeScript utility module with common string helper functions. This is a foundational utility that should be type-safe, well-tested, and have zero external dependencies.
 
 ## Requirements
 
-### 1. Create Module File
-- **Path:** `src/utils/string-utils.ts`
-- Implement as a standalone module with no external dependencies
-- Use TypeScript with strict type checking
+### 1. Create Main Utility File
 
-### 2. Implement Three Functions
+**File:** `src/utils/string-utils.ts`
 
-#### Function 1: `capitalize(str: string): string`
-- Capitalize the first letter of a string
-- Leave remaining characters unchanged
-- Handle empty strings gracefully
-- Example: `capitalize("hello")` → `"Hello"`
+Implement exactly 3 functions with these signatures:
 
-#### Function 2: `truncate(str: string, maxLength: number): string`
-- Truncate string to specified maximum length
-- Add ellipsis (`...`) when truncated
-- Ellipsis should count toward max length
-- Handle edge cases (empty string, maxLength ≤ 3)
+```typescript
+/**
+ * Capitalize the first letter of a string
+ * @param str - Input string
+ * @returns String with first letter capitalized
+ */
+export function capitalize(str: string): string
+
+/**
+ * Truncate a string to a maximum length with ellipsis
+ * @param str - Input string
+ * @param maxLength - Maximum length (must be >= 3 for ellipsis)
+ * @returns Truncated string with '...' if truncated
+ */
+export function truncate(str: string, maxLength: number): string
+
+/**
+ * Convert string to URL-safe slug
+ * @param str - Input string
+ * @returns Lowercase slug with hyphens
+ */
+export function slugify(str: string): string
+```
+
+### 2. Implementation Guidelines
+
+**`capitalize(str)`:**
+- Handle empty strings (return empty string)
+- Preserve remaining characters as-is
+- Example: `"hello world"` → `"Hello world"`
+
+**`truncate(str, maxLength)`:**
+- If `str.length <= maxLength`, return unchanged
+- Otherwise, truncate to `maxLength - 3` and append `"..."`
+- Validate `maxLength >= 3` (throw error if not)
 - Example: `truncate("Hello World", 8)` → `"Hello..."`
 
-#### Function 3: `slugify(str: string): string`
-- Convert string to URL-safe slug
+**`slugify(str)`:**
 - Convert to lowercase
-- Replace spaces with hyphens
-- Remove special characters
-- Handle multiple consecutive spaces/hyphens
-- Example: `slugify("Hello World!")` → `"hello-world"`
+- Replace spaces and non-alphanumeric chars with hyphens
+- Collapse multiple hyphens to single hyphen
+- Trim leading/trailing hyphens
+- Example: `"Hello World! 123"` → `"hello-world-123"`
 
 ### 3. Add Comprehensive Tests
-- Create test file: `src/utils/string-utils.test.ts`
-- Test all functions with multiple scenarios
-- Cover edge cases: empty strings, special characters, unicode, etc.
-- Ensure 100% code coverage
-- All tests must pass
+
+**File:** `src/utils/string-utils.test.ts`
+
+Test coverage must include:
+
+**For `capitalize`:**
+- Empty string
+- Single character
+- Already capitalized
+- Lowercase string
+- String with numbers/special chars
+
+**For `truncate`:**
+- String shorter than maxLength
+- String equal to maxLength
+- String longer than maxLength
+- maxLength < 3 (should throw error)
+- Edge cases: maxLength = 3, very long strings
+
+**For `slugify`:**
+- Simple words with spaces
+- Mixed case
+- Special characters
+- Multiple consecutive spaces
+- Leading/trailing spaces
+- Numbers and letters
+- Unicode/emoji handling (basic)
 
 ### 4. Export from Index
-- Update or create `src/utils/index.ts`
-- Re-export all three functions
-- Follow standard barrel export pattern
+
+**File:** `src/utils/index.ts`
+
+Create or update to export all functions:
+
+```typescript
+export { capitalize, truncate, slugify } from './string-utils';
+```
 
 ## Implementation Steps
 
-1. **Setup**: Create `src/utils/` directory if it doesn't exist
-2. **Implement**: Write `string-utils.ts` with all three functions
-3. **Type Safety**: Add proper TypeScript types and JSDoc comments
-4. **Test**: Create comprehensive test suite
-5. **Run Tests**: Execute and verify all tests pass
-6. **Export**: Add barrel export in `index.ts`
-7. **Verify**: Final check of all functionality
-8. **Commit**: Create git commit with your changes
-9. **Push**: Push your implementation to the remote repository
+1. **Create directory structure** (if not exists):
+   ```bash
+   mkdir -p src/utils
+   ```
+
+2. **Implement `src/utils/string-utils.ts`**:
+   - Add JSDoc comments for each function
+   - Implement all 3 functions following guidelines above
+   - Keep implementations simple and readable
+   - Use TypeScript strict mode
+
+3. **Create `src/utils/string-utils.test.ts`**:
+   - Use your project's test framework (Jest, Vitest, etc.)
+   - Write comprehensive test cases for all functions
+   - Organize tests in `describe` blocks per function
+   - Include edge cases and error scenarios
+
+4. **Create/update `src/utils/index.ts`**:
+   - Export all three functions
+   - Keep it minimal (just exports, no logic)
+
+5. **Verify implementation**:
+   - Run TypeScript compiler: `tsc --noEmit`
+   - Run linter: `npm run lint` or `eslint src/utils/`
+   - Run tests: `npm test` or `jest src/utils/`
+   - All checks must pass
+
+6. **Create basic TypeScript config if needed**:
+   - Only if `tsconfig.json` doesn't exist
+   - Minimal config: strict mode, ES2020+ target
 
 ## Constraints
 
-### Must Have
-- ✅ TypeScript with strict mode compliance
-- ✅ No external dependencies (use only native JavaScript)
-- ✅ Pure functions (no side effects)
-- ✅ Input validation for edge cases
-- ✅ All tests passing
-- ✅ Clear, descriptive function and variable names
+### Type Safety
+- **Strict TypeScript**: No `any`, no type assertions unless absolutely necessary
+- **Type all parameters**: Explicit types for all function parameters
+- **Return types**: Explicit return types for all functions
+- **No unsafe casts**: Avoid `as` unless unavoidable
 
-### Must Not Have
-- ❌ External libraries (no lodash, underscore, etc.)
-- ❌ Mutations of input parameters
-- ❌ Console logs or debugging code
-- ❌ Dead code or commented-out code
-- ❌ Type assertions (`as any`)
-- ❌ `@ts-ignore` comments
+### Dependencies
+- **Zero external dependencies** for the utility functions
+- **Only dev dependencies** for testing (Jest/Vitest)
+- Do not install lodash, ramda, or any string utility libraries
 
-## Code Quality Standards
+### Code Style
+- **Simple, direct implementations**: No complex abstractions
+- **Readable over clever**: Clear logic beats one-liners
+- **Consistent naming**: camelCase for functions, clear parameter names
+- **JSDoc comments**: Document purpose, params, returns, and examples
 
-### Readability
-- Code should be self-documenting
-- Minimal comments (only where truly needed)
-- Consistent formatting and naming conventions
-- Logical organization of code
-
-### TypeScript Best Practices
-- Explicit return types on all functions
-- Use const for immutable values
-- Leverage type inference where appropriate
-- No implicit any types
-
-### Testing Standards
-- Descriptive test names that explain what's being tested
-- Arrange-Act-Assert pattern
-- Test both happy path and edge cases
-- Use appropriate matchers (toBe, toEqual, etc.)
+### File Organization
+- **Keep utilities pure**: No side effects, no global state
+- **One purpose per function**: Each function does one thing well
+- **Predictable behavior**: Same input always produces same output
 
 ## Anti-Patterns to Avoid
 
-### ❌ Over-Engineering
+❌ **Over-engineering:**
 ```typescript
-// DON'T: Complex regex when simple logic suffices
-const capitalize = (str: string): string => 
-  str.replace(/^(.)(.*)$/, (_, first, rest) => first.toUpperCase() + rest);
-```
-
-### ❌ Poor Edge Case Handling
-```typescript
-// DON'T: Assume non-empty string
-const capitalize = (str: string): string => 
-  str[0].toUpperCase() + str.slice(1); // Fails on empty string!
-```
-
-### ❌ Type Unsafe Code
-```typescript
-// DON'T: Use any or loose types
-const truncate = (str: any, max: any) => { /* ... */ }
-```
-
-### ❌ Mutation
-```typescript
-// DON'T: Mutate input
-const slugify = (str: string): string => {
-  str = str.toLowerCase(); // Mutating parameter!
-  return str;
+// BAD: Unnecessary abstraction
+class StringTransformer {
+  constructor(private strategy: TransformStrategy) {}
+  transform(str: string): string { ... }
 }
 ```
 
-### ❌ Inadequate Testing
+✅ **Simple and direct:**
 ```typescript
-// DON'T: Test only happy path
-test('capitalize works', () => {
-  expect(capitalize('hello')).toBe('Hello');
-  // Missing: empty string, single char, already capitalized, etc.
-});
+// GOOD: Direct function
+export function capitalize(str: string): string {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+```
+
+❌ **External dependencies:**
+```typescript
+// BAD: Using lodash
+import { capitalize } from 'lodash';
+export { capitalize };
+```
+
+✅ **Self-contained:**
+```typescript
+// GOOD: Implement it yourself
+export function capitalize(str: string): string { ... }
+```
+
+❌ **Complex validation:**
+```typescript
+// BAD: Over-validated
+export function truncate(str: string, maxLength: number): string {
+  if (typeof str !== 'string') throw new TypeError('...');
+  if (typeof maxLength !== 'number') throw new TypeError('...');
+  if (!Number.isInteger(maxLength)) throw new TypeError('...');
+  if (maxLength < 0) throw new RangeError('...');
+  // ... more validation
+}
+```
+
+✅ **Minimal validation:**
+```typescript
+// GOOD: Only essential checks
+export function truncate(str: string, maxLength: number): string {
+  if (maxLength < 3) throw new Error('maxLength must be >= 3');
+  // ... implementation
+}
+```
+
+❌ **Premature optimization:**
+```typescript
+// BAD: Complex regex caching, memoization for simple functions
+const SLUG_REGEX_CACHE = new Map<string, RegExp>();
+```
+
+✅ **Keep it simple:**
+```typescript
+// GOOD: Just implement it directly
+export function slugify(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
 ```
 
 ## Success Criteria
 
-Your implementation will be evaluated on:
+Before committing and pushing, verify:
 
-### ✅ Correctness (30%)
-- All functions work as specified
-- All edge cases handled properly
-- All tests pass
-
-### ✅ Code Quality (30%)
-- Clean, readable code
-- Proper TypeScript usage
-- No code smells or anti-patterns
-- Follows best practices
-
-### ✅ Testing (20%)
-- Comprehensive test coverage
-- Well-written test cases
-- Edge cases covered
-- Clear test descriptions
-
-### ✅ Simplicity (10%)
-- No unnecessary complexity
-- No external dependencies
-- Straightforward logic
-- Maintainable code
-
-### ✅ Completeness (10%)
-- All requirements met
-- Proper file structure
-- Correct exports
-- Clean git history
-
-## Deliverables Checklist
-
-Before finalizing your implementation, verify:
-
-- [ ] `src/utils/string-utils.ts` exists with all 3 functions
-- [ ] All functions have proper TypeScript types
-- [ ] `src/utils/string-utils.test.ts` exists with comprehensive tests
-- [ ] All tests pass (run test suite)
+- [ ] `src/utils/string-utils.ts` created with all 3 functions
+- [ ] `src/utils/string-utils.test.ts` created with comprehensive tests
 - [ ] `src/utils/index.ts` exports all functions
-- [ ] No TypeScript compilation errors
-- [ ] No external dependencies added
-- [ ] Code is clean and readable
-- [ ] Git commit created with descriptive message
-- [ ] Changes pushed to remote repository
+- [ ] All functions have proper TypeScript types (no `any`)
+- [ ] All functions have JSDoc comments
+- [ ] TypeScript compilation passes (`tsc --noEmit`)
+- [ ] Linter passes (no errors)
+- [ ] All tests pass
+- [ ] No external dependencies added (only dev dependencies for testing)
+- [ ] Code is simple, readable, and follows KISS principle
 
-## Final Steps (CRITICAL)
+## Final Steps - ⚠️ CRITICAL ⚠️
 
-**After completing implementation and verifying all tests pass:**
+After completing all tasks and verifying success criteria:
 
-1. **Stage your changes:**
-   ```bash
-   git add src/utils/
-   ```
+### 1. Commit Your Changes
 
-2. **Create a descriptive commit:**
-   ```bash
-   git commit -m "feat: add string utility functions (capitalize, truncate, slugify)"
-   ```
+```bash
+git add src/utils/string-utils.ts
+git add src/utils/string-utils.test.ts
+git add src/utils/index.ts
+# Add any other files you created (tsconfig.json, package.json, etc.)
 
-3. **Push to remote:**
-   ```bash
-   git push
-   ```
+git commit -m "feat: Add string utility functions
 
-**⚠️ IMPORTANT:** The dual-writer workflow requires your implementation to be pushed to the remote repository for comparison. **You MUST commit and push your changes** before completing this task.
+- Implement capitalize, truncate, and slugify functions
+- Add comprehensive test coverage for all functions
+- Export utilities from src/utils/index.ts
+- Zero external dependencies, TypeScript strict mode
 
-## Notes
+Made by Writer [your-model-name]"
+```
 
-- Focus on writing clean, maintainable code rather than clever tricks
-- When in doubt, prioritize simplicity over complexity
-- Your implementation will be compared with another writer's approach
-- The judge panel will evaluate both implementations for quality and correctness
-- Good luck!
+### 2. Push to Your Branch
+
+```bash
+git push origin writer-<model-slug>/string-utils
+```
+
+Replace `<model-slug>` with your model identifier (e.g., `sonnet` or `codex`).
+
+### 3. Verify Push Succeeded
+
+```bash
+git status
+# Should show: "Your branch is up to date with 'origin/writer-<model-slug>/string-utils'"
+
+git log origin/writer-<model-slug>/string-utils..HEAD
+# Should show no unpushed commits (empty output)
+```
+
+### 4. Provide Final Summary
+
+**State clearly in your response:**
+
+- ✅ Branch name: `writer-<model-slug>/string-utils`
+- ✅ Commit hash: `<git log -1 --format=%H>`
+- ✅ Push verified: Confirmed with `git status`
+- ✅ All success criteria met
+
+**Example:**
+```
+Writer sonnet complete for string-utils task.
+Branch: writer-sonnet/string-utils
+Commit: abc123def456...
+Push verified: Branch is up to date with origin
+All tests passing, TypeScript strict mode, zero dependencies
+```
+
+## ⚠️ CRITICAL WARNING ⚠️
+
+**The judge panel needs your pushed changes to review your work!**
+
+If you do not commit and push:
+- Your changes will NOT be reviewed
+- Your work will NOT be considered
+- The panel cannot compare your solution to the other writer's solution
+
+**Do not proceed to the next task until you have confirmed your branch is pushed to origin.**
+
+---
+
+## Testing Commands Reference
+
+Depending on your project setup, use the appropriate commands:
+
+**TypeScript Check:**
+```bash
+tsc --noEmit
+# or
+npx tsc --noEmit
+```
+
+**Run Tests:**
+```bash
+npm test
+# or
+npm run test
+# or
+jest src/utils/
+# or
+npx vitest run
+```
+
+**Linting:**
+```bash
+npm run lint
+# or
+eslint src/utils/
+# or
+npx eslint src/utils/
+```
+
+**If you need to create a basic project setup:**
+```bash
+# Initialize npm if needed
+npm init -y
+
+# Install TypeScript
+npm install --save-dev typescript
+
+# Install test framework (choose one)
+npm install --save-dev jest @types/jest ts-jest
+# or
+npm install --save-dev vitest
+
+# Create basic tsconfig.json
+npx tsc --init --strict --target ES2020 --module ESNext --moduleResolution node
+```
+
+---
+
+Good luck! Remember: **Simple, type-safe, well-tested, zero dependencies.**
