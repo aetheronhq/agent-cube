@@ -250,16 +250,20 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
     result = run_decide_and_get_result(task_id)
     
     if result["next_action"] == "SYNTHESIS":
-        console.print()
-        console.print("[yellow]═══ Phase 6: Synthesis ═══[/yellow]")
-        await run_synthesis(task_id, result, prompts_dir)
+        if resume_from <= 6:
+            console.print()
+            console.print("[yellow]═══ Phase 6: Synthesis ═══[/yellow]")
+            await run_synthesis(task_id, result, prompts_dir)
         
-        console.print()
-        console.print("[yellow]═══ Phase 7: Peer Review ═══[/yellow]")
-        await run_peer_review(task_id, result, prompts_dir)
+        if resume_from <= 7:
+            console.print()
+            console.print("[yellow]═══ Phase 7: Peer Review ═══[/yellow]")
+            await run_peer_review(task_id, result, prompts_dir)
         
-        console.print()
-        console.print("[yellow]═══ Phase 8: Final Decision ═══[/yellow]")
+        if resume_from <= 8:
+            console.print()
+            console.print("[yellow]═══ Phase 8: Final Decision ═══[/yellow]")
+        
         final_result = run_decide_peer_review(task_id)
         
         if final_result["approved"] and not final_result["remaining_issues"]:
