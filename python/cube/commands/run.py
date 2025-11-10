@@ -18,6 +18,8 @@ async def run_single_agent(
     worktree: Path
 ) -> None:
     """Run a single agent and stream output."""
+    from ..core.single_layout import SingleAgentLayout
+    
     config = load_config()
     cli_name = config.cli_tools.get(model, "cursor-agent")
     
@@ -29,9 +31,12 @@ async def run_single_agent(
         raise RuntimeError(f"{cli_name} not installed")
     
     parser = get_parser(cli_name)
+    layout = SingleAgentLayout(title=f"{model}")
     
     console.print(f"[cyan]🤖 Running {model} with {cli_name}[/cyan]")
     console.print()
+    
+    layout.start()
     
     stream = run_agent(
         worktree,
@@ -45,9 +50,14 @@ async def run_single_agent(
         msg = parser.parse(line)
         if msg:
             formatted = format_stream_message(msg, "Agent", "cyan")
-            if formatted and not formatted.startswith("[thinking]"):
-                console.print(formatted)
+            if formatted:
+                if formatted.startswith("[thinking]"):
+                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                    layout.add_thinking(thinking_text)
+                else:
+                    layout.add_output(formatted)
     
+    layout.close()
     console.print()
     console.print("[green]✅ Completed[/green]")
 

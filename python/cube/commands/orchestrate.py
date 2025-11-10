@@ -341,17 +341,27 @@ Create a detailed writer prompt and save to: `.prompts/writer-prompt-{task_id}.m
 Include: context, requirements, steps, constraints, anti-patterns, success criteria.
 **Critical:** Tell writers to commit and push at the end!"""
     
+    from ..core.single_layout import SingleAgentLayout
+    
     parser = get_parser("cursor-agent")
+    layout = SingleAgentLayout(title="Prompter")
+    layout.start()
+    
     stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
     
     async for line in stream:
         msg = parser.parse(line)
         if msg:
             formatted = format_stream_message(msg, "Prompter", "cyan")
-            if formatted and not formatted.startswith("[thinking]"):
-                console.print(formatted)
+            if formatted:
+                if formatted.startswith("[thinking]"):
+                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                    layout.add_thinking(thinking_text)
+                else:
+                    layout.add_output(formatted)
         
         if writer_prompt_path.exists():
+            layout.close()
             print_success(f"Created: {writer_prompt_path}")
             break
     
@@ -374,17 +384,27 @@ Review both writer implementations and create: `.prompts/panel-prompt-{task_id}.
 
 Include evaluation criteria, scoring rubric, and decision JSON format."""
     
+    from ..core.single_layout import SingleAgentLayout
+    
     parser = get_parser("cursor-agent")
+    layout = SingleAgentLayout(title="Prompter")
+    layout.start()
+    
     stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
     
     async for line in stream:
         msg = parser.parse(line)
         if msg:
             formatted = format_stream_message(msg, "Prompter", "cyan")
-            if formatted and not formatted.startswith("[thinking]"):
-                console.print(formatted)
+            if formatted:
+                if formatted.startswith("[thinking]"):
+                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                    layout.add_thinking(thinking_text)
+                else:
+                    layout.add_output(formatted)
         
         if panel_prompt_path.exists():
+            layout.close()
             print_success(f"Created: {panel_prompt_path}")
             break
     
@@ -460,17 +480,27 @@ Save to: `.prompts/synthesis-{task_id}.md`
 
 Be specific about what needs to change!"""
         
+        from ..core.single_layout import SingleAgentLayout
+        
         parser = get_parser("cursor-agent")
+        layout = SingleAgentLayout(title="Prompter")
+        layout.start()
+        
         stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
         
         async for line in stream:
             msg = parser.parse(line)
             if msg:
                 formatted = format_stream_message(msg, "Prompter", "cyan")
-                if formatted and not formatted.startswith("[thinking]"):
-                    console.print(formatted)
+                if formatted:
+                    if formatted.startswith("[thinking]"):
+                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                        layout.add_thinking(thinking_text)
+                    else:
+                        layout.add_output(formatted)
             
             if synthesis_path.exists():
+                layout.close()
                 print_success(f"Created: {synthesis_path}")
                 break
         
@@ -520,17 +550,27 @@ Save to: `.prompts/peer-review-{task_id}.md`
 
 Include the worktree location and git commands for reviewing."""
         
+        from ..core.single_layout import SingleAgentLayout
+        
         parser = get_parser("cursor-agent")
+        layout = SingleAgentLayout(title="Prompter")
+        layout.start()
+        
         stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
         
         async for line in stream:
             msg = parser.parse(line)
             if msg:
                 formatted = format_stream_message(msg, "Prompter", "cyan")
-                if formatted and not formatted.startswith("[thinking]"):
-                    console.print(formatted)
+                if formatted:
+                    if formatted.startswith("[thinking]"):
+                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                        layout.add_thinking(thinking_text)
+                    else:
+                        layout.add_output(formatted)
             
             if peer_review_path.exists():
+                layout.close()
                 print_success(f"Created: {peer_review_path}")
                 break
         
