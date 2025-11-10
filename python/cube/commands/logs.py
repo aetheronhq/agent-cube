@@ -20,7 +20,14 @@ def logs_command(
         cube logs 03-sdk-build judge-2 --tail 100
     """
     
-    log_dir = Path("/tmp")
+    log_dir = Path.home() / ".cube" / "logs"
+    
+    if not log_dir.exists():
+        print_error("No logs directory found")
+        console.print(f"Expected: {log_dir}")
+        console.print()
+        console.print("Logs are created when you run agents")
+        return
     
     if task_id:
         pattern = f"*{task_id}*.json"

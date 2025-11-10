@@ -29,7 +29,11 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     layout = get_dual_layout()
     layout.start()
     
-    log_file = Path(f"/tmp/writer-{writer_info.name}-{writer_info.task_id}-{int(datetime.now().timestamp())}.json")
+    from pathlib import Path
+    logs_dir = Path.home() / ".cube" / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    
+    log_file = logs_dir / f"writer-{writer_info.name}-{writer_info.task_id}-{int(datetime.now().timestamp())}.json"
     
     session_file = get_sessions_dir() / f"WRITER_{writer_info.letter}_{writer_info.task_id}_SESSION_ID.txt"
     metadata = f"Writer {writer_info.letter} ({writer_info.model}) - {writer_info.task_id} - {datetime.now()}"

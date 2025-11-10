@@ -26,7 +26,11 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
     layout = get_triple_layout()
     layout.start()
     
-    log_file = Path(f"/tmp/judge-{judge_info.number}-{judge_info.task_id}-{judge_info.review_type}-{int(datetime.now().timestamp())}.json")
+    from pathlib import Path
+    logs_dir = Path.home() / ".cube" / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    
+    log_file = logs_dir / f"judge-{judge_info.number}-{judge_info.task_id}-{judge_info.review_type}-{int(datetime.now().timestamp())}.json"
     
     session_file = get_sessions_dir() / f"JUDGE_{judge_info.number}_{judge_info.task_id}_{judge_info.review_type}_SESSION_ID.txt"
     metadata = f"Judge {judge_info.number} - {judge_info.task_id} - {judge_info.review_type} - {datetime.now()}"
