@@ -293,20 +293,10 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
         console.print()
         console.print("[yellow]═══ Phase 6: Generate Feedback for Both Writers ═══[/yellow]")
         
-        feedback_a_path = prompts_dir / f"feedback-a-{task_id}.md"
-        feedback_b_path = prompts_dir / f"feedback-b-{task_id}.md"
+        await generate_dual_feedback(task_id, result, prompts_dir)
         
-        console.print("Creating feedback prompts for both writers...")
-        console.print(f"  {feedback_a_path}")
-        console.print(f"  {feedback_b_path}")
         console.print()
-        print_warning("Manual step: Create feedback for each writer based on judge reviews")
-        console.print()
-        console.print("Then resume:")
-        console.print(f"  cube feedback sonnet {task_id} .prompts/feedback-a-{task_id}.md")
-        console.print(f"  cube feedback codex {task_id} .prompts/feedback-b-{task_id}.md")
-        console.print()
-        console.print("After fixes, re-run panel:")
+        print_warning("Both writers need major changes. Re-run panel after they complete:")
         console.print(f"  cube panel {task_id} .prompts/panel-prompt-{task_id}.md")
     
     elif result["next_action"] == "MERGE":
@@ -623,6 +613,103 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
             project_name = Path(PROJECT_ROOT).name
             worktree = WORKTREE_BASE / project_name / f"writer-{winner}-{task_id}"
             await send_feedback_async(winner, task_id, minor_fixes_path, session_id, worktree)
+
+async def generate_dual_feedback(task_id: str, result: dict, prompts_dir: Path):
+    """Generate feedback prompts for both writers."""
+    from ..core.single_layout import SingleAgentLayout
+    
+    feedback_a_path = prompts_dir / f"feedback-a-{task_id}.md"
+    feedback_b_path = prompts_dir / f"feedback-b-{task_id}.md"
+    
+    console.print("Generating feedback for Writer A...")
+    
+    prompt_a = f"""Generate a feedback prompt for Writer A (Sonnet).
+
+## Context
+
+Task: {task_id}
+Both writers need changes based on judge reviews.
+
+Read the judge decision files and create feedback for Writer A addressing their issues.
+
+Save to: `.prompts/feedback-a-{task_id}.md`"""
+    
+    parser = get_parser("cursor-agent")
+    layout = SingleAgentLayout(title="Prompter")
+    layout.start()
+    
+    stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt_a, session_id=None, resume=False)
+    
+    async for line in stream:
+        msg = parser.parse(line)
+        if msg:
+            formatted = format_stream_message(msg, "Prompter", "cyan")
+            if formatted:
+                if formatted.startswith("[thinking]"):
+                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                    layout.add_thinking(thinking_text)
+                else:
+                    layout.add_output(formatted)
+        
+        if feedback_a_path.exists():
+            layout.close()
+            print_success(f"Created: {feedback_a_path}")
+            break
+    
+    console.print()
+    console.print("Generating feedback for Writer B...")
+    
+    prompt_b = f"""Generate a feedback prompt for Writer B (Codex).
+
+## Context
+
+Task: {task_id}
+Both writers need changes based on judge reviews.
+
+Read the judge decision files and create feedback for Writer B addressing their issues.
+
+Save to: `.prompts/feedback-b-{task_id}.md`"""
+    
+    layout2 = SingleAgentLayout(title="Prompter")
+    layout2.start()
+    
+    stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt_b, session_id=None, resume=False)
+    
+    async for line in stream:
+        msg = parser.parse(line)
+        if msg:
+            formatted = format_stream_message(msg, "Prompter", "cyan")
+            if formatted:
+                if formatted.startswith("[thinking]"):
+                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                    layout2.add_thinking(thinking_text)
+                else:
+                    layout2.add_output(formatted)
+        
+        if feedback_b_path.exists():
+            layout2.close()
+            print_success(f"Created: {feedback_b_path}")
+            break
+    
+    if feedback_a_path.exists() and feedback_b_path.exists():
+        console.print()
+        print_info("Sending feedback to both writers...")
+        from .feedback import send_feedback_async
+        from ..core.session import load_session
+        from ..core.config import WORKTREE_BASE
+        
+        session_a = load_session("WRITER_A", task_id)
+        session_b = load_session("WRITER_B", task_id)
+        
+        project_name = Path(PROJECT_ROOT).name
+        worktree_a = WORKTREE_BASE / project_name / f"writer-sonnet-{task_id}"
+        worktree_b = WORKTREE_BASE / project_name / f"writer-codex-{task_id}"
+        
+        if session_a and session_b:
+            await asyncio.gather(
+                send_feedback_async("sonnet", task_id, feedback_a_path, session_a, worktree_a),
+                send_feedback_async("codex", task_id, feedback_b_path, session_b, worktree_b)
+            )
 
 async def create_pr(task_id: str, winner: str):
     """Create PR."""
