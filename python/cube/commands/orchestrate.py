@@ -716,7 +716,7 @@ Both writers need changes based on judge reviews.
     if feedback_a_path.exists() and feedback_b_path.exists():
         console.print()
         print_info("Sending feedback to both writers...")
-        from .feedback import send_feedback_async
+        from ..automation.dual_feedback import send_dual_feedback
         from ..core.session import load_session
         from ..core.config import WORKTREE_BASE
         
@@ -728,9 +728,9 @@ Both writers need changes based on judge reviews.
         worktree_b = WORKTREE_BASE / project_name / f"writer-codex-{task_id}"
         
         if session_a and session_b:
-            await asyncio.gather(
-                send_feedback_async("sonnet", task_id, feedback_a_path, session_a, worktree_a),
-                send_feedback_async("codex", task_id, feedback_b_path, session_b, worktree_b)
+            await send_dual_feedback(
+                task_id, feedback_a_path, feedback_b_path,
+                session_a, session_b, worktree_a, worktree_b
             )
 
 async def create_pr(task_id: str, winner: str):
