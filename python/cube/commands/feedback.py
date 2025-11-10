@@ -73,9 +73,12 @@ def feedback_command(
         raise typer.Exit(1)
     
     feedback_path = PROJECT_ROOT / feedback_file
+    
     if not feedback_path.exists():
-        print_error(f"Feedback file not found: {feedback_file}")
-        raise typer.Exit(1)
+        temp_path = PROJECT_ROOT / ".prompts" / f"temp-feedback-{task_id}.md"
+        temp_path.parent.mkdir(exist_ok=True)
+        temp_path.write_text(feedback_file)
+        feedback_path = temp_path
     
     writer_letter = WRITER_LETTERS[writer]
     session_id = load_session(f"WRITER_{writer_letter}", task_id)

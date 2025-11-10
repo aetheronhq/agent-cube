@@ -23,8 +23,10 @@ def peer_review_command(
     prompt_path = PROJECT_ROOT / peer_review_prompt_file
     
     if not prompt_path.exists():
-        print_error(f"Peer review prompt file not found: {peer_review_prompt_file}")
-        raise typer.Exit(1)
+        temp_path = PROJECT_ROOT / ".prompts" / f"temp-peer-review-{task_id}.md"
+        temp_path.parent.mkdir(exist_ok=True)
+        temp_path.write_text(peer_review_prompt_file)
+        prompt_path = temp_path
     
     if fresh:
         print_info("Launching fresh judge panel for peer review")

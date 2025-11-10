@@ -30,8 +30,10 @@ def panel_command(
     prompt_path = PROJECT_ROOT / panel_prompt_file
     
     if not prompt_path.exists():
-        print_error(f"Panel prompt file not found: {panel_prompt_file}")
-        raise typer.Exit(1)
+        temp_path = PROJECT_ROOT / ".prompts" / f"temp-panel-{task_id}.md"
+        temp_path.parent.mkdir(exist_ok=True)
+        temp_path.write_text(panel_prompt_file)
+        prompt_path = temp_path
     
     asyncio.run(launch_judge_panel(task_id, prompt_path, "panel", resume))
 
