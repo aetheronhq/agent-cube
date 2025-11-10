@@ -484,26 +484,12 @@ def run_decide_peer_review(task_id: str) -> dict:
     console.print(f"[cyan]📊 Checking peer review decisions for: {task_id}[/cyan]")
     console.print()
     
-    from ..core.config import WORKTREE_BASE
+    from ..core.decision_files import find_decision_file
     
     for judge_num in [1, 2, 3]:
-        peer_file = decisions_dir / f"judge-{judge_num}-{task_id}-peer-review.json"
+        peer_file = find_decision_file(judge_num, task_id, "peer-review")
         
-        if not peer_file.exists():
-            fallback_paths = [
-                WORKTREE_BASE.parent / ".prompts" / "decisions" / f"judge-{judge_num}-{task_id}-peer-review.json",
-                Path.home() / ".cube" / ".prompts" / "decisions" / f"judge-{judge_num}-{task_id}-peer-review.json",
-            ]
-            
-            for fallback in fallback_paths:
-                if fallback.exists():
-                    import shutil
-                    peer_file.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy(fallback, peer_file)
-                    console.print(f"[dim]Found Judge {judge_num} peer review at {fallback.name}[/dim]")
-                    break
-        
-        if peer_file.exists():
+        if peer_file and peer_file.exists():
             decisions_found += 1
             with open(peer_file) as f:
                 data = json.load(f)
