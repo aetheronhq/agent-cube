@@ -7,6 +7,7 @@ import sys
 
 from .core.updater import auto_update
 from .core.config import VERSION
+from .core.output import console
 from .commands.version import version_command
 from .commands.status import status_command
 from .commands.sessions import sessions_command
