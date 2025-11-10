@@ -38,6 +38,10 @@ def clean_command(
         
         temp_prompts = list(prompts_dir.glob(f"temp-*{task_id}*.md"))
         to_remove.extend(temp_prompts)
+        
+        state_file = Path.home() / ".cube" / "state" / f"{task_id}.json"
+        if state_file.exists():
+            to_remove.append(state_file)
     
     elif old:
         cutoff = datetime.now() - timedelta(days=7)

@@ -21,6 +21,7 @@ from .commands.run import run_command
 from .commands.decide import decide_command
 from .commands.logs import logs_command
 from .commands.clean import clean_command
+from .commands.orchestrate import extract_task_id_from_file
 
 app = typer.Typer(
     name="cube-py",
@@ -196,12 +197,48 @@ def clean(
 @app.command(name="auto")
 def auto(
     task_file: Annotated[str, typer.Argument(help="Path to the task file")],
-    resume_from: Annotated[int, typer.Option("--resume-from", help="Resume from phase number (1-10)")] = 1
+    resume_from: Annotated[int, typer.Option("--resume-from", help="Resume from phase number (1-10)")] = 1,
+    reset: Annotated[bool, typer.Option("--reset", help="Clear state and start fresh")] = False
 ):
     """Shortcut for: cube orchestrate auto <task-file>"""
+    if reset:
+        from .core.state import clear_state
+        task_id = extract_task_id_from_file(task_file)
+        clear_state(task_id)
+        from .core.output import print_success
+        print_success(f"Cleared state for {task_id}")
+    
     try:
         import asyncio
         asyncio.run(orchestrate_auto_command(task_file, resume_from))
+    except Exception as e:
+        from .core.output import console_err
+        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        sys.exit(1)
+
+@app.command(name="continue")
+def continue_task(
+    task_id: Annotated[str, typer.Argument(help="Task ID to continue")]
+):
+    """Continue autonomous workflow from where it left off."""
+    from .core.state import load_state
+    from .core.output import print_error
+    
+    state = load_state(task_id)
+    if not state:
+        print_error(f"No state found for {task_id}")
+        console.print("Start with: cube auto <task-file>")
+        raise typer.Exit(1)
+    
+    task_file = f"implementation/phase-*/tasks/{task_id}.md"
+    next_phase = state.current_phase + 1 if state.current_phase < 10 else state.current_phase
+    
+    console.print(f"[cyan]Continuing {task_id} from Phase {next_phase}[/cyan]")
+    console.print()
+    
+    try:
+        import asyncio
+        asyncio.run(orchestrate_auto_command(f"**/{task_id}.md", next_phase))
     except Exception as e:
         from .core.output import console_err
         console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")

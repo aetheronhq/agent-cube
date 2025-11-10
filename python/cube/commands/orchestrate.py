@@ -205,6 +205,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
         task_file: Path to task file
         resume_from: Phase number to resume from (1-10)
     """
+    from ..core.state import validate_resume, update_phase, load_state, get_progress
     
     task_path = PROJECT_ROOT / task_file
     
@@ -213,12 +214,23 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
     
     task_id = extract_task_id_from_file(task_file)
     prompts_dir = PROJECT_ROOT / ".prompts"
-    prompts_dir.mkdir(exist_ok=True)
+    prompts_dir.mkdir(parents=True, exist_ok=True)
     
     console.print(f"[bold cyan]🤖 Agent Cube Autonomous Orchestration[/bold cyan]")
     console.print(f"Task: {task_id}")
+    
+    existing_state = load_state(task_id)
+    if existing_state:
+        console.print(f"[dim]Progress: {get_progress(task_id)}[/dim]")
+    
     if resume_from > 1:
+        valid, msg = validate_resume(task_id, resume_from)
+        if not valid:
+            from ..core.output import print_error
+            print_error(msg)
+            raise typer.Exit(1)
         console.print(f"[yellow]Resuming from Phase {resume_from}[/yellow]")
+    
     console.print()
     
     writer_prompt_path = prompts_dir / f"writer-prompt-{task_id}.md"
@@ -227,11 +239,13 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
     if resume_from <= 1:
         console.print("[yellow]═══ Phase 1: Generate Writer Prompt ═══[/yellow]")
         writer_prompt_path = await generate_writer_prompt(task_id, task_path.read_text(), prompts_dir)
+        update_phase(task_id, 1, path="INIT")
     
     if resume_from <= 2:
         console.print()
         console.print("[yellow]═══ Phase 2: Dual Writers Execute ═══[/yellow]")
         await launch_dual_writers(task_id, writer_prompt_path, resume_mode=False)
+        update_phase(task_id, 2, writers_complete=True)
     
     if resume_from <= 3:
         console.print()
@@ -242,11 +256,13 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
         console.print()
         console.print("[yellow]═══ Phase 4: Judge Panel Review ═══[/yellow]")
         await launch_judge_panel(task_id, panel_prompt_path, "panel", resume_mode=False)
+        update_phase(task_id, 4, panel_complete=True)
     
     if resume_from <= 5:
         console.print()
         console.print("[yellow]═══ Phase 5: Aggregate Decisions ═══[/yellow]")
         result = run_decide_and_get_result(task_id)
+        update_phase(task_id, 5, path=result["next_action"], winner=result["winner"], next_action=result["next_action"])
     else:
         import json
         result_file = prompts_dir / "decisions" / f"{task_id}-aggregated.json"
@@ -261,11 +277,13 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
             console.print()
             console.print("[yellow]═══ Phase 6: Synthesis ═══[/yellow]")
             await run_synthesis(task_id, result, prompts_dir)
+            update_phase(task_id, 6, synthesis_complete=True)
         
         if resume_from <= 7:
             console.print()
             console.print("[yellow]═══ Phase 7: Peer Review ═══[/yellow]")
             await run_peer_review(task_id, result, prompts_dir)
+            update_phase(task_id, 7, peer_review_complete=True)
         
         if resume_from <= 8:
             console.print()

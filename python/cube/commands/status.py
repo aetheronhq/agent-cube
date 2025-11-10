@@ -15,8 +15,20 @@ def status_command(task_id: str = None) -> None:
 
 def show_task_status(task_id: str):
     """Show detailed status for a specific task."""
+    from ..core.state import load_state, get_progress
+    
     console.print(f"[cyan]📊 Status for Task: {task_id}[/cyan]")
     console.print()
+    
+    state = load_state(task_id)
+    if state:
+        console.print(f"[green]Progress:[/green] {get_progress(task_id)}")
+        console.print(f"[green]Completed phases:[/green] {', '.join(map(str, state.completed_phases))}")
+        if state.winner:
+            console.print(f"[green]Winner:[/green] Writer {state.winner}")
+        console.print()
+    
+
     
     prompts_dir = PROJECT_ROOT / ".prompts"
     decisions_dir = prompts_dir / "decisions"
