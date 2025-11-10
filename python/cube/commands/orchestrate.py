@@ -469,12 +469,32 @@ async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
     if not synthesis_path.exists():
         console.print("Generating synthesis prompt...")
         
+        logs_dir = Path.home() / ".cube" / "logs"
+        
         prompt = f"""Generate a synthesis prompt for the WINNING writer.
 
 ## Context
 
 Task: {task_id}
 Winner: Writer {winner_name} ({winner})
+Winner's branch: writer-{winner}/{task_id}
+Winner's location: ~/.cube/worktrees/PROJECT/writer-{winner}-{task_id}/
+
+## Available Information
+
+**Judge Decisions (JSON with detailed feedback):**
+- `.prompts/decisions/judge-1-{task_id}-decision.json`
+- `.prompts/decisions/judge-2-{task_id}-decision.json`
+- `.prompts/decisions/judge-3-{task_id}-decision.json`
+
+Read these for full context on what judges liked/disliked.
+
+**Judge Logs (reasoning and analysis):**
+- `~/.cube/logs/judge-1-{task_id}-panel-*.json`
+- `~/.cube/logs/judge-2-{task_id}-panel-*.json`
+- `~/.cube/logs/judge-3-{task_id}-panel-*.json`
+
+Optional: Read for deeper understanding of judge concerns.
 
 ## Blocker Issues to Address
 
@@ -482,14 +502,15 @@ Winner: Writer {winner_name} ({winner})
 
 ## Your Task
 
-Create a synthesis prompt that tells the winning writer to:
-1. Address the blocker issues listed above
-2. Keep their core architecture (they won!)
-3. Commit and push when complete
+Create a synthesis prompt that:
+1. References specific files/lines from winner's code
+2. Addresses each blocker issue with concrete fixes
+3. Preserves what judges liked (winner's architecture)
+4. Tells writer to commit and push when complete
 
-Save to: `.prompts/synthesis-{task_id}.md`
+Read the judge decisions for full context!
 
-Be specific about what needs to change!"""
+Save to: `.prompts/synthesis-{task_id}.md`"""
         
         from ..core.single_layout import SingleAgentLayout
         

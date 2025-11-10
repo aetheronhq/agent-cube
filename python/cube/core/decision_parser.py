@@ -124,14 +124,16 @@ def aggregate_decisions(decisions: List[JudgeDecision]) -> Dict[str, Any]:
     
     winner = "B" if b_wins > a_wins else ("A" if a_wins > b_wins else "TIE")
     
+    has_clear_winner = (a_wins >= 2 or b_wins >= 2)
+    
     if approvals >= 2 and not all_blockers:
         next_action = "MERGE"
-    elif approvals >= 2 and all_blockers:
+    elif has_clear_winner and all_blockers:
         next_action = "SYNTHESIS"
-    elif request_changes >= 2:
+    elif not has_clear_winner or (request_changes >= 2 and not has_clear_winner):
         next_action = "FEEDBACK"
     else:
-        next_action = "REVIEW"
+        next_action = "SYNTHESIS" if has_clear_winner else "REVIEW"
     
     return {
         "consensus": approvals >= 2,
