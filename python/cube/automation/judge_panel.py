@@ -217,7 +217,11 @@ Use read_file or git commands to view their code.
         
         session_id = None
         if resume_mode:
-            session_id = load_session(f"JUDGE_{judge_num}", f"{task_id}_{review_type}")
+            if review_type == "peer-review":
+                session_id = load_session(f"JUDGE_{judge_num}", f"{task_id}_panel")
+            else:
+                session_id = load_session(f"JUDGE_{judge_num}", f"{task_id}_{review_type}")
+            
             if not session_id:
                 raise RuntimeError(f"No session found for Judge {judge_num}")
         
