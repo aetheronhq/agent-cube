@@ -246,8 +246,15 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
     if resume_from <= 5:
         console.print()
         console.print("[yellow]═══ Phase 5: Aggregate Decisions ═══[/yellow]")
-    
-    result = run_decide_and_get_result(task_id)
+        result = run_decide_and_get_result(task_id)
+    else:
+        import json
+        result_file = prompts_dir / "decisions" / f"{task_id}-aggregated.json"
+        if result_file.exists():
+            with open(result_file) as f:
+                result = json.load(f)
+        else:
+            raise RuntimeError(f"Cannot resume from phase {resume_from}: No aggregated decision found. Run Phase 5 first.")
     
     if result["next_action"] == "SYNTHESIS":
         if resume_from <= 6:
