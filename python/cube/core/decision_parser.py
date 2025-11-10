@@ -49,19 +49,42 @@ def parse_judge_decision(judge_num: int, task_id: str) -> Optional[JudgeDecision
         with open(decision_file) as f:
             data = json.load(f)
         
+        scores_a = data.get("scores", {}).get("writer_a", {})
+        scores_b = data.get("scores", {}).get("writer_b", {})
+        
+        total_a = scores_a.get("total_weighted")
+        if total_a is None:
+            total_a = sum([
+                scores_a.get("kiss_compliance", 0),
+                scores_a.get("architecture", 0),
+                scores_a.get("type_safety", 0),
+                scores_a.get("tests", 0),
+                scores_a.get("production_ready", 0)
+            ]) / 5.0
+        
+        total_b = scores_b.get("total_weighted")
+        if total_b is None:
+            total_b = sum([
+                scores_b.get("kiss_compliance", 0),
+                scores_b.get("architecture", 0),
+                scores_b.get("type_safety", 0),
+                scores_b.get("tests", 0),
+                scores_b.get("production_ready", 0)
+            ]) / 5.0
+        
         return JudgeDecision(
-            judge=data["judge"],
-            task_id=data["task_id"],
-            decision=data["decision"],
-            winner=data["winner"],
-            scores_a=data["scores"]["writer_a"]["total_weighted"],
-            scores_b=data["scores"]["writer_b"]["total_weighted"],
+            judge=data.get("judge", judge_num),
+            task_id=data.get("task_id", task_id),
+            decision=data.get("decision", "UNKNOWN"),
+            winner=data.get("winner", "TIE"),
+            scores_a=float(total_a),
+            scores_b=float(total_b),
             blocker_issues=data.get("blocker_issues", []),
-            recommendation=data["recommendation"],
+            recommendation=data.get("recommendation", "No recommendation provided"),
             timestamp=data.get("timestamp", "")
         )
-    except (json.JSONDecodeError, KeyError, Exception) as e:
-        raise RuntimeError(f"Invalid decision file for Judge {judge_num}: {e}")
+    except (json.JSONDecodeError, Exception) as e:
+        raise RuntimeError(f"Invalid decision file for Judge {judge_num}: {e}\nFile: {decision_file}")
 
 def parse_all_decisions(task_id: str) -> List[JudgeDecision]:
     """Parse all judge decisions for a task."""
