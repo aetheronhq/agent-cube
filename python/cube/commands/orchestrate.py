@@ -623,6 +623,9 @@ async def generate_dual_feedback(task_id: str, result: dict, prompts_dir: Path):
     
     console.print("Generating feedback for Writer A...")
     
+    decisions_dir = prompts_dir / "decisions"
+    logs_dir = Path.home() / ".cube" / "logs"
+    
     prompt_a = f"""Generate a feedback prompt for Writer A (Sonnet).
 
 ## Context
@@ -630,7 +633,26 @@ async def generate_dual_feedback(task_id: str, result: dict, prompts_dir: Path):
 Task: {task_id}
 Both writers need changes based on judge reviews.
 
-Read the judge decision files and create feedback for Writer A addressing their issues.
+## Available Information
+
+**Judge Decisions (JSON):**
+- `.prompts/decisions/judge-1-{task_id}-decision.json`
+- `.prompts/decisions/judge-2-{task_id}-decision.json`
+- `.prompts/decisions/judge-3-{task_id}-decision.json`
+
+Read these to see what issues judges found for Writer A.
+
+**Writer A's Work:**
+Branch: `writer-sonnet/{task_id}`
+Location: `~/.cube/worktrees/PROJECT/writer-sonnet-{task_id}/`
+
+## Your Task
+
+Create a targeted feedback prompt for Writer A that:
+1. Lists specific issues judges found
+2. Provides concrete fix suggestions
+3. References specific files/lines
+4. Keeps their good work, fixes problems
 
 Save to: `.prompts/feedback-a-{task_id}.md`"""
     
@@ -666,7 +688,26 @@ Save to: `.prompts/feedback-a-{task_id}.md`"""
 Task: {task_id}
 Both writers need changes based on judge reviews.
 
-Read the judge decision files and create feedback for Writer B addressing their issues.
+## Available Information
+
+**Judge Decisions (JSON):**
+- `.prompts/decisions/judge-1-{task_id}-decision.json`
+- `.prompts/decisions/judge-2-{task_id}-decision.json`
+- `.prompts/decisions/judge-3-{task_id}-decision.json`
+
+Read these to see what issues judges found for Writer B.
+
+**Writer B's Work:**
+Branch: `writer-codex/{task_id}`
+Location: `~/.cube/worktrees/PROJECT/writer-codex-{task_id}/`
+
+## Your Task
+
+Create a targeted feedback prompt for Writer B that:
+1. Lists specific issues judges found
+2. Provides concrete fix suggestions
+3. References specific files/lines
+4. Keeps their good work, fixes problems
 
 Save to: `.prompts/feedback-b-{task_id}.md`"""
     
