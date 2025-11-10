@@ -220,6 +220,13 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
     console.print(f"Task: {task_id}")
     
     existing_state = load_state(task_id)
+    
+    if not existing_state and resume_from > 1:
+        from ..core.state_backfill import backfill_state_from_artifacts
+        console.print("[dim]Backfilling state from existing artifacts...[/dim]")
+        existing_state = backfill_state_from_artifacts(task_id)
+        console.print(f"[dim]Detected: {get_progress(task_id)}[/dim]")
+    
     if existing_state:
         console.print(f"[dim]Progress: {get_progress(task_id)}[/dim]")
     
