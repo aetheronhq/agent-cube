@@ -302,19 +302,20 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
                 print_warning("Peer review requested more changes - manual intervention needed")
     
     elif result["next_action"] == "FEEDBACK":
-        console.print()
-        console.print("[yellow]═══ Phase 6: Generate Feedback for Both Writers ═══[/yellow]")
-        
-        await generate_dual_feedback(task_id, result, prompts_dir)
+        if resume_from <= 6:
+            console.print()
+            console.print("[yellow]═══ Phase 6: Generate Feedback for Both Writers ═══[/yellow]")
+            await generate_dual_feedback(task_id, result, prompts_dir)
         
         console.print()
         print_warning("Both writers need major changes. Re-run panel after they complete:")
         console.print(f"  cube panel {task_id} .prompts/panel-prompt-{task_id}.md")
     
     elif result["next_action"] == "MERGE":
-        console.print()
-        console.print("[yellow]═══ Phase 6: Create PR ═══[/yellow]")
-        await create_pr(task_id, result["winner"])
+        if resume_from <= 6:
+            console.print()
+            console.print("[yellow]═══ Phase 6: Create PR ═══[/yellow]")
+            await create_pr(task_id, result["winner"])
     
     else:
         console.print()
