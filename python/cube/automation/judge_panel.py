@@ -138,11 +138,14 @@ Use read_file or git commands to review the updated code.
   "decision": "APPROVED" | "REQUEST_CHANGES" | "REJECTED",
   "concerns_addressed": true | false,
   "remaining_issues": [
-    "Description of any remaining issues"
+    "Specific issue to fix (REQUIRED if REQUEST_CHANGES)"
   ],
   "recommendation": "Ready to merge" | "Needs more work"
 }}
 ```
+
+**CRITICAL:** If decision is REQUEST_CHANGES, you MUST list specific issues.
+Empty remaining_issues with REQUEST_CHANGES will be treated as malformed.
 
 ---
 
