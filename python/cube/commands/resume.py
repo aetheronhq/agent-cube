@@ -33,14 +33,24 @@ async def resume_async(
         resume=True
     )
     
+    from ..core.single_layout import SingleAgentLayout
+    
     color = "green" if "sonnet" in target else "blue"
+    layout = SingleAgentLayout(title=target)
+    layout.start()
     
     async for line in stream:
         msg = parser.parse(line)
         if msg:
             formatted = format_stream_message(msg, target, color)
-            if formatted and not formatted.startswith("[thinking]"):
-                console.print(formatted)
+            if formatted:
+                if formatted.startswith("[thinking]"):
+                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                    layout.add_thinking(thinking_text)
+                else:
+                    layout.add_output(formatted)
+    
+    layout.close()
 
 def resume_command(
     target: str,
