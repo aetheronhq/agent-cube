@@ -560,10 +560,12 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
     from pathlib import Path
     
     session_id = load_session(f"WRITER_{'A' if winner == 'sonnet' else 'B'}", task_id)
-    if session_id:
-        project_name = Path(PROJECT_ROOT).name
-        worktree = WORKTREE_BASE / project_name / f"writer-{winner}-{task_id}"
-        await send_feedback_async(winner, task_id, synthesis_path, session_id, worktree)
+    if not session_id:
+        raise RuntimeError(f"No session found for Writer {winner_name}. Cannot send synthesis.")
+    
+    project_name = Path(PROJECT_ROOT).name
+    worktree = WORKTREE_BASE / project_name / f"writer-{winner}-{task_id}"
+    await send_feedback_async(winner, task_id, synthesis_path, session_id, worktree)
 
 async def run_peer_review(task_id: str, result: dict, prompts_dir: Path):
     """Phase 7: Run peer review."""
@@ -663,10 +665,12 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
         from pathlib import Path
         
         session_id = load_session(f"WRITER_{'A' if winner == 'sonnet' else 'B'}", task_id)
-        if session_id:
-            project_name = Path(PROJECT_ROOT).name
-            worktree = WORKTREE_BASE / project_name / f"writer-{winner}-{task_id}"
-            await send_feedback_async(winner, task_id, minor_fixes_path, session_id, worktree)
+        if not session_id:
+            raise RuntimeError(f"No session found for Writer {winner_name}. Cannot send minor fixes.")
+        
+        project_name = Path(PROJECT_ROOT).name
+        worktree = WORKTREE_BASE / project_name / f"writer-{winner}-{task_id}"
+        await send_feedback_async(winner, task_id, minor_fixes_path, session_id, worktree)
 
 async def generate_dual_feedback(task_id: str, result: dict, prompts_dir: Path):
     """Generate feedback prompts for both writers in parallel with dual layout."""
