@@ -520,6 +520,8 @@ def run_decide_peer_review(task_id: str) -> dict:
     
     from ..core.decision_files import find_decision_file
     
+    has_request_changes = False
+    
     for judge_num in [1, 2, 3]:
         peer_file = find_decision_file(judge_num, task_id, "peer-review")
         
@@ -537,6 +539,11 @@ def run_decide_peer_review(task_id: str) -> dict:
                 
                 if decision == "APPROVED":
                     approvals += 1
+                elif decision == "REQUEST_CHANGES":
+                    has_request_changes = True
+                    if not remaining:
+                        console.print(f"  [yellow]⚠️  No issues listed (malformed decision)[/yellow]")
+                        all_issues.append(f"Judge {judge_num} requested changes but didn't specify issues")
     
     console.print()
     
@@ -550,8 +557,15 @@ def run_decide_peer_review(task_id: str) -> dict:
     
     console.print(f"Decisions: {decisions_found}/3, Approvals: {approvals}/{decisions_found}")
     
+    approved = approvals >= 2 and not has_request_changes
+    
+    if approvals >= 2 and has_request_changes and not all_issues:
+        approved = False
+        console.print()
+        print_warning("Cannot approve: Judge(s) requested changes but didn't list issues")
+    
     return {
-        "approved": approvals >= 2,
+        "approved": approved,
         "remaining_issues": all_issues,
         "decisions_found": decisions_found
     }
