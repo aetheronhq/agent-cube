@@ -34,9 +34,9 @@ def writers_command(
         from .resume import resume_command
         console.print("[yellow]Resuming both writers with message...[/yellow]")
         console.print()
-        resume_command("writer-a", task_id, prompt_file_or_message)
+        resume_command("writer-sonnet", task_id, prompt_file_or_message)
         console.print()
-        resume_command("writer-b", task_id, prompt_file_or_message)
+        resume_command("writer-codex", task_id, prompt_file_or_message)
     else:
         prompt_path = PROJECT_ROOT / prompt_file_or_message
         
