@@ -20,16 +20,24 @@ def extract_task_id_from_file(task_file: str) -> str:
     """Extract task ID from filename."""
     name = Path(task_file).stem
     
+    if not name:
+        raise ValueError(f"Cannot extract task ID from: {task_file}")
+    
     if name.startswith("writer-prompt-"):
-        return name.replace("writer-prompt-", "")
+        task_id = name.replace("writer-prompt-", "")
     elif name.startswith("task-"):
-        return name.replace("task-", "")
+        task_id = name.replace("task-", "")
+    else:
+        parts = name.split("-")
+        if len(parts) > 0 and parts[0].isdigit():
+            task_id = name
+        else:
+            task_id = name
     
-    parts = name.split("-")
-    if len(parts) > 0 and parts[0].isdigit():
-        return name
+    if not task_id or task_id.startswith("-") or task_id.endswith("-"):
+        raise ValueError(f"Invalid task ID extracted: '{task_id}' from {task_file}")
     
-    return name
+    return task_id
 
 def orchestrate_prompt_command(
     task_file: str,

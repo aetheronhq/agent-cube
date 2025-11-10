@@ -21,6 +21,9 @@ async def send_feedback_async(
     from ..core.parsers.registry import get_parser
     from ..core.single_layout import SingleAgentLayout
     
+    if not worktree.exists():
+        raise RuntimeError(f"Worktree not found: {worktree}")
+    
     wconfig = get_writer_config(f"writer_{'a' if writer == 'sonnet' else 'b'}")
     model = wconfig.model
     
