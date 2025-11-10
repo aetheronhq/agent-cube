@@ -45,12 +45,17 @@ def main(
 @app.command(name="writers")
 def writers(
     task_id: Annotated[str, typer.Argument(help="Task ID for the writers")],
-    prompt_file: Annotated[str, typer.Argument(help="Path to the writer prompt file")],
+    prompt_file: Annotated[Optional[str], typer.Argument(help="Prompt file or message (optional if --resume)")] = None,
     resume: Annotated[bool, typer.Option("--resume", help="Resume existing writer sessions")] = False
 ):
     """Launch dual writers for a task."""
+    if not prompt_file and not resume:
+        from .core.output import print_error
+        print_error("Prompt file/message is required unless using --resume")
+        raise typer.Exit(1)
+    
     try:
-        writers_command(task_id, prompt_file, resume)
+        writers_command(task_id, prompt_file or "", resume)
     except Exception as e:
         from .core.output import console_err
         console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
@@ -83,7 +88,7 @@ def feedback(
 def resume(
     target: Annotated[str, typer.Argument(help="Target to resume (writer-sonnet|writer-codex)")],
     task_id: Annotated[str, typer.Argument(help="Task ID")],
-    message: Annotated[str, typer.Argument(help="Message to send")]
+    message: Annotated[Optional[str], typer.Argument(help="Message to send (optional, defaults to 'continue')")] = None
 ):
     """Resume a writer or judge session with a message."""
     resume_command(target, task_id, message)

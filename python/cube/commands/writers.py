@@ -31,6 +31,9 @@ def writers_command(
         raise typer.Exit(1)
     
     if resume:
+        if not prompt_file_or_message:
+            prompt_file_or_message = "Resume from where you left off. Complete any remaining tasks and push your changes."
+        
         prompt_path = PROJECT_ROOT / ".prompts" / f"resume-message-{task_id}.md"
         prompt_path.parent.mkdir(exist_ok=True)
         prompt_path.write_text(prompt_file_or_message)

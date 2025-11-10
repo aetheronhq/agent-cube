@@ -55,13 +55,16 @@ async def resume_async(
 def resume_command(
     target: str,
     task_id: str,
-    message: str
+    message: str = None
 ) -> None:
     """Resume a writer or judge session with a message."""
     
     if not check_cursor_agent():
         print_error("cursor-agent CLI is not installed")
         raise typer.Exit(1)
+    
+    if not message:
+        message = "Resume from where you left off. Complete any remaining tasks and push your changes."
     
     writer_name = None
     writer_letter = None
