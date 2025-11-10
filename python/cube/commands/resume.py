@@ -68,9 +68,22 @@ def resume_command(
     
     writer_name = None
     writer_letter = None
+    judge_num = None
     model = None
     
-    if target in ["writer-sonnet", "sonnet", "a", "A"]:
+    if target.startswith("judge-"):
+        try:
+            judge_num = int(target.split("-")[1])
+            if judge_num not in [1, 2, 3]:
+                raise ValueError()
+            
+            from ..core.user_config import get_judge_config
+            jconfig = get_judge_config(judge_num)
+            model = jconfig.model
+        except:
+            print_error(f"Invalid target: {target} (must be writer-sonnet, writer-codex, or judge-1/2/3)")
+            raise typer.Exit(1)
+    elif target in ["writer-sonnet", "sonnet", "a", "A"]:
         writer_name = "sonnet"
         writer_letter = "A"
         model = MODELS["sonnet"]
@@ -79,18 +92,30 @@ def resume_command(
         writer_letter = "B"
         model = MODELS["codex"]
     else:
-        print_error(f"Invalid target: {target} (must be writer-sonnet or writer-codex)")
+        print_error(f"Invalid target: {target} (must be writer-sonnet, writer-codex, or judge-1/2/3)")
         raise typer.Exit(1)
     
-    session_id = load_session(f"WRITER_{writer_letter}", task_id)
-    
-    if not session_id:
-        print_error(f"Session ID not found for {target}")
-        print_info("Run 'cube-py sessions' to see available sessions")
-        raise typer.Exit(1)
-    
-    project_name = Path(PROJECT_ROOT).name
-    worktree = get_worktree_path(project_name, writer_name, task_id)
+    if judge_num:
+        session_id = load_session(f"JUDGE_{judge_num}", f"{task_id}_panel")
+        if not session_id:
+            session_id = load_session(f"JUDGE_{judge_num}", f"{task_id}_peer-review")
+        
+        if not session_id:
+            print_error(f"Session ID not found for {target}")
+            print_info("Run 'cube sessions' to see available sessions")
+            raise typer.Exit(1)
+        
+        worktree = PROJECT_ROOT
+    else:
+        session_id = load_session(f"WRITER_{writer_letter}", task_id)
+        
+        if not session_id:
+            print_error(f"Session ID not found for {target}")
+            print_info("Run 'cube sessions' to see available sessions")
+            raise typer.Exit(1)
+        
+        project_name = Path(PROJECT_ROOT).name
+        worktree = get_worktree_path(project_name, writer_name, task_id)
     
     if not worktree.exists():
         print_error(f"Worktree not found: {worktree}")

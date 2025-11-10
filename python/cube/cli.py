@@ -20,6 +20,7 @@ from .commands.orchestrate import orchestrate_prompt_command, orchestrate_auto_c
 from .commands.run import run_command
 from .commands.decide import decide_command
 from .commands.logs import logs_command
+from .commands.clean import clean_command
 
 app = typer.Typer(
     name="cube-py",
@@ -86,7 +87,7 @@ def feedback(
 
 @app.command(name="resume")
 def resume(
-    target: Annotated[str, typer.Argument(help="Target to resume (writer-sonnet|writer-codex)")],
+    target: Annotated[str, typer.Argument(help="Target to resume (writer-sonnet|writer-codex|judge-1/2/3)")],
     task_id: Annotated[str, typer.Argument(help="Task ID")],
     message: Annotated[Optional[str], typer.Argument(help="Message to send (optional, defaults to 'continue')")] = None
 ):
@@ -181,6 +182,16 @@ def logs(
 ):
     """View agent log files."""
     logs_command(task_id, agent, tail)
+
+@app.command(name="clean")
+def clean(
+    task_id: Annotated[Optional[str], typer.Argument(help="Task ID to clean")] = None,
+    old: Annotated[bool, typer.Option("--old", help="Clean sessions older than 7 days")] = False,
+    all_tasks: Annotated[bool, typer.Option("--all", help="Clean all completed tasks")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview without deleting")] = False
+):
+    """Clean up completed or stale sessions."""
+    clean_command(task_id, old, all_tasks, dry_run)
 
 if __name__ == "__main__":
     app()
