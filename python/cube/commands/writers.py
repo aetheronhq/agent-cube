@@ -31,29 +31,14 @@ def writers_command(
         raise typer.Exit(1)
     
     if resume:
-        from .resume import resume_async
-        from ..core.session import load_session
-        from ..core.config import get_worktree_path, WORKTREE_BASE
-        from pathlib import Path
+        prompt_path = PROJECT_ROOT / ".prompts" / f"resume-message-{task_id}.md"
+        prompt_path.parent.mkdir(exist_ok=True)
+        prompt_path.write_text(prompt_file_or_message)
         
         console.print("[yellow]Resuming both writers with message...[/yellow]")
         console.print()
         
-        async def resume_both():
-            project_name = Path(PROJECT_ROOT).name
-            
-            session_a = load_session("WRITER_A", task_id)
-            session_b = load_session("WRITER_B", task_id)
-            
-            worktree_a = WORKTREE_BASE / project_name / f"writer-sonnet-{task_id}"
-            worktree_b = WORKTREE_BASE / project_name / f"writer-codex-{task_id}"
-            
-            await asyncio.gather(
-                resume_async("writer-sonnet", task_id, prompt_file_or_message, session_a, worktree_a, "sonnet-4.5-thinking"),
-                resume_async("writer-codex", task_id, prompt_file_or_message, session_b, worktree_b, "gpt-5-codex-high")
-            )
-        
-        asyncio.run(resume_both())
+        asyncio.run(launch_dual_writers(task_id, prompt_path, resume_mode=True))
     else:
         prompt_path = PROJECT_ROOT / prompt_file_or_message
         
