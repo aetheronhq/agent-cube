@@ -121,12 +121,33 @@ def orchestrate(
     subcommand: Annotated[str, typer.Argument(help="Subcommand (prompt|auto)")],
     task_file: Annotated[str, typer.Argument(help="Path to the task file")],
     copy: Annotated[bool, typer.Option("--copy", help="Copy to clipboard (prompt only)")] = False,
-    resume_from: Annotated[int, typer.Option("--resume-from", help="Resume from phase number (1-10)")] = 1
+    resume_from: Annotated[Optional[int], typer.Option("--resume-from", help="Resume from phase number (1-10)")] = None,
+    resume: Annotated[bool, typer.Option("--resume", help="Auto-resume from last checkpoint")] = False,
+    reset: Annotated[bool, typer.Option("--reset", help="Clear state and start fresh")] = False
 ):
     """Generate orchestrator prompt or run autonomous orchestration."""
     if subcommand == "prompt":
         orchestrate_prompt_command(task_file, copy)
     elif subcommand == "auto":
+        task_id = extract_task_id_from_file(task_file)
+        
+        if reset:
+            from .core.state import clear_state
+            clear_state(task_id)
+            from .core.output import print_success
+            print_success(f"Cleared state for {task_id}")
+        
+        if resume and resume_from is None:
+            from .core.state import load_state
+            state = load_state(task_id)
+            if state:
+                resume_from = state.current_phase + 1 if state.current_phase < 10 else state.current_phase
+                console.print(f"[cyan]Auto-resuming from Phase {resume_from}[/cyan]")
+            else:
+                resume_from = 1
+        elif resume_from is None:
+            resume_from = 1
+        
         try:
             import asyncio
             asyncio.run(orchestrate_auto_command(task_file, resume_from))
@@ -136,7 +157,7 @@ def orchestrate(
             sys.exit(1)
     else:
         typer.echo(f"Unknown subcommand: {subcommand}")
-        typer.echo("Usage: cube orchestrate prompt|auto <task-file> [--copy] [--resume-from N]")
+        typer.echo("Usage: cube orchestrate prompt|auto <task-file> [--copy] [--resume] [--resume-from N] [--reset]")
         raise typer.Exit(1)
 
 @app.command(name="install")
