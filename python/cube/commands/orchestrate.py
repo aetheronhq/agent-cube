@@ -615,122 +615,103 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
             await send_feedback_async(winner, task_id, minor_fixes_path, session_id, worktree)
 
 async def generate_dual_feedback(task_id: str, result: dict, prompts_dir: Path):
-    """Generate feedback prompts for both writers."""
-    from ..core.single_layout import SingleAgentLayout
+    """Generate feedback prompts for both writers in parallel with dual layout."""
+    from ..core.dual_layout import get_dual_layout, DualWriterLayout
     
     feedback_a_path = prompts_dir / f"feedback-a-{task_id}.md"
     feedback_b_path = prompts_dir / f"feedback-b-{task_id}.md"
     
-    console.print("Generating feedback for Writer A...")
-    
     decisions_dir = prompts_dir / "decisions"
-    logs_dir = Path.home() / ".cube" / "logs"
+    
+    prompt_base = """## Available Information
+
+**Judge Decisions (JSON):**
+- `.prompts/decisions/judge-1-{task_id}-decision.json`
+- `.prompts/decisions/judge-2-{task_id}-decision.json`
+- `.prompts/decisions/judge-3-{task_id}-decision.json`
+
+Read these to see what issues judges found for Writer {writer}.
+
+**Writer {writer}'s Work:**
+Branch: `writer-{writer_slug}/{task_id}`
+Location: `~/.cube/worktrees/PROJECT/writer-{writer_slug}-{task_id}/`
+
+## Your Task
+
+Create a targeted feedback prompt for Writer {writer} that:
+1. Lists specific issues judges found
+2. Provides concrete fix suggestions
+3. References specific files/lines
+4. Keeps their good work, fixes problems
+
+Save to: `.prompts/feedback-{writer_letter}-{task_id}.md`"""
     
     prompt_a = f"""Generate a feedback prompt for Writer A (Sonnet).
 
-## Context
-
 Task: {task_id}
 Both writers need changes based on judge reviews.
 
-## Available Information
-
-**Judge Decisions (JSON):**
-- `.prompts/decisions/judge-1-{task_id}-decision.json`
-- `.prompts/decisions/judge-2-{task_id}-decision.json`
-- `.prompts/decisions/judge-3-{task_id}-decision.json`
-
-Read these to see what issues judges found for Writer A.
-
-**Writer A's Work:**
-Branch: `writer-sonnet/{task_id}`
-Location: `~/.cube/worktrees/PROJECT/writer-sonnet-{task_id}/`
-
-## Your Task
-
-Create a targeted feedback prompt for Writer A that:
-1. Lists specific issues judges found
-2. Provides concrete fix suggestions
-3. References specific files/lines
-4. Keeps their good work, fixes problems
-
-Save to: `.prompts/feedback-a-{task_id}.md`"""
-    
-    parser = get_parser("cursor-agent")
-    layout = SingleAgentLayout(title="Prompter")
-    layout.start()
-    
-    stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt_a, session_id=None, resume=False)
-    
-    async for line in stream:
-        msg = parser.parse(line)
-        if msg:
-            formatted = format_stream_message(msg, "Prompter", "cyan")
-            if formatted:
-                if formatted.startswith("[thinking]"):
-                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                    layout.add_thinking(thinking_text)
-                else:
-                    layout.add_output(formatted)
-        
-        if feedback_a_path.exists():
-            layout.close()
-            print_success(f"Created: {feedback_a_path}")
-            break
-    
-    console.print()
-    console.print("Generating feedback for Writer B...")
+{prompt_base.format(task_id=task_id, writer='A', writer_slug='sonnet', writer_letter='a')}"""
     
     prompt_b = f"""Generate a feedback prompt for Writer B (Codex).
 
-## Context
-
 Task: {task_id}
 Both writers need changes based on judge reviews.
 
-## Available Information
-
-**Judge Decisions (JSON):**
-- `.prompts/decisions/judge-1-{task_id}-decision.json`
-- `.prompts/decisions/judge-2-{task_id}-decision.json`
-- `.prompts/decisions/judge-3-{task_id}-decision.json`
-
-Read these to see what issues judges found for Writer B.
-
-**Writer B's Work:**
-Branch: `writer-codex/{task_id}`
-Location: `~/.cube/worktrees/PROJECT/writer-codex-{task_id}/`
-
-## Your Task
-
-Create a targeted feedback prompt for Writer B that:
-1. Lists specific issues judges found
-2. Provides concrete fix suggestions
-3. References specific files/lines
-4. Keeps their good work, fixes problems
-
-Save to: `.prompts/feedback-b-{task_id}.md`"""
+{prompt_base.format(task_id=task_id, writer='B', writer_slug='codex', writer_letter='b')}"""
     
-    layout2 = SingleAgentLayout(title="Prompter")
-    layout2.start()
+    console.print("Generating feedback for both writers in parallel...")
+    console.print()
     
-    stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt_b, session_id=None, resume=False)
+    DualWriterLayout.reset()
+    layout = get_dual_layout()
+    layout.start()
     
-    async for line in stream:
-        msg = parser.parse(line)
-        if msg:
-            formatted = format_stream_message(msg, "Prompter", "cyan")
-            if formatted:
-                if formatted.startswith("[thinking]"):
-                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                    layout2.add_thinking(thinking_text)
-                else:
-                    layout2.add_output(formatted)
-        
-        if feedback_b_path.exists():
-            layout2.close()
-            print_success(f"Created: {feedback_b_path}")
-            break
+    parser = get_parser("cursor-agent")
+    
+    async def generate_feedback_a():
+        stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt_a, session_id=None, resume=False)
+        async for line in stream:
+            msg = parser.parse(line)
+            if msg:
+                formatted = format_stream_message(msg, "Prompter A", "green")
+                if formatted:
+                    if formatted.startswith("[thinking]"):
+                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                        layout.add_thinking("A", thinking_text)
+                    else:
+                        layout.add_output(formatted)
+            
+            if feedback_a_path.exists():
+                return
+    
+    async def generate_feedback_b():
+        stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt_b, session_id=None, resume=False)
+        async for line in stream:
+            msg = parser.parse(line)
+            if msg:
+                formatted = format_stream_message(msg, "Prompter B", "blue")
+                if formatted:
+                    if formatted.startswith("[thinking]"):
+                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                        layout.add_thinking("B", thinking_text)
+                    else:
+                        layout.add_output(formatted)
+            
+            if feedback_b_path.exists():
+                return
+    
+    await asyncio.gather(
+        generate_feedback_a(),
+        generate_feedback_b()
+    )
+    
+    layout.close()
+    
+    if feedback_a_path.exists():
+        print_success(f"Created: {feedback_a_path}")
+    if feedback_b_path.exists():
+        print_success(f"Created: {feedback_b_path}")
     
     if feedback_a_path.exists() and feedback_b_path.exists():
         console.print()

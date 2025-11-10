@@ -1,15 +1,42 @@
-# Distribution
-/dist/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Agent sessions (project-specific)
-.agent-sessions/
+# Virtual environments
+venv/
+ENV/
+env/
 
-# Temp files
-*.log
-/tmp/
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
 # OS
 .DS_Store
+Thumbs.db
 
-__pycache__/
-*.pyc
+# Agent Cube specific
+.history/
+.prompts/temp-*.md
+.agent-sessions/
