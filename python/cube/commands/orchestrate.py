@@ -521,6 +521,8 @@ def run_decide_peer_review(task_id: str) -> dict:
 
 async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
     """Phase 6: Run synthesis if needed."""
+    from pathlib import Path as PathLib
+    
     winner = "sonnet" if result["winner"] == "A" else "codex"
     winner_name = result["winner"]
     
@@ -529,7 +531,7 @@ async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
     if not synthesis_path.exists():
         console.print("Generating synthesis prompt...")
         
-        logs_dir = Path.home() / ".cube" / "logs"
+        logs_dir = PathLib.home() / ".cube" / "logs"
         
         prompt = f"""Generate a synthesis prompt for the WINNING writer.
 
