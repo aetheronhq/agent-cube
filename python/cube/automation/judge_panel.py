@@ -100,6 +100,16 @@ async def launch_judge_panel(
     from ..core.config import WORKTREE_BASE
     project_name = Path(PROJECT_ROOT).name
     
+    judge_assignments = f"""# YOUR JUDGE NUMBER
+
+You are **Judge {{{{judge_number}}}}** in this panel.
+
+When creating your decision file, use judge number {{{{judge_number}}}}.
+
+---
+
+"""
+    
     if review_type == "peer-review":
         review_instructions = f"""# Peer Review Context
 
@@ -138,17 +148,7 @@ Use read_file or git commands to review the updated code.
 
 """
     else:
-        judge_assignments = f"""# YOUR JUDGE NUMBER
-
-You are **Judge {{judge_number}}** in this panel.
-
-When creating your decision file, use judge number {{judge_number}}.
-
----
-
-"""
-    
-    review_instructions = f"""# Code Review Locations
+        review_instructions = f"""# Code Review Locations
 
 ## Writer A (Sonnet) Implementation
 
