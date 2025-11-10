@@ -166,6 +166,8 @@ Use read_file or git commands to view their code.
 
 **File:** `.prompts/decisions/judge-{{your-number}}-{task_id}-decision.json`
 
+(Note: If you're running from ~/.cube, write to `.prompts/decisions/` there - it will be auto-copied)
+
 **Format:**
 ```json
 {{

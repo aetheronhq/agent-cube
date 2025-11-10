@@ -22,7 +22,21 @@ class JudgeDecision:
 
 def get_decision_file_path(judge_num: int, task_id: str) -> Path:
     """Get the path to a judge's decision JSON file."""
-    return PROJECT_ROOT / ".prompts" / "decisions" / f"judge-{judge_num}-{task_id}-decision.json"
+    primary_path = PROJECT_ROOT / ".prompts" / "decisions" / f"judge-{judge_num}-{task_id}-decision.json"
+    
+    if primary_path.exists():
+        return primary_path
+    
+    from .config import WORKTREE_BASE
+    gemini_path = WORKTREE_BASE.parent / ".prompts" / "decisions" / f"judge-{judge_num}-{task_id}-decision.json"
+    
+    if gemini_path.exists():
+        import shutil
+        primary_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(gemini_path, primary_path)
+        return primary_path
+    
+    return primary_path
 
 def parse_judge_decision(judge_num: int, task_id: str) -> Optional[JudgeDecision]:
     """Parse a single judge's decision JSON file."""

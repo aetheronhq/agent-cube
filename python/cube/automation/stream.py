@@ -13,8 +13,21 @@ def strip_worktree_path(path: str) -> str:
     if "/.cube/worktrees/" in path or "/.cursor/worktrees/" in path:
         parts = path.split("/")
         for i, part in enumerate(parts):
-            if part == "worktrees" and i + 1 < len(parts):
-                return "~worktrees/" + "/".join(parts[i+2:])
+            if part == "worktrees" and i + 2 < len(parts):
+                worktree_name = parts[i + 2]
+                
+                if worktree_name.startswith("writer-sonnet-"):
+                    writer_part = "writer-sonnet"
+                elif worktree_name.startswith("writer-codex-"):
+                    writer_part = "writer-codex"
+                else:
+                    writer_part = worktree_name
+                
+                remaining_path = "/".join(parts[i+3:]) if i + 3 < len(parts) else ""
+                if remaining_path:
+                    return f"~worktrees/{writer_part}/{remaining_path}"
+                else:
+                    return f"~worktrees/{writer_part}"
         return "~worktrees/" + parts[-1]
     
     project_root_str = str(PROJECT_ROOT)
