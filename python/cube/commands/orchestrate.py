@@ -551,8 +551,7 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
                 break
         
         if not synthesis_path.exists():
-            console.print(f"Create manually: {synthesis_path}")
-            return
+            raise RuntimeError(f"Prompter failed to generate synthesis prompt at {synthesis_path}")
     
     print_info(f"Sending synthesis to Writer {winner_name}")
     from .feedback import send_feedback_async
@@ -621,8 +620,7 @@ Include the worktree location and git commands for reviewing."""
                 break
         
         if not peer_review_path.exists():
-            console.print(f"Create manually: {peer_review_path}")
-            return
+            raise RuntimeError(f"Prompter failed to generate peer review prompt at {peer_review_path}")
     
     print_info(f"Launching peer review for Winner: Writer {winner_name}")
     await launch_judge_panel(task_id, peer_review_path, "peer-review", resume_mode=True)

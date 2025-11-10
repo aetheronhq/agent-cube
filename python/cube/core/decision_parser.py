@@ -72,6 +72,10 @@ def parse_judge_decision(judge_num: int, task_id: str) -> Optional[JudgeDecision
                 scores_b.get("production_ready", 0)
             ]) / 5.0
         
+        blockers = data.get("blocker_issues", [])
+        if not isinstance(blockers, list):
+            blockers = [str(blockers)] if blockers else []
+        
         return JudgeDecision(
             judge=data.get("judge", judge_num),
             task_id=data.get("task_id", task_id),
@@ -79,7 +83,7 @@ def parse_judge_decision(judge_num: int, task_id: str) -> Optional[JudgeDecision
             winner=data.get("winner", "TIE"),
             scores_a=float(total_a),
             scores_b=float(total_b),
-            blocker_issues=data.get("blocker_issues", []),
+            blocker_issues=blockers,
             recommendation=data.get("recommendation", "No recommendation provided"),
             timestamp=data.get("timestamp", "")
         )
@@ -126,14 +130,18 @@ def aggregate_decisions(decisions: List[JudgeDecision]) -> Dict[str, Any]:
     
     has_clear_winner = (a_wins >= 2 or b_wins >= 2)
     
-    if approvals >= 2 and not all_blockers:
+    if winner == "TIE":
+        next_action = "FEEDBACK"
+    elif approvals >= 2 and not all_blockers:
         next_action = "MERGE"
     elif has_clear_winner and all_blockers:
         next_action = "SYNTHESIS"
-    elif not has_clear_winner or (request_changes >= 2 and not has_clear_winner):
+    elif has_clear_winner and not all_blockers:
+        next_action = "MERGE"
+    elif not has_clear_winner:
         next_action = "FEEDBACK"
     else:
-        next_action = "SYNTHESIS" if has_clear_winner else "REVIEW"
+        next_action = "SYNTHESIS"
     
     return {
         "consensus": approvals >= 2,
