@@ -339,13 +339,32 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
                 print_warning("Still has issues - manual intervention needed")
         else:
             console.print()
-            if final_result.get("decisions_found", 0) < 2:
-                print_warning(f"Not enough peer review decisions ({final_result.get('decisions_found', 0)}/3) - need at least 2")
+            decisions_count = final_result.get("decisions_found", 0)
+            approvals_count = sum(1 for j in [1,2,3] if final_result.get(f"judge_{j}_decision") == "APPROVED")
+            
+            if decisions_count < 3:
+                print_warning(f"Missing peer review decisions ({decisions_count}/3)")
                 console.print()
-                console.print("Have judges file peer-review decisions, then:")
-                console.print(f"  cube orchestrate auto task.md --resume-from 8")
+                console.print("Options:")
+                console.print(f"  1. Get missing judge(s) to file decisions:")
+                for judge_num in [1, 2, 3]:
+                    peer_file = PROJECT_ROOT / ".prompts" / "decisions" / f"judge-{judge_num}-{task_id}-peer-review.json"
+                    if not peer_file.exists():
+                        console.print(f"     cube resume judge-{judge_num} {task_id} \"Write peer review decision\"")
+                console.print()
+                console.print(f"  2. Continue with {decisions_count}/3 decisions:")
+                console.print(f"     cube auto task.md --resume-from 8")
             else:
-                print_warning("Peer review requested more changes - manual intervention needed")
+                print_warning(f"Peer review rejected ({approvals_count}/3 approved) - synthesis needs more work")
+                console.print()
+                console.print("Next steps:")
+                console.print(f"  1. Review judge feedback in peer-review decisions")
+                console.print(f"  2. Update synthesis prompt:")
+                console.print(f"     .prompts/synthesis-{task_id}.md")
+                console.print(f"  3. Re-run synthesis:")
+                console.print(f"     cube auto task.md --resume-from 6")
+                console.print()
+                console.print("Or manually fix the issues and re-run peer review")
     
     elif result["next_action"] == "FEEDBACK":
         if resume_from <= 6:
