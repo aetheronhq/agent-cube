@@ -277,12 +277,14 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
                 console.print(f"  • {issue}")
             console.print()
             
-            console.print("[yellow]═══ Phase 9: Address Minor Issues ═══[/yellow]")
-            await run_minor_fixes(task_id, result, final_result["remaining_issues"], prompts_dir)
+            if resume_from <= 9:
+                console.print("[yellow]═══ Phase 9: Address Minor Issues ═══[/yellow]")
+                await run_minor_fixes(task_id, result, final_result["remaining_issues"], prompts_dir)
             
-            console.print()
-            console.print("[yellow]═══ Phase 10: Final Peer Review ═══[/yellow]")
-            await run_peer_review(task_id, result, prompts_dir)
+            if resume_from <= 10:
+                console.print()
+                console.print("[yellow]═══ Phase 10: Final Peer Review ═══[/yellow]")
+                await run_peer_review(task_id, result, prompts_dir)
             
             final_check = run_decide_peer_review(task_id)
             if final_check["approved"]:
@@ -291,7 +293,13 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
                 print_warning("Still has issues - manual intervention needed")
         else:
             console.print()
-            print_warning("Peer review requested more changes - manual intervention needed")
+            if final_result.get("decisions_found", 0) < 2:
+                print_warning(f"Not enough peer review decisions ({final_result.get('decisions_found', 0)}/3) - need at least 2")
+                console.print()
+                console.print("Have judges file peer-review decisions, then:")
+                console.print(f"  cube orchestrate auto task.md --resume-from 8")
+            else:
+                print_warning("Peer review requested more changes - manual intervention needed")
     
     elif result["next_action"] == "FEEDBACK":
         console.print()
@@ -460,7 +468,8 @@ def run_decide_peer_review(task_id: str) -> dict:
     
     return {
         "approved": approvals >= 2,
-        "remaining_issues": all_issues
+        "remaining_issues": all_issues,
+        "decisions_found": decisions_found
     }
 
 async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
