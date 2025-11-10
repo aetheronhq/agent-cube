@@ -274,8 +274,14 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
         import json
         result_file = prompts_dir / "decisions" / f"{task_id}-aggregated.json"
         if result_file.exists():
-            with open(result_file) as f:
-                result = json.load(f)
+            try:
+                with open(result_file) as f:
+                    result = json.load(f)
+                
+                if "next_action" not in result:
+                    raise RuntimeError(f"Aggregated decision missing 'next_action'. Re-run Phase 5.")
+            except json.JSONDecodeError:
+                raise RuntimeError(f"Corrupt aggregated decision file: {result_file}. Re-run Phase 5.")
         else:
             raise RuntimeError(f"Cannot resume from phase {resume_from}: No aggregated decision found. Run Phase 5 first.")
     
@@ -798,10 +804,13 @@ Both writers need changes based on judge reviews.
     
     layout.close()
     
-    if feedback_a_path.exists():
-        print_success(f"Created: {feedback_a_path}")
-    if feedback_b_path.exists():
-        print_success(f"Created: {feedback_b_path}")
+    if not feedback_a_path.exists():
+        raise RuntimeError(f"Prompter A failed to generate feedback at {feedback_a_path}")
+    if not feedback_b_path.exists():
+        raise RuntimeError(f"Prompter B failed to generate feedback at {feedback_b_path}")
+    
+    print_success(f"Created: {feedback_a_path}")
+    print_success(f"Created: {feedback_b_path}")
     
     if feedback_a_path.exists() and feedback_b_path.exists():
         console.print()

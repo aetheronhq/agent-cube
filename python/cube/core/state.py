@@ -59,12 +59,22 @@ def load_state(task_id: str) -> Optional[WorkflowState]:
         return None
 
 def save_state(state: WorkflowState) -> None:
-    """Save workflow state."""
+    """Save workflow state with atomic write."""
+    import tempfile
+    import shutil
+    
     state.updated_at = datetime.now().isoformat()
     state_file = get_state_file(state.task_id)
     
-    with open(state_file, 'w') as f:
-        json.dump(asdict(state), f, indent=2)
+    temp_fd, temp_path = tempfile.mkstemp(dir=state_file.parent, suffix='.json')
+    try:
+        with open(temp_fd, 'w') as f:
+            json.dump(asdict(state), f, indent=2)
+        
+        shutil.move(temp_path, state_file)
+    except:
+        Path(temp_path).unlink(missing_ok=True)
+        raise
 
 def update_phase(task_id: str, phase: int, **kwargs) -> WorkflowState:
     """Update workflow to a new phase."""
