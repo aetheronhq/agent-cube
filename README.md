@@ -1,161 +1,322 @@
-# Agent Cube CLI
+# 🎲 Agent Cube
 
-**Orchestrate parallel LLM coding agents with automated dual-writer workflows and judge panels.**
+**Autonomous multi-agent coding workflow for production-grade software development**
 
-A command-line tool for running multiple LLM agents in parallel, comparing their solutions, and synthesizing the best of both worlds. Built for production-grade code quality through competitive agent evaluation.
-
-## Quick Install
+Run multiple AI coders in parallel → AI judges pick the best → Automated synthesis → Ready-to-merge PR
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aetheronhq/agent-cube/main/install.sh | bash
+cube auto task.md  # One command: task spec → PR
 ```
 
-Or download the distribution package and run:
-```bash
-bash install-cube.sh
-```
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/aetheronhq/agent-cube)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-## What It Does
+---
 
-- **Dual Writers**: Launch 2 LLM agents in parallel to solve the same coding task independently
-- **Judge Panel**: 3 AI judges review both solutions and vote for the winner
-- **Synthesis**: Winning agent integrates improvements from both solutions
-- **Automation**: Full workflow automation with real-time streaming output
-
-## Usage
+## 🚀 Quick Start
 
 ```bash
-# Launch dual writers for a task
-cube writers <task-id> <prompt-file>
+# Install
+./install.sh
 
-# Launch 3-judge panel
-cube panel <task-id> <panel-prompt-file>
+# Run autonomous workflow
+cube auto implementation/phase-01/tasks/01-my-feature.md
 
-# Send feedback to writer
-cube feedback <writer> <task-id> <feedback-file>
+# Monitor progress
+cube status 01-my-feature
 
-# Resume a session
-cube resume <writer> <task-id> "message"
-
-# Check status
-cube status <task-id>
-
-# List sessions
-cube sessions
+# Continue from checkpoint
+cube continue 01-my-feature
 ```
 
-## Prerequisites
+**That's it.** The system orchestrates 5+ AI agents from task spec to ready PR.
 
-- **jq**: `brew install jq` (macOS) or `apt-get install jq` (Linux)
-- **cursor-agent**: `curl https://cursor.com/install -fsSL | bash`
-- **Cursor account**: `cursor-agent login`
+---
 
-## Documentation
+## ✨ Features
 
-- [Installation Guide](INSTALL.md) - Detailed installation instructions
-- [Agent Cube Framework](AGENT_CUBE.md) - Complete workflow methodology
-- [CLI Automation Guide](AGENT_CUBE_AUTOMATION.md) - Advanced usage and automation
+### **Competitive Parallel Development**
+- **2 AI writers** implement the same task independently (Sonnet + Codex)
+- Different approaches, different strengths
+- Competition produces better code
 
-## Example Workflow
+### **Judicial Review**
+- **3 AI judges** evaluate both implementations
+- Objective scoring on KISS, architecture, tests, production-readiness
+- Automated decision aggregation
 
+### **Intelligent Synthesis**
+- Identifies winning implementation
+- Auto-generates targeted feedback for blockers
+- Iterates until ready to merge
+
+### **Beautiful Visualization**
+- Rich Layout thinking boxes (see AI reasoning in real-time)
+- Dual boxes for parallel writers
+- Triple boxes for judges
+- Clean, organized output
+
+### **Bulletproof State Management**
+- Explicit phase tracking
+- Resume from any checkpoint
+- State backfilling for existing work
+- Validates resume points
+
+---
+
+## 📖 Documentation
+
+### **Getting Started**
+- [Installation Guide](INSTALL.md) - Setup and dependencies
+- [Quick Reference](QUICK_REFERENCE.md) - Common commands
+
+### **Core Concepts**
+- [Agent Cube Framework](AGENT_CUBE.md) - Complete framework guide
+- [Workflow Automation](AGENT_CUBE_AUTOMATION.md) - Automation details
+- [Python Implementation](PYTHON_IMPLEMENTATION.md) - Technical architecture
+
+### **Implementation Details**
+- [Implementation Summary](IMPLEMENTATION_SUMMARY.md) - What was built
+- [Planning Guide](README-PLANNING.md) - How to create planning docs
+
+---
+
+## 🎯 Core Workflow
+
+```mermaid
+graph TD
+    A[Task Spec] --> B[Dual Writers]
+    B --> C[Judge Panel]
+    C --> D{Decision}
+    D -->|Winner Clear| E[Synthesis]
+    D -->|Split| F[Feedback Both]
+    E --> G[Peer Review]
+    G --> H{Approved?}
+    H -->|Yes| I[PR Ready]
+    H -->|Minor Issues| J[Polish]
+    J --> G
+    F --> B
+```
+
+**10 Phases:**
+1. Generate writer prompt (Prompter AI)
+2. Dual writers execute (Sonnet + Codex)
+3. Generate panel prompt (Prompter AI)
+4. Judge panel review (3 judges)
+5. Aggregate decisions
+6. Synthesis or Feedback (Prompter AI)
+7. Peer review (resume judges)
+8. Final decision
+9. Minor fixes (if needed)
+10. PR creation
+
+**Fully autonomous** - handles every scenario automatically.
+
+---
+
+## 🛠️ Commands
+
+### **Autonomous Workflow**
 ```bash
-# 1. Create writer prompt for your task
-cat > my-task-prompt.md << 'EOF'
-You are implementing feature X. Read planning docs and implement...
-EOF
-
-# 2. Launch dual writers
-cube writers my-task implementation/my-task-prompt.md
-
-# Writers work in parallel, commit, and push their branches
-
-# 3. Create panel prompt
-cat > my-task-panel.md << 'EOF'
-Review both writer solutions and vote for the winner...
-EOF
-
-# 4. Launch judge panel
-cube panel my-task implementation/my-task-panel.md
-
-# Judges review, vote, provide synthesis instructions
-
-# 5. Send synthesis to winner
-cube feedback codex my-task implementation/my-task-synthesis.md
-
-# Winner applies synthesis, runs tests, commits, pushes
+cube auto <task-file>              # Full autonomous workflow
+cube auto <task-file> --resume-from 7   # Resume from phase
+cube auto <task-file> --reset      # Clear state, start fresh
+cube continue <task-id>            # Smart continue from checkpoint
 ```
 
-## Features
-
-- ✅ **Parallel Execution**: Writers work in isolated git worktrees
-- ✅ **Real-time Streaming**: Color-coded output with tool call tracking
-- ✅ **Session Management**: Automatic session ID capture for resumption
-- ✅ **Git Integration**: Automatic branch creation and worktree management
-- ✅ **Quality Gates**: Ensures code is committed and pushed
-- ✅ **Path Handling**: Automatically adds cursor-agent to PATH
-
-## Architecture
-
-```
-Agent Cube Workflow:
-┌─────────────┐
-│   Task      │
-└──────┬──────┘
-       │
-   ┌───┴───┐
-   │       │
-Writer A  Writer B  (parallel implementation)
-   │       │
-   └───┬───┘
-       │
-  ┌────┴────┐
-  │ Panel   │  (3 judges review and vote)
-  └────┬────┘
-       │
-  ┌────┴────┐
-  │Synthesis│  (winner integrates best of both)
-  └────┬────┘
-       │
-   ┌───┴───┐
-   │  PR   │
-   └───────┘
+### **Manual Control**
+```bash
+cube writers <task> <prompt>       # Launch dual writers
+cube panel <task> <prompt>         # Run judge panel
+cube decide <task>                 # Aggregate decisions
+cube feedback <writer> <task> msg  # Send feedback to writer
+cube peer-review <task> <prompt>   # Run peer review
 ```
 
-## Models
+### **Utilities**
+```bash
+cube status [task]                 # Show progress
+cube sessions                      # List active sessions
+cube logs [task] [agent]           # View agent logs
+cube clean <task>                  # Clean up sessions
+cube resume <agent> <task> [msg]   # Resume specific agent
+```
 
-**Writers:**
-- Claude Sonnet 4.5 Thinking (`sonnet-4.5-thinking`)
-- GPT-5 Codex High (`gpt-5-codex-high`)
+### **Single Agent**
+```bash
+cube run <model> "prompt"          # Run single agent
+# Models: sonnet-4.5-thinking, gpt-5-codex-high, grok, gemini-2.5-pro
+```
 
-**Judges:**
-- Judge 1: Claude Sonnet 4.5 Thinking
-- Judge 2: GPT-5 Codex High
-- Judge 3: Cursor Composer
+---
 
-## Performance
+## ⚙️ Configuration
 
-**Observed Metrics:**
-- Writer task completion: 2-15 minutes per agent
-- Judge panel review: 2-5 minutes per judge (parallel)
-- Total dual-writer cycle: ~15-25 minutes
-- Manual equivalent: ~60-90 minutes
+Edit `python/cube.yaml` to customize:
 
-**Automation Rate:** ~70-90% depending on complexity
+```yaml
+# Writers
+writers:
+  writer_a:
+    model: "sonnet-4.5-thinking"
+    label: "Writer A"
+    color: "green"
+  
+  writer_b:
+    model: "gpt-5-codex-high"
+    label: "Writer B"  
+    color: "blue"
 
-## Requirements
+# Judges (3 independent reviewers)
+judges:
+  judge_1:
+    model: "sonnet-4.5-thinking"
+  judge_2:
+    model: "gpt-5-codex-high"
+  judge_3:
+    model: "gemini-2.5-pro"
 
-- macOS or Linux (tested on macOS)
-- Bash shell
-- Git for worktree management
-- Node.js/npm for cursor-agent installation
+# CLI tools for each model
+cli_tools:
+  sonnet-4.5-thinking: cursor-agent
+  gpt-5-codex-high: cursor-agent
+  gemini-2.5-pro: gemini
+```
 
-## License
+**Pluggable:** Add any model via config + adapter.
 
-Proprietary and Confidential - Copyright © 2025 Aetheron. All Rights Reserved.
+---
 
-This is internal tooling for Aetheron projects only.
+## 📊 Example Output
 
-## Credits
+```
+🤖 Agent Cube Autonomous Orchestration
+Task: 03-api-client
+Progress: Phase 6/10 (60%) - Path: SYNTHESIS
 
-Built by the Aetheron team for automating high-quality parallel LLM coding workflows.
+╭─ 💭 Writer A ─────────────────────────────────╮
+│ Analyzing judge feedback...                   │
+│ Addressing type safety issues...              │
+│ Running tests...                              │
+╰───────────────────────────────────────────────╯
+╭─ 💭 Writer B ─────────────────────────────────╮
+│ Implementing circuit breaker...               │
+│ Adding error handling...                      │
+│ Updating documentation...                     │
+╰───────────────────────────────────────────────╯
+[Writer A] 📖 src/client.ts
+[Writer A]    ✅ 156 lines
+[Writer B] 📝 src/config.ts
+[Writer B]    ✅ 89 lines
 
+✅ Ready to create PR from: writer-codex/03-api-client
+```
+
+---
+
+## 🏗️ Architecture
+
+**Ports & Adapters:**
+- CLI Adapters: `cursor-agent`, `gemini`
+- Parsers: JSON stream parsing
+- Layouts: Rich-based thinking displays
+
+**Core Layers:**
+```
+CLI Commands (typer)
+    ↓
+Automation (async workflows)
+    ↓
+Core (agents, adapters, parsers)
+    ↓
+External CLIs (cursor-agent, gemini)
+```
+
+**Clean separation:** Library (async) + CLI (wrappers)
+
+**DRY:** Base layout + 3 subclasses (single/dual/triple)
+
+---
+
+## 🎓 Advanced Usage
+
+### **Resume from Checkpoint**
+```bash
+# Auto-continue from last checkpoint
+cube continue 05-feature-flags
+
+# Resume from specific phase
+cube auto task.md --resume-from 7
+
+# Reset and start fresh
+cube auto task.md --reset
+```
+
+### **Individual Agent Control**
+```bash
+# Resume specific judge
+cube resume judge-2 task "Write your decision JSON"
+
+# Resume both writers
+cube writers task --resume "Complete all tasks"
+
+# Individual feedback
+cube feedback codex task "Fix the type errors"
+```
+
+### **Monitoring**
+```bash
+# Task progress
+cube status 05-task
+→ Phase 7/10 (70%) - Path: SYNTHESIS
+→ Winner: Writer B
+→ Completed: 1,2,3,4,5,6,7
+
+# View logs
+cube logs 05-task              # All logs for task
+cube logs 05-task writer-a     # Specific agent
+cube logs 05-task judge-2 -n 100  # More lines
+```
+
+### **Cleanup**
+```bash
+cube clean 05-task         # Remove task sessions/state
+cube clean --old           # Remove sessions >7 days
+cube clean --all           # Remove all completed
+```
+
+---
+
+## 🤝 Contributing
+
+Agent Cube is open source! Contributions welcome:
+
+- Add new CLI adapters (Anthropic API, OpenAI, etc.)
+- Add new parser formats
+- Improve decision logic
+- Add integration tests
+
+See [PYTHON_IMPLEMENTATION.md](PYTHON_IMPLEMENTATION.md) for architecture details.
+
+---
+
+## 📝 License
+
+MIT License - see [LICENSE](LICENSE)
+
+---
+
+## 🔗 Links
+
+- **Framework Guide:** [AGENT_CUBE.md](AGENT_CUBE.md)
+- **Automation Details:** [AGENT_CUBE_AUTOMATION.md](AGENT_CUBE_AUTOMATION.md)  
+- **Quick Reference:** [QUICK_REFERENCE.md](QUICK_REFERENCE.md)
+- **Planning Guide:** [README-PLANNING.md](README-PLANNING.md)
+
+---
+
+**Built with:** Python 3.10+, Typer, Rich, asyncio
+
+**Powered by:** cursor-agent, Gemini CLI, and any LLM you configure
+
+**Agent Cube - Autonomous multi-agent development** 🎲✨
