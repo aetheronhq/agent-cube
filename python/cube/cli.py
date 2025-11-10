@@ -104,9 +104,9 @@ def peer_review(
 
 @app.command(name="status")
 def status(
-    task_id: Annotated[str, typer.Argument(help="Task ID to check status for")]
+    task_id: Annotated[Optional[str], typer.Argument(help="Task ID to check status for (optional)")] = None
 ):
-    """Show task status (branches, sessions, worktrees)."""
+    """Check workflow status and progress."""
     status_command(task_id)
 
 @app.command(name="sessions")
