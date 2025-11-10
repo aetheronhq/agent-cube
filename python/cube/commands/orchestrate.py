@@ -781,15 +781,19 @@ Both writers need changes based on judge reviews.
         session_a = load_session("WRITER_A", task_id)
         session_b = load_session("WRITER_B", task_id)
         
+        if not session_a:
+            raise RuntimeError("No session found for Writer A. Cannot send feedback.")
+        if not session_b:
+            raise RuntimeError("No session found for Writer B. Cannot send feedback.")
+        
         project_name = Path(PROJECT_ROOT).name
         worktree_a = WORKTREE_BASE / project_name / f"writer-sonnet-{task_id}"
         worktree_b = WORKTREE_BASE / project_name / f"writer-codex-{task_id}"
         
-        if session_a and session_b:
-            await send_dual_feedback(
-                task_id, feedback_a_path, feedback_b_path,
-                session_a, session_b, worktree_a, worktree_b
-            )
+        await send_dual_feedback(
+            task_id, feedback_a_path, feedback_b_path,
+            session_a, session_b, worktree_a, worktree_b
+        )
 
 async def create_pr(task_id: str, winner: str):
     """Create PR."""

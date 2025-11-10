@@ -197,8 +197,10 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
         
         elif msg.tool_name == "read" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", ""))
-            if len(path) > max_width:
-                path = path[:max_width - 3] + "..."
+            prefix_len = len(f"[{prefix}] 📖 ")
+            available = max_width - prefix_len
+            if len(path) > available:
+                path = path[:available - 3] + "..."
             return f"[{color}][{prefix}][/{color}] 📖 {path}"
         
         elif msg.tool_name == "ls" and msg.tool_args:
