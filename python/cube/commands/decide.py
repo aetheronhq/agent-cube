@@ -9,8 +9,35 @@ from ..core.output import print_error, print_success, print_warning, print_info,
 from ..core.config import PROJECT_ROOT
 from ..core.session import load_session
 
-def decide_command(task_id: str) -> None:
-    """Aggregate judge decisions and determine next action."""
+def decide_command(task_id: str, review_type: str = "auto") -> None:
+    """Aggregate judge decisions and determine next action.
+    
+    Args:
+        review_type: 'auto' (latest), 'panel', or 'peer-review'
+    """
+    from ..core.decision_files import find_decision_file
+    
+    if review_type == "auto":
+        has_peer = any(find_decision_file(j, task_id, "peer-review") for j in [1, 2, 3])
+        actual_type = "peer-review" if has_peer else "panel"
+        console.print(f"[dim]Auto-detected: {actual_type} review[/dim]")
+    else:
+        actual_type = review_type
+    
+    if actual_type == "peer-review":
+        console.print(f"[cyan]📊 Analyzing peer review decisions for: {task_id}[/cyan]")
+        console.print()
+        
+        from ..commands.orchestrate import run_decide_peer_review
+        result = run_decide_peer_review(task_id)
+        
+        console.print()
+        if result["approved"]:
+            print_success("✅ Peer review approved - ready for PR!")
+        else:
+            print_warning("⚠️  Peer review needs more work")
+        
+        return
     
     console.print(f"[cyan]📊 Analyzing panel decisions for: {task_id}[/cyan]")
     console.print()

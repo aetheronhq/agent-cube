@@ -187,11 +187,19 @@ def run(
 
 @app.command(name="decide")
 def decide(
-    task_id: Annotated[str, typer.Argument(help="Task ID to aggregate decisions for")]
+    task_id: Annotated[str, typer.Argument(help="Task ID to aggregate decisions for")],
+    panel: Annotated[bool, typer.Option("--panel", help="Check panel decisions")] = False,
+    peer: Annotated[bool, typer.Option("--peer", help="Check peer review decisions")] = False
 ):
-    """Aggregate judge decisions and determine next action."""
+    """Aggregate judge decisions (auto-detects latest by default)."""
+    review_type = "auto"
+    if panel:
+        review_type = "panel"
+    elif peer:
+        review_type = "peer-review"
+    
     try:
-        decide_command(task_id)
+        decide_command(task_id, review_type)
     except Exception as e:
         from .core.output import console_err
         console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
