@@ -336,7 +336,14 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
             if final_check["approved"]:
                 await create_pr(task_id, result["winner"])
             else:
-                print_warning("Still has issues - manual intervention needed")
+                print_warning("Minor fixes didn't resolve all issues")
+                console.print()
+                console.print("The iteration limit has been reached. Manual review needed.")
+                console.print()
+                console.print("Next steps:")
+                console.print("  1. Read peer-review decisions for remaining issues")
+                console.print(f"  2. Manually fix in winner's worktree")
+                console.print(f"  3. Or adjust synthesis and retry from Phase 6")
         else:
             console.print()
             decisions_count = final_result.get("decisions_found", 0)
@@ -384,7 +391,15 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
     
     else:
         console.print()
-        print_warning(f"Next action: {result['next_action']} - manual intervention needed")
+        print_warning(f"Unexpected next action: {result['next_action']}")
+        console.print()
+        console.print("This shouldn't happen. Possible causes:")
+        console.print("  - Corrupted aggregated decision file")
+        console.print("  - Unknown decision path")
+        console.print()
+        console.print("Try:")
+        console.print(f"  cube decide {task_id}  # Re-aggregate decisions")
+        console.print(f"  cube status {task_id}  # Check current state")
 
 async def generate_writer_prompt(task_id: str, task_content: str, prompts_dir: Path) -> Path:
     """Phase 1: Generate writer prompt using orchestrator agent."""
