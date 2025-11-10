@@ -414,24 +414,45 @@ def run_decide_and_get_result(task_id: str) -> dict:
 
 def run_decide_peer_review(task_id: str) -> dict:
     """Check peer review decisions and extract any remaining issues."""
-    from ..core.decision_parser import parse_all_decisions
     import json
     from pathlib import Path
     
     decisions_dir = PROJECT_ROOT / ".prompts" / "decisions"
     all_issues = []
+    approvals = 0
+    decisions_found = 0
+    
+    console.print(f"[cyan]📊 Checking peer review decisions for: {task_id}[/cyan]")
+    console.print()
     
     for judge_num in [1, 2, 3]:
         peer_file = decisions_dir / f"judge-{judge_num}-{task_id}-peer-review.json"
         if peer_file.exists():
+            decisions_found += 1
             with open(peer_file) as f:
                 data = json.load(f)
+                decision = data.get("decision", "UNKNOWN")
                 remaining = data.get("remaining_issues", [])
+                
+                console.print(f"Judge {judge_num}: {decision}")
                 if remaining:
+                    console.print(f"  Issues: {len(remaining)}")
                     all_issues.extend(remaining)
+                
+                if decision == "APPROVED":
+                    approvals += 1
     
-    decisions = parse_all_decisions(task_id)
-    approvals = sum(1 for d in decisions if d.decision == "APPROVED")
+    console.print()
+    
+    if decisions_found == 0:
+        print_warning("No peer review decisions found!")
+        console.print("Expected files:")
+        for judge_num in [1, 2, 3]:
+            console.print(f"  .prompts/decisions/judge-{judge_num}-{task_id}-peer-review.json")
+        console.print()
+        return {"approved": False, "remaining_issues": []}
+    
+    console.print(f"Decisions: {decisions_found}/3, Approvals: {approvals}/{decisions_found}")
     
     return {
         "approved": approvals >= 2,
