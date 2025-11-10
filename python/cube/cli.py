@@ -193,6 +193,20 @@ def clean(
     """Clean up completed or stale sessions."""
     clean_command(task_id, old, all_tasks, dry_run)
 
+@app.command(name="auto")
+def auto(
+    task_file: Annotated[str, typer.Argument(help="Path to the task file")],
+    resume_from: Annotated[int, typer.Option("--resume-from", help="Resume from phase number (1-10)")] = 1
+):
+    """Shortcut for: cube orchestrate auto <task-file>"""
+    try:
+        import asyncio
+        asyncio.run(orchestrate_auto_command(task_file, resume_from))
+    except Exception as e:
+        from .core.output import console_err
+        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        sys.exit(1)
+
 if __name__ == "__main__":
     app()
 
