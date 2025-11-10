@@ -6,15 +6,20 @@ from typing import Final
 
 VERSION: Final[str] = "1.0.0"
 
-PROJECT_ROOT: Path = Path.cwd()
 HOME_DIR: Path = Path.home()
-
 WORKTREE_BASE: Path = HOME_DIR / ".cube" / "worktrees"
 SESSIONS_DIR_NAME: Final[str] = ".agent-sessions"
 
+def get_project_root() -> Path:
+    """Get the current project root (runtime cwd)."""
+    return Path.cwd()
+
+# Use function for runtime evaluation
+PROJECT_ROOT: Path = get_project_root()
+
 def get_sessions_dir() -> Path:
     """Get the sessions directory path relative to current project."""
-    return PROJECT_ROOT / SESSIONS_DIR_NAME
+    return get_project_root() / SESSIONS_DIR_NAME
 
 def get_worktree_path(project_name: str, writer_name: str, task_id: str) -> Path:
     """Get the worktree path for a specific writer and task."""
