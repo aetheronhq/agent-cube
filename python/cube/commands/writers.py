@@ -11,7 +11,7 @@ from ..automation.dual_writers import launch_dual_writers
 
 def writers_command(
     task_id: str,
-    prompt_file: str,
+    prompt_file_or_message: str,
     resume: bool = False
 ) -> None:
     """Launch dual writers for a task."""
@@ -30,11 +30,19 @@ def writers_command(
         print()
         raise typer.Exit(1)
     
-    prompt_path = PROJECT_ROOT / prompt_file
-    
-    if not prompt_path.exists():
-        print_error(f"Prompt file not found: {prompt_file}")
-        raise typer.Exit(1)
-    
-    asyncio.run(launch_dual_writers(task_id, prompt_path, resume))
+    if resume:
+        from .resume import resume_command
+        console.print("[yellow]Resuming both writers with message...[/yellow]")
+        console.print()
+        resume_command("writer-a", task_id, prompt_file_or_message)
+        console.print()
+        resume_command("writer-b", task_id, prompt_file_or_message)
+    else:
+        prompt_path = PROJECT_ROOT / prompt_file_or_message
+        
+        if not prompt_path.exists():
+            print_error(f"Prompt file not found: {prompt_file_or_message}")
+            raise typer.Exit(1)
+        
+        asyncio.run(launch_dual_writers(task_id, prompt_path, resume_mode=False))
 
