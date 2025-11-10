@@ -28,13 +28,21 @@ def get_decision_file_path(judge_num: int, task_id: str) -> Path:
         return primary_path
     
     from .config import WORKTREE_BASE
-    gemini_path = WORKTREE_BASE.parent / ".prompts" / "decisions" / f"judge-{judge_num}-{task_id}-decision.json"
     
-    if gemini_path.exists():
-        import shutil
-        primary_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(gemini_path, primary_path)
-        return primary_path
+    fallback_paths = [
+        WORKTREE_BASE.parent / ".prompts" / "decisions" / f"judge-{judge_num}-{task_id}-decision.json",
+        Path.home() / ".cube" / ".prompts" / "decisions" / f"judge-{judge_num}-{task_id}-decision.json",
+        WORKTREE_BASE.parent / "decisions" / f"judge-{judge_num}-{task_id}-decision.json",
+    ]
+    
+    for fallback in fallback_paths:
+        if fallback.exists():
+            import shutil
+            primary_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(fallback, primary_path)
+            from ..core.output import print_info
+            print_info(f"Found decision at {fallback}, copied to {primary_path.name}")
+            return primary_path
     
     return primary_path
 

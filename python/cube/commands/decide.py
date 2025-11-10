@@ -34,6 +34,12 @@ def decide_command(task_id: str) -> None:
                 if session_id:
                     console.print(f"  [yellow]Judge {judge_num}[/yellow] (session: {session_id})")
                     console.print(f"    Resume: [cyan]cube resume judge-{judge_num} {task_id} \"Write decision file\"[/cyan]")
+                    
+                    from ..core.user_config import get_judge_config
+                    jconfig = get_judge_config(judge_num)
+                    if "gemini" in jconfig.model.lower():
+                        console.print(f"    [dim]Note: Gemini may need help finding PROJECT_ROOT[/dim]")
+                        console.print(f"    [dim]Tell it: Write to {PROJECT_ROOT}/.prompts/decisions/judge-{judge_num}-{task_id}-decision.json[/dim]")
                 else:
                     console.print(f"  [red]Judge {judge_num}[/red] (no session)")
         
