@@ -1,12 +1,7 @@
 export interface Task {
   id: string;
-  current_phase: number;
-  path: string;
-  workflow_status: string;
-}
-
-export interface TasksResponse {
-  tasks: Task[];
+  name: string;
+  status: "pending" | "running" | "completed" | "failed";
 }
 
 export interface ThinkingLine {
