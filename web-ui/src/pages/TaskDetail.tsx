@@ -45,9 +45,57 @@ export default function TaskDetail(): JSX.Element {
   const [task, setTask] = useState<WorkflowState | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [historicalMessages, setHistoricalMessages] = useState<SSEMessage[]>([]);
   const streamUrl = taskId ? `${API_BASE_URL}/tasks/${encodeURIComponent(taskId)}/stream` : null;
 
-  const { messages, connected, error: streamError } = useSSE(streamUrl, { enabled: Boolean(taskId) });
+  const { messages, connected, error: streamError } = useSSE(streamUrl, { 
+    enabled: Boolean(taskId),
+    initialMessages: historicalMessages
+  });
+
+  useEffect(() => {
+    if (!taskId) {
+      return;
+    }
+
+    const loadHistoricalLogs = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/tasks/${encodeURIComponent(taskId)}/logs`);
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        const parsed: SSEMessage[] = [];
+        
+        for (const logEntry of data.logs || []) {
+          const lines = logEntry.content.split('\n');
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const msg = JSON.parse(line);
+              if (msg.type === 'thinking' && msg.text) {
+                parsed.push({
+                  type: 'thinking',
+                  box: msg.box || 'unknown',
+                  text: msg.text,
+                  timestamp: msg.timestamp || new Date().toISOString()
+                });
+              } else if (msg.type === 'tool_call' || msg.type === 'result') {
+                parsed.push({
+                  type: 'output',
+                  content: `${msg.type}: ${JSON.stringify(msg).substring(0, 100)}...`,
+                  timestamp: msg.timestamp || new Date().toISOString()
+                });
+              }
+            } catch {}
+          }
+        }
+        
+        setHistoricalMessages(parsed);
+      } catch {}
+    };
+
+    loadHistoricalLogs();
+  }, [taskId]);
 
   useEffect(() => {
     if (!taskId) {

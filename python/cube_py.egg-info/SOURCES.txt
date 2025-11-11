@@ -55,7 +55,9 @@ cube/models/__init__.py
 cube/models/types.py
 cube/ui/__init__.py
 cube/ui/server.py
+cube/ui/sse_layout.py
 cube/ui/routes/__init__.py
+cube/ui/routes/stream.py
 cube/ui/routes/tasks.py
 cube_py.egg-info/PKG-INFO
 cube_py.egg-info/SOURCES.txt

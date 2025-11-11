@@ -5,6 +5,7 @@ interface UseSSEOptions {
   enabled?: boolean;
   reconnectDelayMs?: number;
   maxMessages?: number;
+  initialMessages?: SSEMessage[];
 }
 
 interface UseSSEResult {
@@ -18,9 +19,9 @@ const DEFAULT_MAX_MESSAGES = 1000;
 
 export function useSSE(
   url: string | null,
-  { enabled = true, reconnectDelayMs = DEFAULT_RECONNECT_DELAY, maxMessages = DEFAULT_MAX_MESSAGES }: UseSSEOptions = {},
+  { enabled = true, reconnectDelayMs = DEFAULT_RECONNECT_DELAY, maxMessages = DEFAULT_MAX_MESSAGES, initialMessages = [] }: UseSSEOptions = {},
 ): UseSSEResult {
-  const [messages, setMessages] = useState<SSEMessage[]>([]);
+  const [messages, setMessages] = useState<SSEMessage[]>(initialMessages);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string>();
   const retryTimerRef = useRef<number>();
@@ -31,9 +32,9 @@ export function useSSE(
   useEffect(() => {
     if (normalizedUrl !== previousUrlRef.current) {
       previousUrlRef.current = normalizedUrl;
-      setMessages([]);
+      setMessages(initialMessages);
     }
-  }, [normalizedUrl]);
+  }, [normalizedUrl, initialMessages]);
 
   useEffect(() => {
     if (!normalizedUrl || !enabled) {
