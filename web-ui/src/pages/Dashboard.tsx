@@ -54,10 +54,10 @@ export default function Dashboard(): JSX.Element {
     );
   }
 
-  const isCompleted = (status: string | undefined) => 
-    status === "complete" || (status && status.endsWith("-complete")) || false;
-  const activeTasks = tasks.filter((t) => !isCompleted(t.workflow_status));
-  const completedTasks = tasks.filter((t) => isCompleted(t.workflow_status));
+  // Task is only complete when workflow is done (phase 10), not just when a phase completes
+  const isCompleted = (task: Task) => task.current_phase >= 10 || task.workflow_status === "complete";
+  const activeTasks = tasks.filter((t) => !isCompleted(t));
+  const completedTasks = tasks.filter((t) => isCompleted(t));
 
   return (
     <div>

@@ -29,12 +29,8 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     layout = get_dual_layout()
     layout.start()
     
-    # Push to SSE if ui module available
-    try:
-        from ..ui.routes.stream import task_stream_registry
-        sse_state = task_stream_registry.ensure(writer_info.task_id)
-    except ImportError:
-        sse_state = None
+    from .message_broadcaster import create_broadcaster
+    broadcaster = create_broadcaster(writer_info.task_id, layout)
     
     from pathlib import Path
     logs_dir = Path.home() / ".cube" / "logs"
@@ -75,25 +71,9 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
                     if formatted:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(writer_info.letter, thinking_text)
-                            # Push to SSE
-                            if sse_state:
-                                sse_state.publish({
-                                    "type": "thinking",
-                                    "box": f"writer-{writer_info.letter.lower()}",
-                                    "text": thinking_text,
-                                    "timestamp": datetime.now().isoformat()
-                                })
+                            await broadcaster.broadcast_thinking(writer_info.letter, thinking_text)
                         else:
-                            layout.add_output(formatted)
-                            # Push to SSE
-                            if sse_state:
-                                sse_state.publish({
-                                    "type": "output",
-                                    "agent": writer_info.label,
-                                    "content": formatted,
-                                    "timestamp": datetime.now().isoformat()
-                                })
+                            await broadcaster.broadcast_output(formatted, writer_info.label)
     finally:
         watcher.stop()
     

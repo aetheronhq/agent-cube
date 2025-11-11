@@ -26,12 +26,8 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
     layout = get_triple_layout()
     layout.start()
     
-    # Push to SSE if ui module available
-    try:
-        from ..ui.routes.stream import task_stream_registry
-        sse_state = task_stream_registry.ensure(judge_info.task_id)
-    except ImportError:
-        sse_state = None
+    from .message_broadcaster import create_broadcaster
+    broadcaster = create_broadcaster(judge_info.task_id, layout)
     
     from pathlib import Path
     logs_dir = Path.home() / ".cube" / "logs"
@@ -79,27 +75,9 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                     if formatted:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(judge_info.number, thinking_text)
-                            # Push to SSE
-                            if sse_state:
-                                from datetime import datetime
-                                sse_state.publish({
-                                    "type": "thinking",
-                                    "box": f"judge-{judge_info.number}",
-                                    "text": thinking_text,
-                                    "timestamp": datetime.now().isoformat()
-                                })
+                            await broadcaster.broadcast_thinking(judge_info.number, thinking_text)
                         else:
-                            layout.add_output(formatted)
-                            # Push to SSE
-                            if sse_state:
-                                from datetime import datetime
-                                sse_state.publish({
-                                    "type": "output",
-                                    "agent": f"Judge {judge_info.number}",
-                                    "content": formatted,
-                                    "timestamp": datetime.now().isoformat()
-                                })
+                            await broadcaster.broadcast_output(formatted, f"Judge {judge_info.number}")
     finally:
         watcher.stop()
     
