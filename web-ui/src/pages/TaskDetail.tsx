@@ -1,4 +1,16 @@
 import type { JSX } from "react";
+<<<<<<< HEAD
+import { useParams } from "react-router-dom";
+
+export default function TaskDetail(): JSX.Element {
+  const { id } = useParams<{ id: string }>();
+  const taskId = id ?? "unknown";
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-4">Task {taskId}</h1>
+      <p className="text-gray-400">Thinking boxes coming soon...</p>
+=======
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { DualLayout } from "../components/DualLayout";
@@ -188,6 +200,7 @@ export default function TaskDetail(): JSX.Element {
           Task metadata unavailable. Streaming will continue if events arrive.
         </div>
       )}
+>>>>>>> origin/main
     </div>
   );
 }

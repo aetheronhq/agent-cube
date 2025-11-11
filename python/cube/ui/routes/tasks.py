@@ -4,7 +4,7 @@ import logging
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
@@ -13,11 +13,10 @@ from pydantic import BaseModel, model_validator
 from cube.automation.dual_writers import launch_dual_writers
 from cube.automation.judge_panel import launch_judge_panel
 from cube.commands.feedback import send_feedback_async
-from cube.core.config import PROJECT_ROOT, WRITER_LETTERS, get_worktree_path
+from cube.core.config import JUDGE_MODELS, PROJECT_ROOT, WRITER_LETTERS, get_worktree_path
+from cube.core.decision_parser import JudgeDecision, aggregate_decisions, parse_all_decisions
 from cube.core.session import load_session
 from cube.core.state import WorkflowState, load_state
-
-from .stream import task_stream_registry
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -161,6 +160,31 @@ async def get_task_logs(task_id: str) -> TaskLogsResponse:
     return TaskLogsResponse(logs=log_entries)
 
 
+@router.get(
+    "/{task_id}/decisions",
+    status_code=status.HTTP_200_OK,
+)
+async def get_task_decisions(task_id: str) -> dict[str, Any]:
+    """Return decision data for a task."""
+    try:
+        judge_decisions = parse_all_decisions(task_id)
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.exception("Failed to read decisions for task %s", task_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error reading decisions: {exc}",
+        ) from exc
+
+    if not judge_decisions:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No decisions found for task '{task_id}'",
+        )
+
+    response = _build_decision_payload(judge_decisions)
+    return {"decisions": response}
+
+
 @router.post("/{task_id}/writers")
 async def start_writers(
     task_id: str,
@@ -184,7 +208,7 @@ async def start_writers(
     )
 
     background_tasks.add_task(
-        _launch_writers_with_stream,
+        launch_dual_writers,
         task_id,
         prompt_path,
         request.resume,
@@ -221,7 +245,7 @@ async def start_panel(
     )
 
     background_tasks.add_task(
-        _launch_panel_with_stream,
+        launch_judge_panel,
         task_id,
         prompt_path,
         request.review_type,
@@ -334,34 +358,52 @@ def _parse_timestamp(value: str | None) -> datetime:
         return datetime.min
 
 
-async def _launch_writers_with_stream(task_id: str, prompt_path: Path, resume: bool) -> None:
-    state = task_stream_registry.ensure(task_id)
-    state.ensure_writers_layout()
-    state.publish_status("writers-started", resume=resume)
-    try:
-        await launch_dual_writers(task_id, prompt_path, resume)
-        state.publish_status("writers-completed")
-    except Exception as exc:  # noqa: BLE001
-        state.publish_status("writers-error", error=str(exc))
-        raise
-    finally:
-        state.release_writers_layout()
+def _build_decision_payload(
+    judge_decisions: list[JudgeDecision],
+) -> list[dict[str, Any]]:
+    if not judge_decisions:
+        return []
+
+    serialized_votes = [_serialize_judge_decision(decision) for decision in judge_decisions]
+
+    summary = aggregate_decisions(judge_decisions)
+    winner = summary.get("winner")
+    winner_letter = winner if winner in {"A", "B"} else None
+
+    timestamps = [decision.timestamp for decision in judge_decisions if decision.timestamp]
+    latest_timestamp = max(timestamps) if timestamps else datetime.utcnow().isoformat()
+
+    decision_payload: dict[str, Any] = {
+        "type": "panel",
+        "judges": serialized_votes,
+        "timestamp": latest_timestamp,
+    }
+
+    if winner_letter:
+        decision_payload["winner"] = winner_letter
+
+    return [decision_payload]
 
 
-async def _launch_panel_with_stream(
-    task_id: str,
-    prompt_path: Path,
-    review_type: str,
-    resume: bool,
-) -> None:
-    state = task_stream_registry.ensure(task_id)
-    state.ensure_judges_layout()
-    state.publish_status("judges-started", reviewType=review_type, resume=resume)
-    try:
-        await launch_judge_panel(task_id, prompt_path, review_type, resume)
-        state.publish_status("judges-completed", reviewType=review_type)
-    except Exception as exc:  # noqa: BLE001
-        state.publish_status("judges-error", reviewType=review_type, error=str(exc))
-        raise
-    finally:
-        state.release_judges_layout()
+def _serialize_judge_decision(decision: JudgeDecision) -> dict[str, Any]:
+    model_name = JUDGE_MODELS.get(decision.judge, f"judge-{decision.judge}")
+    vote_value = _resolve_vote(decision)
+
+    return {
+        "judge": decision.judge,
+        "model": model_name,
+        "vote": vote_value,
+        "rationale": decision.recommendation,
+    }
+
+
+def _resolve_vote(decision: JudgeDecision) -> str:
+    if decision.winner in {"A", "B"}:
+        return decision.winner
+
+    normalized_decision = (decision.decision or "").upper()
+    if normalized_decision in {"APPROVE", "APPROVED"}:
+        return "APPROVE"
+    if normalized_decision == "REQUEST_CHANGES":
+        return "REQUEST_CHANGES"
+    return "COMMENT"
