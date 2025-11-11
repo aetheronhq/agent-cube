@@ -50,6 +50,8 @@ class TaskStreamState:
     def __init__(self, task_id: str):
         self.task_id = task_id
         self.queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
+        # Maintain a bounded in-memory history so new subscribers can replay recent events
+        # prior to receiving live updates. This mirrors the CLI experience after refresh.
         self.history: Deque[Dict[str, Any]] = deque(maxlen=HISTORY_LIMIT)
         self.subscribers: Set[asyncio.Queue[Dict[str, Any]]] = set()
         try:
@@ -91,6 +93,27 @@ class TaskStreamState:
         if "writers" in self._layouts:
             return
         DualWriterLayout.reset()
+        # ----------------------------------------------------------------------
+        # CRITICAL INTEGRATION PATTERN: "Layout hijacking"
+        #
+        # DualWriterLayout and TripleJudgeLayout expose class-level singleton
+        # instances that automation commands interact with directly. By swapping
+        # the `_instance` for our SSELayout adapter we transparently intercept
+        # every `add_thinking` / `add_output` call made by automation without
+        # modifying the underlying orchestration code.
+        #
+        # Why this is safe:
+        # • SSELayout subclasses BaseThinkingLayout and preserves behaviour.
+        # • We restore the original singleton by calling `reset()` in the
+        #   corresponding release_* methods when subscribers disconnect.
+        # • There is no public hook for dependency injection; targeted
+        #   monkey-patching keeps the integration localised to the UI layer.
+        #
+        # Alternative approaches (observer pattern, wrapper types, etc.) would
+        # require invasive changes across automation modules. This technique keeps
+        # the streaming integration self-contained while guaranteeing parity with
+        # the CLI experience.
+        # ----------------------------------------------------------------------
         layout = SSELayout(self.task_id, WRITER_BOXES, self.queue)
         DualWriterLayout._instance = layout  # type: ignore[attr-defined]
         self._layouts["writers"] = layout
@@ -98,6 +121,8 @@ class TaskStreamState:
     def release_writers_layout(self) -> None:
         if "writers" not in self._layouts:
             return
+        # reset() reinstates the original BaseThinkingLayout-backed singleton
+        # so future CLI usage behaves exactly as before streaming began.
         DualWriterLayout.reset()
         self._layouts.pop("writers", None)
 
@@ -112,6 +137,8 @@ class TaskStreamState:
     def release_judges_layout(self) -> None:
         if "judges" not in self._layouts:
             return
+        # Mirror the writers flow: restore the default singleton to avoid
+        # leaking the SSE adapter once no subscribers are connected.
         TripleJudgeLayout.reset()
         self._layouts.pop("judges", None)
 
@@ -137,7 +164,31 @@ class TaskStreamState:
 
 
 class TaskStreamRegistry:
-    """Registry of active task SSE streams."""
+    """Manage SSE stream lifecycle and state for UI task monitoring.
+
+    Lifecycle
+    ---------
+    1. `ensure(task_id)` creates or returns a TaskStreamState. This step also
+       hijacks the Dual/Triple layout singletons so automation writes flow
+       through SSELayout.
+    2. While subscribers are active, messages are queued asynchronously and
+       replayed from the bounded history buffer for late joiners.
+    3. `cleanup(task_id)` is invoked when the last subscriber disconnects. It
+       releases the hijacked layouts via `reset()`, cancels background tasks,
+       and allows the state to be garbage collected.
+
+    Thread safety
+    -------------
+    The registry uses a threading.Lock around its dictionary. FastAPI runs each
+    coroutine on a single event loop, so this light synchronisation is sufficient
+    without additional concurrency primitives.
+
+    Memory management
+    -----------------
+    Each TaskStreamState caps history at `HISTORY_LIMIT` messages. Because state
+    is cleaned up as soon as there are no subscribers, memory usage stays bounded
+    and no filesystem persistence is required.
+    """
 
     def __init__(self) -> None:
         self._streams: Dict[str, TaskStreamState] = {}
