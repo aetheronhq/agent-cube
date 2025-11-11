@@ -39,7 +39,6 @@ export interface TripleLayoutProps {
   judge3Lines: string[];
 }
 
-<<<<<<< HEAD
 export interface JudgeVote {
   judge: number;
   model: string;
@@ -63,7 +62,7 @@ export interface Decision {
   synthesis?: SynthesisInfo;
   timestamp: string;
 }
-=======
+
 export interface WorkflowState {
   task_id: string;
   current_phase: number;
@@ -108,4 +107,3 @@ export type StatusMessage = SSEMessage & {
   type: "status";
   status: string;
 };
->>>>>>> origin/main
