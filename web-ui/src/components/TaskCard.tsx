@@ -9,14 +9,14 @@ interface TaskCardProps {
 export function TaskCard({ task }: TaskCardProps): JSX.Element {
   const navigate = useNavigate();
 
-  const statusColor =
-    task.status === "completed"
-      ? "bg-blue-600"
-      : task.status === "failed"
-        ? "bg-red-600"
-        : "bg-green-600";
+  const getStatusColor = (workflowStatus: string): string => {
+    if (workflowStatus === "complete") return "bg-blue-600";
+    if (workflowStatus === "failed" || workflowStatus === "error") return "bg-red-600";
+    return "bg-green-600";
+  };
 
-  const progressPercentage = (task.phase / 10) * 100;
+  const statusColor = getStatusColor(task.workflow_status);
+  const progressPercentage = (task.current_phase / 10) * 100;
 
   return (
     <div
@@ -26,11 +26,11 @@ export function TaskCard({ task }: TaskCardProps): JSX.Element {
       <div className="flex justify-between items-start mb-2">
         <h3 className="font-semibold text-white">{task.id}</h3>
         <span className={`text-xs px-2 py-1 rounded text-white ${statusColor}`}>
-          {task.status || "active"}
+          {task.workflow_status}
         </span>
       </div>
 
-      <div className="text-sm text-gray-400 mb-2">Phase {task.phase}/10</div>
+      <div className="text-sm text-gray-400 mb-2">Phase {task.current_phase}/10</div>
 
       <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
         <div

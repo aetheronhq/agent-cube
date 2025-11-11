@@ -1,8 +1,8 @@
 export interface Task {
   id: string;
-  phase: number;
+  current_phase: number;
   path: string;
-  status?: "active" | "completed" | "failed";
+  workflow_status: string;
 }
 
 export interface TasksResponse {
