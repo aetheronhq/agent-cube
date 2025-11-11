@@ -17,6 +17,8 @@ from cube.core.config import PROJECT_ROOT, WRITER_LETTERS, get_worktree_path
 from cube.core.session import load_session
 from cube.core.state import WorkflowState, load_state
 
+from .stream import task_stream_registry
+
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 logger = logging.getLogger(__name__)
@@ -182,7 +184,7 @@ async def start_writers(
     )
 
     background_tasks.add_task(
-        launch_dual_writers,
+        _launch_writers_with_stream,
         task_id,
         prompt_path,
         request.resume,
@@ -219,7 +221,7 @@ async def start_panel(
     )
 
     background_tasks.add_task(
-        launch_judge_panel,
+        _launch_panel_with_stream,
         task_id,
         prompt_path,
         request.review_type,
@@ -330,3 +332,36 @@ def _parse_timestamp(value: str | None) -> datetime:
         return datetime.fromisoformat(value)
     except ValueError:
         return datetime.min
+
+
+async def _launch_writers_with_stream(task_id: str, prompt_path: Path, resume: bool) -> None:
+    state = task_stream_registry.ensure(task_id)
+    state.ensure_writers_layout()
+    state.publish_status("writers-started", resume=resume)
+    try:
+        await launch_dual_writers(task_id, prompt_path, resume)
+        state.publish_status("writers-completed")
+    except Exception as exc:  # noqa: BLE001
+        state.publish_status("writers-error", error=str(exc))
+        raise
+    finally:
+        state.release_writers_layout()
+
+
+async def _launch_panel_with_stream(
+    task_id: str,
+    prompt_path: Path,
+    review_type: str,
+    resume: bool,
+) -> None:
+    state = task_stream_registry.ensure(task_id)
+    state.ensure_judges_layout()
+    state.publish_status("judges-started", reviewType=review_type, resume=resume)
+    try:
+        await launch_judge_panel(task_id, prompt_path, review_type, resume)
+        state.publish_status("judges-completed", reviewType=review_type)
+    except Exception as exc:  # noqa: BLE001
+        state.publish_status("judges-error", reviewType=review_type, error=str(exc))
+        raise
+    finally:
+        state.release_judges_layout()
