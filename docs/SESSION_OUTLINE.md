@@ -26,13 +26,16 @@ Watch it plan its own web UI..."
 **Quick aside:**
 ```
 "Oh, and these slides?
-The Agent Cube built them.
+The Agent Cube planned them.
+Leo's techdecks built them.
 
-I gave it session requirements.
-Two writers proposed slide decks.
-Three judges picked this structure.
+I gave Cube session requirements.
+Two writers proposed slide structures.
+Three judges picked this outline.
 
-You're experiencing the winner right now.
+Then techdecks turned it into what you're seeing.
+
+Meta-moment²: AI planned, AI built, human presents.
 
 [Pause for reaction]
 
