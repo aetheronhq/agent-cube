@@ -23,7 +23,7 @@ export function useSSE(
   const [messages, setMessages] = useState<SSEMessage[]>([]);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string>();
-  const retryTimerRef = useRef<number>();
+  const retryTimerRef = useRef<number | undefined>(undefined);
   const eventSourceRef = useRef<EventSource | null>(null);
   const normalizedUrl = useMemo(() => (url ? url.replace(/\s+/g, "") : null), [url]);
   const previousUrlRef = useRef<string | null>(null);
