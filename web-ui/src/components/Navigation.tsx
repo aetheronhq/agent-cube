@@ -8,11 +8,14 @@ export default function Navigation(): JSX.Element {
         <div className="flex items-center space-x-6">
           <h1 className="text-xl font-bold">AgentCube</h1>
           <div className="flex space-x-4">
+            <Link to="/" className="text-gray-300 hover:text-white transition-colors">
+              Dashboard
+            </Link>
             <Link
-              to="/"
+              to={{ pathname: "/", search: "?view=tasks" }}
               className="text-gray-300 hover:text-white transition-colors"
             >
-              Dashboard
+              Tasks
             </Link>
           </div>
         </div>

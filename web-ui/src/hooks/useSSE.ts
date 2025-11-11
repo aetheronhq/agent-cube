@@ -23,7 +23,7 @@ export function useSSE(
   const [messages, setMessages] = useState<SSEMessage[]>([]);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string>();
-  const retryTimerRef = useRef<number>();
+  const retryTimerRef = useRef<number | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const normalizedUrl = useMemo(() => (url ? url.replace(/\s+/g, "") : null), [url]);
   const previousUrlRef = useRef<string | null>(null);
@@ -45,9 +45,9 @@ export function useSSE(
     let cancelled = false;
 
     const cleanupTimers = () => {
-      if (retryTimerRef.current) {
+      if (retryTimerRef.current !== null) {
         window.clearTimeout(retryTimerRef.current);
-        retryTimerRef.current = undefined;
+        retryTimerRef.current = null;
       }
     };
 
@@ -107,7 +107,6 @@ export function useSSE(
           }
           setConnected(false);
           closeCurrentSource();
-
           cleanupTimers();
           retryTimerRef.current = window.setTimeout(connect, reconnectDelayMs);
         };

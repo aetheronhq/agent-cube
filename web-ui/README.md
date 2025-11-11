@@ -2,30 +2,36 @@
 
 React-based web interface for AgentCube agent orchestration.
 
-## Setup
+## Getting Started
 
 ```bash
 npm install
-npm run dev  # Start dev server on :5173
+npm run dev
 ```
 
-## Stack
+The dev server runs on `http://localhost:5173` with hot module reload.
 
-- Vite + React 18 + TypeScript (strict)
+## Verification
+
+Run the standard checks before opening a PR:
+
+```bash
+npm run build    # Type-check + production bundle
+npx tsc --noEmit # Optional: strict type checking only
+```
+
+## Tech Stack
+
+- Vite + React 19 + TypeScript (strict mode)
 - React Router v6
-- Tailwind CSS
-- Server-Sent Events (SSE) for real-time updates
+- Tailwind CSS for styling
+- Server-Sent Events (SSE) plumbing for live updates
 
-## Structure
+## Project Structure
 
-- `src/components/` - Reusable UI components
-- `src/pages/` - Route page components
-- `src/hooks/` - Custom React hooks
-- `src/types/` - TypeScript type definitions
-
-## Development
-
-- `npm run dev` - Start dev server
-- `npm run build` - Production build
-- `npm run preview` - Preview production build
-```
+- `src/main.tsx` – App bootstrap
+- `src/App.tsx` – Router configuration
+- `src/components/` – Shared UI elements (navigation, layouts, etc.)
+- `src/pages/` – Route-level components (Dashboard, Task Detail, Decisions)
+- `src/hooks/` – Custom hooks (`useSSE`)
+- `src/types/` – Shared TypeScript definitions
