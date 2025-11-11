@@ -9,25 +9,17 @@ from ..models.types import StreamMessage
 from ..core.config import PROJECT_ROOT
 
 def strip_worktree_path(path: str) -> str:
-    """Strip worktree path prefix from file paths."""
+    """Strip worktree path prefix from file paths, removing writer-sonnet/writer-codex dirs."""
     if "/.cube/worktrees/" in path or "/.cursor/worktrees/" in path:
         parts = path.split("/")
         for i, part in enumerate(parts):
             if part == "worktrees" and i + 2 < len(parts):
-                worktree_name = parts[i + 2]
-                
-                if worktree_name.startswith("writer-sonnet-"):
-                    writer_part = "writer-sonnet"
-                elif worktree_name.startswith("writer-codex-"):
-                    writer_part = "writer-codex"
-                else:
-                    writer_part = worktree_name
-                
+                # Skip the writer-sonnet-XX or writer-codex-XX directory entirely
                 remaining_path = "/".join(parts[i+3:]) if i + 3 < len(parts) else ""
                 if remaining_path:
-                    return f"~worktrees/{writer_part}/{remaining_path}"
+                    return f"~worktrees/{remaining_path}"
                 else:
-                    return f"~worktrees/{writer_part}"
+                    return "~worktrees/"
         return "~worktrees/" + parts[-1]
     
     project_root_str = str(PROJECT_ROOT)
