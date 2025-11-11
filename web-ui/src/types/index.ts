@@ -38,3 +38,12 @@ export interface TripleLayoutProps {
   judge2Lines: string[];
   judge3Lines: string[];
 }
+
+export interface SSEMessage {
+  type: string;
+  box?: string;
+  agent?: string;
+  content?: string;
+  text?: string;
+  timestamp: string;
+}
