@@ -79,6 +79,7 @@ class FeedbackRequest(BaseModel):
 
 @router.get("", response_model=TaskListResponse)
 async def list_tasks() -> TaskListResponse:
+    """Return a summary of all known tasks ordered by last update."""
     if not STATE_DIR.exists():
         return TaskListResponse(tasks=[])
 
@@ -106,6 +107,7 @@ async def list_tasks() -> TaskListResponse:
 
 @router.get("/{task_id}")
 async def get_task(task_id: str) -> dict:
+    """Return complete workflow state for a single task."""
     state = load_state(task_id)
     if not state:
         raise HTTPException(
@@ -118,6 +120,7 @@ async def get_task(task_id: str) -> dict:
 
 @router.get("/{task_id}/logs", response_model=TaskLogsResponse)
 async def get_task_logs(task_id: str) -> TaskLogsResponse:
+    """Return available log files for the given task."""
     if not LOGS_DIR.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -162,6 +165,7 @@ async def start_writers(
     request: WriterRequest,
     background_tasks: BackgroundTasks,
 ) -> dict[str, str]:
+    """Launch dual writers in the background for the given task."""
     prompt_path = _resolve_project_path(request.prompt_file)
 
     if not prompt_path.exists():
@@ -197,6 +201,7 @@ async def start_panel(
     request: PanelRequest,
     background_tasks: BackgroundTasks,
 ) -> dict[str, str]:
+    """Launch judge panel agents in the background."""
     prompt_path = _resolve_project_path(request.prompt_file)
 
     if not prompt_path.exists():
@@ -234,6 +239,7 @@ async def send_feedback(
     request: FeedbackRequest,
     background_tasks: BackgroundTasks,
 ) -> dict[str, str]:
+    """Queue feedback to resume a writer session."""
     writer = WRITER_ALIASES[request.writer]
     writer_letter = WRITER_LETTERS[writer]
     session_id = load_session(f"WRITER_{writer_letter}", task_id)
