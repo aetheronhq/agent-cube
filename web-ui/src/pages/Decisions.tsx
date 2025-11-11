@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 
-export default function Decisions() {
+export default function Decisions(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   
   return (

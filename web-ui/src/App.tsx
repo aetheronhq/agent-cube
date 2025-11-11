@@ -4,7 +4,7 @@ import Dashboard from './pages/Dashboard';
 import TaskDetail from './pages/TaskDetail';
 import Decisions from './pages/Decisions';
 
-function App() {
+function App(): React.ReactElement {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-cube-dark text-white">

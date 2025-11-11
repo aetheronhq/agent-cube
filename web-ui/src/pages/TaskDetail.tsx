@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 
-export default function TaskDetail() {
+export default function TaskDetail(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   
   return (

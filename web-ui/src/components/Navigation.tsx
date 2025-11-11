@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 
-export default function Navigation() {
+export default function Navigation(): React.ReactElement {
   return (
     <nav className="bg-cube-gray border-b border-cube-light">
       <div className="container mx-auto px-4 py-4">
