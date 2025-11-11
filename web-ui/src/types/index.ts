@@ -1,7 +1,12 @@
 export interface Task {
   id: string;
-  name: string;
-  status: "pending" | "running" | "completed" | "failed";
+  phase: number;
+  path: string;
+  status?: "active" | "completed" | "failed";
+}
+
+export interface TasksResponse {
+  tasks: Task[];
 }
 
 export interface ThinkingLine {
