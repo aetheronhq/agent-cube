@@ -9,7 +9,8 @@ interface TaskCardProps {
 export function TaskCard({ task }: TaskCardProps): JSX.Element {
   const navigate = useNavigate();
 
-  const getStatusColor = (workflowStatus: string): string => {
+  const getStatusColor = (workflowStatus: string | undefined): string => {
+    if (!workflowStatus) return "bg-gray-600";
     if (workflowStatus === "complete" || workflowStatus.endsWith("-complete")) return "bg-blue-600";
     if (workflowStatus === "failed" || workflowStatus === "error") return "bg-red-600";
     return "bg-green-600";
@@ -26,7 +27,7 @@ export function TaskCard({ task }: TaskCardProps): JSX.Element {
       <div className="flex justify-between items-start mb-2">
         <h3 className="font-semibold text-white">{task.id}</h3>
         <span className={`text-xs px-2 py-1 rounded text-white ${statusColor}`}>
-          {task.workflow_status}
+          {task.workflow_status || "unknown"}
         </span>
       </div>
 

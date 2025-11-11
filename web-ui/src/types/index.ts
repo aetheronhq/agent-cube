@@ -2,7 +2,7 @@ export interface Task {
   id: string;
   current_phase: number;
   path: string;
-  workflow_status: string;
+  workflow_status?: string;
 }
 
 export interface TasksResponse {
