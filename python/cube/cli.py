@@ -23,6 +23,7 @@ from .commands.decide import decide_command
 from .commands.logs import logs_command
 from .commands.clean import clean_command
 from .commands.orchestrate import extract_task_id_from_file
+from .commands.ui import ui_command
 
 app = typer.Typer(
     name="cube-py",
@@ -282,6 +283,20 @@ def continue_task(
     try:
         import asyncio
         asyncio.run(orchestrate_auto_command(f"**/{task_id}.md", next_phase))
+    except Exception as e:
+        from .core.output import console_err
+        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        sys.exit(1)
+
+@app.command(name="ui")
+def ui(
+    port: Annotated[int, typer.Option("--port", help="Port to run UI server on")] = 3030
+):
+    """Launch AgentCube web UI."""
+    try:
+        ui_command(port)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Shutting down server...[/yellow]")
     except Exception as e:
         from .core.output import console_err
         console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
