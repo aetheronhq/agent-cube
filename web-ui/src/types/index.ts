@@ -7,8 +7,21 @@ export interface Task {
   status: "pending" | "running" | "completed" | "failed";
 }
 
-export interface ThinkingBox {
+export interface ThinkingLine {
+  text: string;
+  timestamp: string;
+}
+
+export interface AgentInfo {
   id: string;
-  agent: string;
+  name: string;
+  color: string;
+  icon: string;
+}
+
+export interface ThinkingBoxProps {
+  title: string;
   lines: string[];
+  icon: string;
+  color?: string;
 }
