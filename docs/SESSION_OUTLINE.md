@@ -53,6 +53,34 @@ Layer 3: Judges (3 independent reviews)
 "We cubed the agents."
 ```
 
+### **Git Worktrees - The Secret Sauce** (2min)
+
+**Slide: How 3 Tasks Run Simultaneously**
+
+```
+Problem: 2 agents editing same repo = conflicts
+
+Solution: Git worktrees (isolated checkouts)
+
+Main repo:     /aetheron-connect-v2
+Writer A:      ~/.cube/worktrees/aetheron/writer-sonnet-task/
+Writer B:      ~/.cube/worktrees/aetheron/writer-codex-task/
+
+Each agent:
+• Own branch (writer-sonnet/task)
+• Own filesystem (no conflicts!)
+• Own git state
+• Merge when done
+```
+
+**Why this matters:**
+- 2 writers can modify same file safely
+- 3 tasks can run in parallel (6 writers, 6 worktrees)
+- No git lock contention
+- Clean, isolated development
+
+**Quote:** "Git worktrees let us run 18 agents without stepping on each other"
+
 ### **The F1 Analogy** (3min)
 
 **Slide: F1 Comparison**

@@ -53,7 +53,31 @@ Agents³ = Cube
 [3D layered cube visual]
 ```
 
-### **Slide 5: The F1 Analogy**
+### **Slide 5: Git Worktrees Architecture**
+```
+HOW 18 AGENTS RUN WITHOUT CONFLICTS
+
+Git Worktrees = Isolated Checkouts
+
+Main: /aetheron-connect-v2
+├── Writer A: ~/.cube/worktrees/.../writer-sonnet-task/
+├── Writer B: ~/.cube/worktrees/.../writer-codex-task/
+└── 6 more worktrees for other tasks
+
+Each agent gets:
+✅ Own branch (writer-sonnet/05-feature-flags)
+✅ Own filesystem (no file conflicts!)
+✅ Own git state (concurrent work)
+✅ Merge when approved
+
+Result: 3 tasks × 2 writers = 6 worktrees
+        All working simultaneously
+        Zero git conflicts
+
+"The foundation for parallel execution"
+```
+
+### **Slide 6: The F1 Analogy**
 ```
 F1 TEAM APPROACH TO CODING
 
