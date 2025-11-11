@@ -1,349 +1,390 @@
-# Agent Cube Web UI
+# Web UI Architecture
 
-**Goal:** Lightweight React SPA to manage multiple autonomous workflows in parallel
+**Purpose:** Define the architecture for a lightweight React-based web interface for AgentCube that mirrors the CLI's thinking box visualization and adds multi-workflow dashboard capabilities.
 
-## Overview
-
-A web interface that wraps the existing `cube-py` CLI to provide:
-- Visual workflow monitoring (multiple tasks simultaneously)
-- Real-time thinking boxes (like terminal Rich Layout)
-- Progress tracking and phase visualization
-- Command execution interface
-- Decision review and approval UI
-
-## Architecture Principles
-
-### **1. Thin Client**
-- UI calls existing `cube-py` CLI (no reimplementation)
-- Python handles all logic (workflows, agents, decisions)
-- UI is pure visualization + command execution
-
-### **2. Real-time Updates**
-- WebSocket or SSE for streaming agent output
-- Live thinking boxes (React components)
-- Progress bars for phases
-
-### **3. Multi-workflow Management**
-- Dashboard showing all active tasks
-- Drill-down to individual task details
-- Side-by-side comparison of writers
-
-## Technical Stack
-
-**Frontend:**
-- React 18+ (hooks, suspense)
-- Vite (fast dev server, HMR)
-- TailwindCSS (styling)
-- Zustand (state management)
-- React Query (server state)
-
-**Backend Options:**
-
-**Option A: CLI Wrapper (Simplest)**
-```python
-# Tiny FastAPI server
-@app.post("/api/auto/{task_id}")
-async def run_auto(task_id: str):
-    proc = subprocess.Popen(["cube", "auto", task_id], stdout=PIPE)
-    return StreamingResponse(stream_output(proc))
-```
-
-**Option B: Direct Python (Better)**
-```python
-# Import cube modules directly
-from cube.commands.orchestrate import orchestrate_auto_command
-
-@app.post("/api/auto/{task_id}")
-async def run_auto(task_id: str):
-    await orchestrate_auto_command(task_file, 1)
-```
-
-**Recommendation:** Option B (direct imports, better integration)
-
-## UI Components
-
-### **Dashboard View**
-```
-┌─────────────────────────────────────────────┐
-│ Agent Cube - Active Workflows               │
-├─────────────────────────────────────────────┤
-│ ┌─────────────────────────────────────────┐ │
-│ │ 05-feature-flags                         │ │
-│ │ Phase 7/10 (70%) │ SYNTHESIS │ Writer B │ │
-│ │ ███████░░░                               │ │
-│ └─────────────────────────────────────────┘ │
-│ ┌─────────────────────────────────────────┐ │
-│ │ 04-exemplar                              │ │
-│ │ Phase 4/10 (40%) │ Panel Running        │ │
-│ │ ████░░░░░░                               │ │
-│ └─────────────────────────────────────────┘ │
-│                                             │
-│ [+ New Workflow]                            │
-└─────────────────────────────────────────────┘
-```
-
-### **Task Detail View**
-```
-┌─────────────────────────────────────────────┐
-│ 05-feature-flags-server                     │
-│ Phase 7/10 (70%) - SYNTHESIS                │
-├─────────────────────────────────────────────┤
-│ ┌─ Writer A Thinking ─────────────────────┐ │
-│ │ Addressing synthesis feedback...         │ │
-│ │ Fixing circuit breaker timeout...        │ │
-│ │ Running tests...                         │ │
-│ └──────────────────────────────────────────┘ │
-│ ┌─ Writer B Thinking ─────────────────────┐ │
-│ │ Implementing type-safe registry...       │ │
-│ │ Adding JSDoc comments...                 │ │
-│ │ Validating against spec...               │ │
-│ └──────────────────────────────────────────┘ │
-│                                             │
-│ 📖 Output:                                  │
-│ [Writer A] 📖 src/circuit-breaker.ts        │
-│ [Writer A]    ✅ 89 lines                   │
-│ [Writer B] 📝 src/registry.ts               │
-│ [Writer B]    ✅ 156 lines                  │
-│                                             │
-│ [Pause] [Continue] [Restart Phase]          │
-└─────────────────────────────────────────────┘
-```
-
-### **Decisions View**
-```
-┌─────────────────────────────────────────────┐
-│ Panel Decisions - 05-feature-flags          │
-├─────────────────────────────────────────────┤
-│ Judge 1: APPROVED → Winner B (7.8 vs 9.2)   │
-│ Judge 2: REQUEST_CHANGES → Winner B         │
-│   • Circuit breaker timeout missing         │
-│   • Type safety issues                      │
-│ Judge 3: APPROVED → Winner B                │
-│                                             │
-│ Consensus: APPROVED (2/3)                   │
-│ Winner: Writer B (Codex)                    │
-│ Next: SYNTHESIS                             │
-│                                             │
-│ [View Judge 1 Details] [View Judge 2]       │
-└─────────────────────────────────────────────┘
-```
-
-## API Endpoints
-
-```python
-# Workflow management
-POST   /api/workflows              # Start new workflow
-GET    /api/workflows              # List all active
-GET    /api/workflows/{task_id}    # Get status
-DELETE /api/workflows/{task_id}    # Clean up
-
-# Real-time streaming
-GET    /api/workflows/{task_id}/stream  # SSE stream
-
-# Commands
-POST   /api/workflows/{task_id}/resume/{agent}
-POST   /api/workflows/{task_id}/decide
-GET    /api/workflows/{task_id}/logs/{agent}
-
-# Decisions
-GET    /api/decisions/{task_id}/panel
-GET    /api/decisions/{task_id}/peer-review
-```
-
-## File Structure
-
-```
-packages/web-ui/
-├── src/
-│   ├── components/
-│   │   ├── Dashboard.tsx
-│   │   ├── TaskDetail.tsx
-│   │   ├── ThinkingBox.tsx        # Dual/triple boxes
-│   │   ├── OutputStream.tsx       # Tool calls, messages
-│   │   ├── DecisionCard.tsx       # Judge decisions
-│   │   └── PhaseProgress.tsx      # Visual phase tracker
-│   ├── hooks/
-│   │   ├── useWorkflowStream.ts   # SSE hook
-│   │   ├── useWorkflowStatus.ts   # React Query
-│   │   └── useDecisions.ts        # Load decisions
-│   ├── api/
-│   │   └── client.ts              # API client
-│   └── App.tsx
-├── server/
-│   ├── main.py                    # FastAPI server
-│   ├── routers/
-│   │   ├── workflows.py
-│   │   └── decisions.py
-│   └── streaming.py               # SSE implementation
-├── package.json
-├── vite.config.ts
-└── tailwind.config.js
-```
-
-## Agent Tasks Breakdown
-
-### **Phase 1: Foundation**
-
-**Task 01: Project Scaffold**
-- Set up Vite + React + TypeScript
-- Configure TailwindCSS
-- Basic routing (dashboard, task detail)
-- Build pipeline
-- **Deliverable:** `npm run dev` shows empty dashboard
-
-**Task 02: FastAPI Backend**
-- Lightweight FastAPI server
-- Import `cube.commands` modules
-- Basic endpoints: `/workflows`, `/workflows/{id}/status`
-- CORS configuration
-- **Deliverable:** API responds to requests, returns mock data
-
-### **Phase 2: Core Visualization**
-
-**Task 03: Real-time Stream Integration**
-- SSE endpoint streaming agent output
-- React hook `useWorkflowStream`
-- Parse JSON stream (same as terminal)
-- Display tool calls and messages
-- **Deliverable:** See live agent output in browser
-
-**Task 04: Thinking Boxes Component**
-- React component matching Rich Layout
-- Dual boxes for writers
-- Triple boxes for judges
-- Real-time updates from stream
-- **Deliverable:** Thinking boxes update live
-
-### **Phase 3: Workflow Management**
-
-**Task 05: Dashboard & Status Display**
-- List all active workflows
-- Phase progress visualization
-- Start new workflow form
-- Navigate to task details
-- **Deliverable:** Dashboard shows active tasks, can drill down
-
-**Task 06: Command Execution Interface**
-- Buttons for resume, decide, clean
-- Form inputs for messages
-- Execute Python commands
-- Show results
-- **Deliverable:** Can control workflows from UI
-
-### **Phase 4: Polish**
-
-**Task 07: Decision Review UI**
-- Display judge decisions (panel + peer)
-- Show scores, blockers, recommendations
-- Aggregate view with winner highlighting
-- **Deliverable:** Beautiful decision cards
-
-**Task 08: Multi-workflow Parallel View**
-- Side-by-side task comparison
-- Grid layout for 2-4 tasks
-- Synchronized scrolling
-- **Deliverable:** Monitor multiple tasks at once
-
-## Non-functional Requirements
-
-**Performance:**
-- Initial load: <2s
-- Stream latency: <100ms
-- UI responsive at 60fps
-
-**Reliability:**
-- Handle disconnects gracefully
-- Reconnect to existing workflows
-- Don't lose state on refresh
-
-**Security:**
-- Localhost only (no auth needed)
-- Or simple token auth for network access
-
-## Implementation Notes
-
-### **Streaming Strategy**
-
-```python
-# SSE endpoint
-@app.get("/api/workflows/{task_id}/stream")
-async def stream_workflow(task_id: str):
-    async def generate():
-        # Run orchestrate_auto in background
-        # Yield JSON events as they happen
-        # Format: data: {type: "thinking", agent: "A", text: "..."}
-        
-    return StreamingResponse(generate(), media_type="text/event-stream")
-```
-
-### **State Sync**
-
-```python
-# UI polls for status
-useQuery(['workflow', taskId], async () => {
-  const res = await fetch(`/api/workflows/${taskId}/status`)
-  return res.json()  // { current_phase, winner, decisions: {...} }
-}, { refetchInterval: 2000 })
-```
-
-### **Thinking Boxes**
-
-```tsx
-// Match terminal Rich Layout
-<div className="space-y-2">
-  <ThinkingBox title="Writer A" color="green">
-    {writerAThoughts.slice(-3).map(t => <p>{t}</p>)}
-  </ThinkingBox>
-  <ThinkingBox title="Writer B" color="blue">
-    {writerBThoughts.slice(-3).map(t => <p>{t}</p>)}
-  </ThinkingBox>
-</div>
-
-// Auto-scroll output below
-<OutputPane messages={messages} />
-```
-
-## Success Criteria
-
-**MVP (Tasks 01-04):**
-- ✅ Can start workflow from UI
-- ✅ See real-time thinking boxes
-- ✅ View tool calls and output
-- ✅ Monitor one workflow end-to-end
-
-**Full Feature (Tasks 05-08):**
-- ✅ Dashboard with all active tasks
-- ✅ Control workflows (resume, decide, clean)
-- ✅ Beautiful decision visualization
-- ✅ Manage 4+ parallel workflows
-
-## Deployment
-
-**Development:**
-```bash
-cd packages/web-ui
-npm run dev          # Frontend on :5173
-npm run server       # Backend on :8000
-```
-
-**Production:**
-```bash
-npm run build        # Static bundle
-python server/main.py --host 0.0.0.0  # Serves built files + API
-```
-
-Single binary deployment option later.
-
-## Future Enhancements
-
-- PR preview links
-- Cost tracking per workflow
-- Model performance analytics
-- Judge agreement heatmaps
-- Workflow templates
-- Saved prompts library
+**Related Docs:** This is a standalone UI layer over existing `cube.automation` and `cube.core` Python modules.
 
 ---
 
-**This UI makes Agent Cube accessible to non-technical users!** 🎨✨
+## 🎯 **Principles**
+
+**Core principles for this architecture:**
+
+1. **KISS - Keep It Simple, Stupid**
+   - Thin UI layer over robust Python backend
+   - No complex state management (React Context sufficient)
+   - Direct reuse of `cube.automation` modules (no duplication)
+   - Why it matters: UI is display layer only, all logic stays in proven Python code
+
+2. **Real-time First**
+   - SSE (Server-Sent Events) for live streaming
+   - Thinking boxes update in real-time like CLI
+   - No polling, no unnecessary complexity
+   - Why it matters: Core AgentCube UX is watching agents think in real-time
+
+3. **Local-Only, Development Tool**
+   - No authentication (runs on localhost)
+   - No database (uses existing JSON state files)
+   - No deployment complexity (single `cube ui` command)
+   - Trade-offs: Not production-ready, not multi-user, perfect for local development
+
+---
+
+## 📋 **Requirements**
+
+### **Frontend Stack**
+
+**Must have:**
+- React 18+ with TypeScript (strict mode)
+- Vite for dev server and build
+- Tailwind CSS for styling (minimal custom CSS)
+- React Router for navigation
+- EventSource API for SSE
+
+**Example (good):**
+```typescript
+// Simple component, no over-engineering
+interface ThinkingBoxProps {
+  title: string;
+  lines: string[];
+}
+
+export function ThinkingBox({ title, lines }: ThinkingBoxProps) {
+  return (
+    <div className="border border-gray-700 rounded p-4">
+      <h3 className="text-sm text-gray-400 mb-2">{title}</h3>
+      <div className="space-y-1">
+        {lines.map((line, i) => (
+          <p key={i} className="text-xs text-gray-300">{line}</p>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+**Example (bad):**
+```typescript
+// Over-engineered with unnecessary abstractions
+class ThinkingBoxManager {
+  private state: ThinkingBoxState;
+  private renderer: IRenderer;
+  private strategy: IDisplayStrategy;
+  
+  // YAGNI - we don't need this complexity!
+}
+```
+
+### **Backend Stack**
+
+**Must have:**
+- FastAPI (Python async web framework)
+- Direct imports from `cube.automation` and `cube.core`
+- SSE streaming (no WebSocket complexity)
+- CORS enabled for localhost
+
+**Example (good):**
+```python
+# Direct reuse of existing modules
+from cube.automation.dual_writers import launch_dual_writers
+from cube.core.state import load_state
+
+@app.post("/api/tasks/{task_id}/writers")
+async def start_writers(task_id: str, prompt_file: str):
+    # Thin wrapper, delegates to proven code
+    await launch_dual_writers(task_id, Path(prompt_file), resume_mode=False)
+    return {"status": "started"}
+```
+
+**Example (bad):**
+```python
+# Reimplementing existing logic
+@app.post("/api/tasks/{task_id}/writers")
+async def start_writers(task_id: str, prompt_file: str):
+    # BAD: Duplicating cube.automation logic
+    # Read config, setup worktrees, spawn agents...
+    # (hundreds of lines duplicating existing code)
+```
+
+### **Real-time Streaming**
+
+**Must have:**
+- SSE endpoint for each active agent
+- Stream thinking, tool calls, and output
+- Frontend reconnects on disconnect
+- Backend cleans up on client disconnect
+
+**Architecture:**
+```
+Browser                 FastAPI                cube.automation
+  |                        |                         |
+  |-- EventSource -------> |                         |
+  |                        |-- launch_dual_writers ->|
+  |                        |                         |
+  |<-- SSE: thinking ------|<-- layout.add_thinking--|
+  |<-- SSE: output --------|<-- layout.add_output ---|
+  |<-- SSE: tool_call -----|<-- format_stream_msg ---|
+```
+
+---
+
+## 🚫 **Anti-Patterns**
+
+### **❌ Don't: Build a Complex State Management System**
+
+**Problem:**
+- Redux, Zustand, or complex state trees are overkill
+- AgentCube state is already in JSON files
+- SSE provides real-time updates
+
+**Example (bad):**
+```typescript
+// Unnecessary Redux store
+const agentSlice = createSlice({
+  name: 'agents',
+  initialState: { ... },
+  reducers: { ... }
+});
+```
+
+**Instead:**
+```typescript
+// Simple React Context for UI state only
+const UIContext = createContext<{
+  selectedTask: string | null;
+  setSelectedTask: (id: string) => void;
+}>({ ... });
+```
+
+### **❌ Don't: Reimplement Python Logic in JavaScript**
+
+**Problem:**
+- Duplicates proven code
+- Creates maintenance burden
+- Introduces bugs
+
+**Instead:**
+- Backend is thin FastAPI wrapper
+- All logic stays in `cube.automation`
+- Frontend is pure display layer
+
+### **❌ Don't: Use WebSocket for One-Way Streaming**
+
+**Problem:**
+- WebSocket is bidirectional, overkill here
+- More complex connection management
+- SSE is simpler and sufficient
+
+**Instead:**
+- SSE for server→client streaming
+- Regular POST/GET for client→server commands
+
+---
+
+## ✅ **Best Practices**
+
+### **✅ Do: Reuse Existing Layouts**
+
+**Why:**
+- `DualWriterLayout` and `TripleLayout` already exist
+- Same logic for parsing and formatting
+- Consistency with CLI UX
+
+**Example:**
+```python
+# Backend: Intercept layout calls and stream to SSE
+class SSELayout:
+    def __init__(self, sse_queue: asyncio.Queue):
+        self.queue = sse_queue
+    
+    def add_thinking(self, box_id: str, text: str):
+        await self.queue.put({
+            "type": "thinking",
+            "box": box_id,
+            "text": text
+        })
+```
+
+### **✅ Do: Use Existing State Files**
+
+**Why:**
+- `cube.core.state` already manages workflow state
+- No need for database
+- File-based is simple and works
+
+**Example:**
+```python
+@app.get("/api/tasks/{task_id}/status")
+async def get_status(task_id: str):
+    state = load_state(task_id)
+    return state.dict() if state else {"error": "not found"}
+```
+
+### **✅ Do: Make UI Launchable from CLI**
+
+**Why:**
+- Consistent with AgentCube UX
+- Single entry point: `cube ui`
+- Auto-opens browser
+
+**Example:**
+```python
+# In cube.commands.ui
+def ui_command(port: int = 3030):
+    import uvicorn
+    import webbrowser
+    
+    webbrowser.open(f"http://localhost:{port}")
+    uvicorn.run("cube.ui.server:app", host="127.0.0.1", port=port)
+```
+
+---
+
+## 🔗 **Integration Points**
+
+**This connects with:**
+
+- **`cube.automation`:** Direct imports of `launch_dual_writers`, `launch_judge_panel`, etc.
+- **`cube.core.state`:** Read/write workflow state from JSON files
+- **`cube.core.config`:** Load models, worktrees, session directories
+- **`cube.core.parsers`:** Reuse stream message parsing
+
+**No new planning docs needed** - UI follows existing architecture exactly.
+
+---
+
+## 📐 **Technical Specifications**
+
+### **API Endpoints**
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/tasks` | List all tasks (from state files) |
+| GET | `/api/tasks/{id}` | Get task detail and status |
+| POST | `/api/tasks/{id}/writers` | Start dual writers |
+| POST | `/api/tasks/{id}/panel` | Start judge panel |
+| POST | `/api/tasks/{id}/feedback` | Send feedback to writer |
+| GET | `/api/tasks/{id}/stream` | SSE stream for task |
+| GET | `/api/tasks/{id}/logs` | Get agent logs |
+
+### **Frontend Routes**
+
+| Route | Component | Purpose |
+|-------|-----------|---------|
+| `/` | Dashboard | List all tasks, status overview |
+| `/tasks/:id` | TaskDetail | Live task monitoring with thinking boxes |
+| `/tasks/:id/decisions` | Decisions | Judge decisions and synthesis |
+
+### **SSE Message Format**
+
+```typescript
+interface SSEMessage {
+  type: 'thinking' | 'output' | 'tool_call' | 'status';
+  agent?: string;        // "writer-a", "judge-1", etc.
+  box?: string;          // For thinking: which box
+  content: string;       // The actual message
+  timestamp: string;     // ISO 8601
+}
+```
+
+### **Component Hierarchy**
+
+```
+App
+├── Dashboard
+│   ├── TaskList
+│   └── StatusOverview
+├── TaskDetail
+│   ├── ThinkingBoxes (dual or triple)
+│   ├── OutputStream
+│   └── ControlPanel
+└── Decisions
+    ├── JudgeVotes
+    └── SynthesisView
+```
+
+---
+
+## 📂 **File Structure**
+
+```
+python/cube/ui/
+├── __init__.py
+├── server.py              # FastAPI app
+├── routes/
+│   ├── __init__.py
+│   ├── tasks.py           # Task CRUD endpoints
+│   └── stream.py          # SSE streaming
+└── sse_layout.py          # SSE adapter for layouts
+
+web-ui/
+├── src/
+│   ├── main.tsx           # React entry
+│   ├── App.tsx            # Router setup
+│   ├── components/
+│   │   ├── ThinkingBox.tsx
+│   │   ├── DualLayout.tsx
+│   │   ├── TripleLayout.tsx
+│   │   ├── OutputStream.tsx
+│   │   └── TaskCard.tsx
+│   ├── pages/
+│   │   ├── Dashboard.tsx
+│   │   ├── TaskDetail.tsx
+│   │   └── Decisions.tsx
+│   ├── hooks/
+│   │   └── useSSE.ts      # SSE connection hook
+│   └── types/
+│       └── index.ts       # TypeScript types
+├── index.html
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+└── tailwind.config.js
+
+python/cube/commands/ui.py  # CLI: cube ui
+```
+
+---
+
+## ❓ **Open Questions / TBD**
+
+### **Auto-refresh vs Manual Control**
+- **Status:** Decided
+- **Decision:** Auto-refresh on SSE updates, no polling
+- **Rationale:** Real-time is core to AgentCube UX
+
+### **Historical Task Viewing**
+- **Status:** Phase 2 (not in initial 6 tasks)
+- **Default:** Show only active tasks initially
+- **Future:** Add completed task archive view
+
+---
+
+## 📚 **References**
+
+**External:**
+- [FastAPI Server-Sent Events](https://fastapi.tiangolo.com/advanced/custom-response/#using-streamingresponse-with-file-like-objects)
+- [React EventSource / SSE](https://developer.mozilla.org/en-US/docs/Web/API/EventSource)
+- [Vite + React + TypeScript Template](https://vitejs.dev/guide/#scaffolding-your-first-vite-project)
+
+**Internal:**
+- Existing: `python/cube/core/base_layout.py` - Thinking box logic
+- Existing: `python/cube/automation/stream.py` - Message formatting
+- Existing: `python/cube/core/state.py` - State management
+
+**Examples:**
+- CLI thinking boxes are the reference implementation
+- UI should feel like "CLI in the browser"
+
+---
+
+## ✏️ **Revision History**
+
+| Date | Change | Reason |
+|------|--------|--------|
+| 2025-11-11 | Initial version | Created during AgentCube UI planning |
+
+---
+
+**NOTE:** This is a living document. Update as you learn from implementation!
 
