@@ -224,7 +224,43 @@ Fast + balanced + accurate
 Insight: Match model to task type
 ```
 
-### **Slide 14: The 5 Commands**
+### **Slide 14: The Audit Trail - Data Goldmine**
+```
+EVERYTHING IS PRESERVED
+
+📊 Panel decisions (JSON)
+   → Every vote, score, blocker
+
+🔄 Peer reviews (JSON)
+   → Iteration tracking
+
+📝 Agent logs (~2MB each)
+   → Every thought, every tool call
+
+💾 Workflow state
+   → Resume from any point
+
+THE GOLDMINE
+
+Analyze:
+• Which models excel at what
+• Quality trends over time
+• Cost per feature
+• Synthesis patterns
+
+Learn:
+• Improve prompts
+• Better planning
+• Model selection
+• Pattern library
+
+"Not just automation - institutional knowledge"
+
+Storage: ~2MB per feature (tiny!)
+Value: Compounding forever
+```
+
+### **Slide 15: The 5 Commands**
 ```
 GETTING STARTED
 
