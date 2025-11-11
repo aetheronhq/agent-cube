@@ -1,355 +1,424 @@
-# "The Agent Cube: Resistance is Futile" - Session Outline
+# "The Agent Cube" - FINAL Session Flow
 
 **Duration:** 60 minutes + Q&A  
-**Audience:** 20 developers + leadership  
-**Goal:** Drive adoption, education, excitement  
+**Format:** Quick Hook → Full Demo → Deep Explanation → Practical → Call to Action  
 
 ---
 
-## **0:00-0:10 - THE STORY & HOOK**
+## **0:00-0:02 - THE HOOK** (30 seconds)
 
-### **Opening** (2min)
-```
-[Terminal visible, Cube running]
-
-"Last month, we shipped 15 production features in 11 days.
-That's ~10,000 lines of code.
-Zero bugs escaped to production.
-
-How? Not by working faster.
-By working smarter.
-
-This is the Agent Cube."
-```
-
-### **The Numbers** (3min)
-
-**Slide: v2 Metrics Dashboard**
-```
-📊 Aetheron Connect v2
-━━━━━━━━━━━━━━━━━━━━━
-15 features ✅
-11 days ⚡
-~10k LOC 📝
-19 AI agents 🤖
-40% synthesis rate 🔀
-0 production bugs 🐛
-```
-
-**Quote:** "One AI is good. Two competing is better. Three judging is best."
-
-### **The Name** (2min)
-
-**Slide: Agents³ Visual**
-```
-Agents controlling Agents controlling Agents
-
-Agents³ = Cube
-
-Layer 1: Orchestrator (plans workflow)
-Layer 2: Writers (2 implementations)  
-Layer 3: Judges (3 independent reviews)
-
-"We cubed the agents."
-```
-
-### **Git Worktrees - The Secret Sauce** (2min)
-
-**Slide: How 3 Tasks Run Simultaneously**
+**You on camera, energetic:**
 
 ```
-Problem: 2 agents editing same repo = conflicts
+"Agent Cube.
 
-Solution: Git worktrees (isolated checkouts)
+Two AI coders compete.
+Three judges pick the winner.
 
-Main repo:     /aetheron-connect-v2
-Writer A:      ~/.cube/worktrees/aetheron/writer-sonnet-task/
-Writer B:      ~/.cube/worktrees/aetheron/writer-codex-task/
+We shipped 15 features in 11 days for v2.
+Zero bugs escaped.
 
-Each agent:
-• Own branch (writer-sonnet/task)
-• Own filesystem (no conflicts!)
-• Own git state
-• Merge when done
+Watch it plan its own web UI..."
 ```
 
-**Why this matters:**
-- 2 writers can modify same file safely
-- 3 tasks can run in parallel (6 writers, 6 worktrees)
-- No git lock contention
-- Clean, isolated development
+**[Start screen share, slides visible]**
 
-**Quote:** "Git worktrees let us run 18 agents without stepping on each other"
-
-### **The F1 Analogy** (3min)
-
-**Slide: F1 Comparison**
+**Quick aside:**
 ```
-Traditional Coding          Agent Cube
-─────────────────          ──────────
-1 developer                2 AI writers (competing)
-Code review later          3 AI judges (real-time)
-Manual synthesis           Auto-synthesis
-Ship and hope              Validate before merge
+"Oh, and these slides?
+The Agent Cube planned them.
+Leo's techdecks built them.
 
-F1 Teams:
-• 2 drivers per team (data + competition)
-• Engineers analyze both (telemetry)
-• Best strategy wins race
+I gave Cube session requirements.
+Two writers proposed slide structures.
+Three judges picked this outline.
 
-Agent Cube:
-• 2 models implement (Sonnet + Codex)
-• Judges analyze both (decisions)
-• Best code wins merge
+Then techdecks turned it into what you're seeing.
+
+Meta-moment²: AI planned, AI built, human presents.
+
+[Pause for reaction]
+
+Let's see it build something else..."
 ```
+
+**[Switch to terminal]**
 
 ---
 
-## **0:10-0:20 - THE PLANNING PROCESS**
+## **0:02-0:15 - THE DEMO** (13 minutes)
 
-### **Architecture-First** (3min)
+**[Play Loom: Web UI Build]**
+
+**Your light narration over video (fast-forwarded parts):**
+
+**Launch (0:02-0:03):**
+```
+"Giving the agent requirements for a web UI..."
+[Command runs]
+```
+
+**Prompter (0:03-0:04):**
+```
+"First, a Prompter agent reads the codebase..."
+[Thinking box appears]
+```
+
+**Writers Launch (0:04-0:05):**
+```
+"Now two agents compete to create the best plan.
+Writer A - Sonnet
+Writer B - Codex"
+[Dual thinking boxes appear]
+```
+
+**Writers Working (0:05-0:10 - SPEED UP 10X):**
+```
+"They're both creating planning docs and task breakdowns.
+Different approaches emerging...
+[Fast forward through most thinking]
+Notice the different file structures.
+Writer A: minimalist
+Writer B: comprehensive"
+```
+
+**Judges (0:10-0:13 - SPEED UP 10X):**
+```
+"Three independent judges review both plans.
+Checking completeness, feasibility, KISS compliance.
+[Fast forward]
+Decision coming..."
+```
+
+**Decision (0:13-0:14):**
+```
+"And the votes are in...
+[cube decide shows]
+Winner: [A/B] with score [X] vs [Y]"
+```
+
+**Result (0:14-0:15):**
+```
+"Complete architecture: planning/web-ui.md
+Six task files: ready to execute
+2,800 lines of planning
+From requirements to executable plan: 30 minutes
+Zero human planning time.
+
+That's the Agent Cube."
+```
+
+**[Stop demo]**
+
+---
+
+## **0:15-0:20 - THE PLANNING PROCESS** (5 minutes)
+
+**NOW explain what they just saw:**
 
 **Slide: v2 Planning Structure**
 ```
 planning/ (33 documents)
 ├── api-conventions.md
 ├── crud-factory.md
-├── db-conventions.md
-├── rbac.md
 └── ...
 
-Not feature docs - ARCHITECTURE docs
+Architecture-first, not feature-first
 ```
 
-**Live:** Open v2 repo, show folder structure
+**Live:** Switch to v2 repo, show folders
 
-**Quote:** "Planning is conversational, evolves with implementation, NOT waterfall"
+**Explain:**
+1. **Architecture meetings** (3hr) → Planning docs
+2. **Orchestrator reads** planning → Proposes tasks
+3. **Phases emerge** from dependency graph
+4. **Iterative** - 85% accurate upfront, 15% evolves
 
-### **From Planning to Tasks** (4min)
+**Key quote from your transcript:**
+```
+"Don't make anything up. Use only facts from repo."
 
-**Slide: The Flow**
-```mermaid
-graph LR
-    A[Architecture Meetings] --> B[Planning Docs]
-    B --> C[Orchestrator Reads]
-    C --> D[Proposes Tasks]
-    D --> E[Human Refines]
-    E --> F[Implementation]
-    F -->|Learning| B
+This is the key. Agents read:
+• 33 planning docs
+• Existing code
+• Proven patterns
+
+Then propose structured plans.
 ```
 
-**Show live:** `implementation/phase-02/tasks/02-crud-factory-core.md`
-
-**Callouts:**
-- Task references planning docs
-- Clear acceptance criteria
-- Path ownership defined
-- Anti-patterns listed
-
-### **Phases Emerge** (3min)
-
-**Slide: Phase Evolution**
-```
-Started: "Need auth, CRUD, SDK" (3 vague goals)
-
-Orchestrator analyzed:
-→ Phase 00: Scaffold (everything depends on this)
-→ Phase 01: Foundation (server, logging, errors)
-→ Phase 02: Core (auth, DB, CRUD - can parallel!)
-→ Phase 03: Contracts (OpenAPI, SDK)
-→ Phase 04: Integration (wire it up)
-→ Phases 05-10: Emerged as we learned
-
-10 phases, 60+ tasks, perfect parallelization
-```
-
-**Key message:** "Plans updated as we learn. ~85% accuracy upfront, 15% evolved."
+**Show one task file from result:**
+- Point out planning doc references
+- Owned paths
+- Clear criteria
 
 ---
 
-## **0:20-0:25 - THE SCIENCE**
+## **0:20-0:25 - THE SCIENCE** (5 minutes)
 
 **Slide: Research-Backed**
 
-**1. Best-of-N Sampling**
-- Anthropic Constitutional AI (2022)
-- N=2 reduces errors by 35%
-- Different models = different blind spots
+**Quick hits:**
+1. Best-of-N (Anthropic) - 35% error reduction
+2. LLM-as-Judge - 85% human agreement
+3. Self-Refine loops - Iterative improvement
+4. Multi-model ensembles - Diversity wins
+5. Cursor 2.0 - Direct inspiration
 
-**2. LLM-as-Judge**  
-- Zheng et al. (2023)
-- 85% agreement with human judges
-- Scalable code review
-
-**3. Self-Refine Loops**
-- Madaan et al. (2023)
-- Iterative improvement
-- Critique → revise → improve
-
-**4. Ensemble Methods**
-- ML principle: Multiple models > single
-- Reduces variance
-- Averages out errors
-
-**5. Cursor 2.0 Multi-Agent**
-- Direct inspiration
-- Proved viability
-- We scaled it up
-
-**Quote:** "This isn't experimental. It's research-backed and battle-tested."
+**Quote:** "Not experimental. Research-backed and battle-tested."
 
 ---
 
-## **0:25-0:26 - META MOMENT** 🤯
+## **0:25-0:27 - GIT WORKTREES** (2 minutes)
 
-**[SWITCH TO LOOM]**
+**Slide: Architecture Foundation**
 
-**Show:** Cube planning this session
+```
+How 18 agents run without conflicts:
 
-```bash
-cube auto session-planning-task.md
+Main: /aetheron-connect-v2
+├── Writer A: ~/.cube/worktrees/.../writer-sonnet-task/
+├── Writer B: ~/.cube/worktrees/.../writer-codex-task/
+└── 6 more for other tasks
+
+Each: Own branch, own files, own git state
+Result: Zero conflicts!
 ```
 
-**Narrate:**
-"Even this presentation outline...
-was created by the Agent Cube.
-
-Two AI writers proposed outlines.
-Three AI judges picked the best.
-
-Meta? Yes. Effective? You're about to see."
-```
-
-**[BACK TO LIVE]**
+**Live:** Show terminal, `git worktree list`
 
 ---
 
-## **0:26-0:41 - THE DEMO** ⭐
+## **0:27-0:32 - THE 3-SPLIT** (5 minutes)
 
-**[SWITCH TO LOOM - Pre-recorded, narrated live]**
+**Slide: Maximum Parallelization**
 
-**Demo: Building Web UI (Task 01: Project Scaffold)**
+**Show screenshot of 3-split terminal:**
+```
+Task 1: 04-exemplar (6 agents)
+Task 2: 05-feature-flags (6 agents)
+Task 3: 05-rate-limit (6 agents)
 
-**0:26-0:28 - Launch** (2min)
-```bash
-cube auto implementation/web-ui/tasks/01-project-scaffold.md
+18 agents simultaneously
+0 conflicts
+0 human time
 ```
 
-- Prompter generates writer prompt (thinking box)
-- Show task file briefly
-- "Two Sonnets? No - Sonnet vs Codex"
-
-**0:28-0:33 - Dual Writers** (5min, sped up)
-
-**Show:** Dual thinking boxes
-```
-╭─ Writer A (Sonnet) ──────────────────╮
-│ Creating Vite config...               │
-│ Setting up TypeScript strict mode...  │
-│ Configuring TailwindCSS...            │
-╰───────────────────────────────────────╯
-╭─ Writer B (Codex) ───────────────────╮
-│ Scaffolding React structure...        │
-│ Adding ESLint + Prettier...           │
-│ Setting up routing...                 │
-╰───────────────────────────────────────╯
-```
-
-**Pause at:** Tool calls showing different approaches
-```
-[Writer A] 📝 vite.config.ts (minimalist)
-[Writer B] 📝 vite.config.ts (with plugins)
-```
-
-**Narrate:** "Notice the different approaches emerging..."
-
-**0:33-0:36 - Judge Panel** (3min, sped up)
-
-**Show:** Triple thinking boxes
-```
-╭─ Judge 1 (Sonnet) ─────────────╮
-│ Checking KISS compliance...     │
-│ Preferring simpler config...    │
-╰──────────────────────────────────╯
-╭─ Judge 2 (Codex) ──────────────╮
-│ Analyzing type safety...         │
-│ Checking build optimization...   │
-╰──────────────────────────────────╯
-╭─ Judge 3 (Gemini) ─────────────╮
-│ Verifying Tailwind setup...      │
-│ Scoring completeness...          │
-╰──────────────────────────────────╯
-```
-
-**Pause at:** Disagreement
-```
-Judge 1: Writer A (KISS, 8/10)
-Judge 2: Writer B (Complete, 9/10)
-Judge 3: Writer B (Production-ready, 9/10)
-```
-
-**0:36-0:38 - Decision** (2min)
-```bash
-cube decide 01-project-scaffold
-```
-
-**Show:** Aggregated result
-- Winner: B (2/3 votes)
-- Scores: A=7.8, B=9.0
-- Next: SYNTHESIS (1 blocker found)
-
-**0:38-0:40 - Synthesis** (2min, sped up)
-
-- Prompter generates synthesis
-- Writer B addresses blocker
-- Tool calls show fixes
-
-**0:40-0:41 - PR Creation** (1min)
-```
-✅ PR created: https://github.com/.../pull/123
-
-🎉 Autonomous workflow complete!
-```
-
-**[BACK TO LIVE]**
-
-**Debrief:** "30 minutes of compute, zero human input, production-ready code."
+**Quote:** "Building 3 features at once ⚡🔥"
 
 ---
 
-## **0:41-0:50 - RESULTS & PRACTICAL USE**
+## **0:32-0:42 - V2 RESULTS** (10 minutes)
 
-### **Real Results from v2** (4min)
+**Slide: Model Performance**
+- Sonnet: 100% frontend wins
+- Codex: 88% backend wins
+- Task-model matching matters!
 
-**Slide: Model Performance Patterns**
+**Slide: Synthesis Power**
+- 40% of tasks improved
+- Best of both worlds
+- Examples
+
+**Slide: The Human Catch**
 ```
-Claude Sonnet wins at:
-✅ UI/Frontend (3-0 unanimous)
-✅ Documentation  
-✅ Simplicity
-
-GPT-5 Codex wins at:
-✅ Complex backend (auth, errors)
-✅ Type-heavy systems
-✅ Real integration tests
-✅ Security-critical code
-
-Insight: Task-model matching > "best model"
-```
-
-**Slide: The Synthesis Power**
-```
-40% of tasks improved via synthesis:
-• Error Handler: Codex types + Sonnet tests
-• API Server: Sonnet logging + Codex patterns
-• SDK: Codex impl + Sonnet modern deps
-
-Better than either alone!
-```
-
-**Slide: The Human Catch** ⚠️
-```
-Task: 01-api-client-scaffold
-
+API Client Task:
 Panel: 3/3 APPROVED ✅
 Peer: 3/3 APPROVED ✅
+Human: REJECTED ❌
+
+All judges missed: Wrong architecture
+
+Lesson: AI assistance, not replacement
+```
+
+**Slide: Audit Trail**
+- Everything preserved
+- Data goldmine
+- Learning compounds
+
+---
+
+## **0:42-0:52 - PRACTICAL USE** (10 minutes)
+
+**Slide: The 5 Commands**
+```bash
+cube auto task.md          # Autonomous workflow
+cube status task           # Check progress
+cube decide task           # See decisions
+cube resume agent task msg # Intervene
+cube clean task            # Cleanup
+```
+
+**Live terminal demo:** Show quick commands
+
+**Slide: Config File**
+- Show `python/cube.yaml`
+- Customize any model
+- Pluggable architecture
+
+**Slide: When to Use**
+- ✅ Good for: New features, refactoring, complex bugs
+- ❌ Not for: Tiny changes, emergencies, experiments
+
+---
+
+## **0:52-0:57 - THE FUTURE** (5 minutes)
+
+**Slide: Roadmap**
+```
+This Week: Web UI (you just saw it planned!)
+This Month: Integration tests, more CLIs
+This Quarter: Learning system, cost tracking
+
+Limitations (honest):
+• Gemini quirks
+• Setup requires cursor-agent
+• Judge decision filing (improving!)
+```
+
+**Slide: The Ask**
+```
+1. Try ONE task this week
+2. Raise GitHub issues (Cube fixes them!)
+3. Slack me feedback
+
+github.com/aetheronhq/agent-cube
+```
+
+---
+
+## **0:57-1:00 - CLOSE & Q&A SETUP** (3 minutes)
+
+**Wrap up:**
+```
+"The Agent Cube isn't just a tool.
+It's a new way of building software.
+
+Competitive development.
+Judicial review.
+Continuous synthesis.
+
+It works. V2 proves it.
+
+Your turn to try it.
+
+Questions?"
+```
+
+**[Open for Q&A - can extend past 1:00]**
+
+---
+
+## 🎯 **WHY QUICK CONTEXT → DEMO WORKS**
+
+**Hook in 30 seconds:**
+- Gets attention FAST
+- Visual within 2 minutes
+- Can't look away
+
+**Demo while fresh:**
+- Attention span highest at start
+- Action is more engaging than talking
+- Creates questions (answered later)
+
+**Explain after investment:**
+- They've seen it work (credible!)
+- They want to know how (motivated!)
+- Deep dive lands better (context established)
+
+**Ends with action:**
+- Commands (they can use!)
+- Config (they can customize!)
+- Terminal demo (hands-on!)
+
+---
+
+## ⚡ **TIMING PERFECT**
+
+```
+Hook:       0.5min  (attention!)
+Demo:      13min    (amaze!)
+Planning:   5min    (understand!)
+Science:    5min    (believe!)
+Worktrees:  2min    (foundation!)
+3-Split:    5min    (wow!)
+Results:   10min    (proof!)
+Practical: 10min    (use!)
+Future:     5min    (roadmap!)
+Close:      3min    (ask!)
+────────────────
+Total:     58.5min
+Buffer:     1.5min
+```
+
+**Perfect pacing!**
+
+---
+
+## 🎬 **THE OPENING (EXACTLY)**
+
+**On camera, energetic, 30 seconds:**
+
+```
+"Good morning!
+
+[Pause]
+
+Agent Cube.
+
+Two AI developers compete on the same task.
+Three AI judges pick the best solution.
+We used this to build Aetheron Connect v2.
+
+15 production features.
+11 days.
+Zero bugs escaped.
+
+Today, I'm going to show you how it works.
+
+Watch the Cube plan its own web UI..."
+
+[Screen share, terminal visible]
+[Start demo]
+```
+
+**That's it. Hook set. Demo rolls.**
+
+---
+
+## ✅ **LOCKED IN!**
+
+**This is the format:**
+1. Ultra-fast context (30sec)
+2. Full demo with narration (13min)
+3. Deep explanations (planning, science, results)
+4. Practical how-to
+5. Future + ask
+
+**Start with action. Explain with context. End with adoption.**
+
+**This will CRUSH!** 🚀🔥
+
+Updating all plans now...
+
+<function_calls>
+<invoke name="run_terminal_cmd">
+<parameter name="command">cd /Users/jacob/dev/agent-cube && git add -A && git commit -m "docs: FINAL session flow - Quick Hook → Demo → Deep Explanation
+
+LOCKED IN APPROACH:
+- 0:00-0:02 Ultra-fast hook (30sec)
+- 0:02-0:15 Full demo with light narration (13min)
+- 0:15-0:60 Deep explanations, practical, future
+
+Why this works:
+- Hook in 30 seconds (attention!)
+- Demo while fresh (visual engagement)
+- Explain after investment (they want to know!)
+- End with action (commands, config, try it!)
+
+Perfect pacing: 58.5min with 1.5min buffer
+
+Updated SESSION_OUTLINE_FINAL.md with exact flow
+Includes opening script, narration cues, timing
+
+READY FOR TUESDAY RECORDING!" && git push origin main

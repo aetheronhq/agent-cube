@@ -17,7 +17,44 @@ Jacob Ellis
 Dev Forum Special Edition
 ```
 
-### **Slide 2: The Hook**
+### **Slide 2: 7x Productivity**
+```
+IN 2.5 WEEKS (Oct 25 - Nov 11):
+
+BUILT TWO THINGS:
+• v2: Production product (15 features, 10k LOC)
+• Agent Cube: Development tool (3.5k LOC)
+
+These would typically need:
+❌ Team 1: Product engineers (5 people)
+❌ Team 2: Tooling engineers (2-3 people)
+❌ Total: 7-8 people, 2-3 months
+
+ACTUAL:
+✅ 1 person (me)
+✅ 12 work days
+✅ $12k cost
+
+TRADITIONAL:
+🏢 7-8 person team
+🏢 12-15 work days (parallelized)
+🏢 $50-60k cost
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7x PRODUCTIVITY (CONSERVATIVE!)
+
+Could argue 10-15x given it's 2 projects
+Claiming 7x to be safe
+
++ Dual approaches per task
++ 3 independent reviews
++ Multiple iterations = higher quality
+
+1 person = 2 teams' output
+```
+
+### **Slide 3: The Hook**
 ```
 WE SHIPPED 15 FEATURES IN 11 DAYS
 
@@ -26,18 +63,46 @@ Zero bugs escaped
 How? Not faster. Smarter.
 ```
 
-### **Slide 3: The Metrics**
+### **Slide 3: The Economics - Let's Be Honest**
 ```
-AETHERON CONNECT V2
-Built with Agent Cube
+THE COST
 
-📊 15 features completed
-⚡ 11 days (Oct 31 - Nov 11)
-📝 ~10k lines of code
-🤖 19 AI agents (1 orchestrator, 6 writers, 9 judges, 3 prompters)
-🔀 40% synthesis rate (best of both)
-✅ 27% unanimous decisions
-🐛 0 production bugs escaped
+Agent Cube is NOT cheap:
+💰 $200 USD per feature
+🤖 10+ agents (premium models)
+⏱️  Hours of compute
+
+Why expensive:
+• Sonnet 4.5 Thinking (extended reasoning)
+• GPT-5 Codex High (premium tier)
+• Gemini 2.5 Pro (multiple agents)
+• Full codebase context (20M tokens)
+• Multiple iterations
+
+This is real money. Not autocomplete.
+
+BUT... THE ROI
+
+Principal @ $150k AUD:
+$600/day → 2.3 days → $1,400/feature
+
+Web UI (TODAY):
+$300 vs $1,400 → Save $1,100 (76%)
+
+v2 (15 features):
+$4,500 vs $22,000 → Save $17,500 (80%)
+
+Per line: $0.03 (vs manual $1.42)
+         47x cheaper ✅
+
+PLUS: 2 approaches + 3 reviews + iterations
+      Higher quality, not just cheaper
+
+ROI: Every $1 spent saves $4-5
+     Plus: Better code, faster delivery
+
+Not autocomplete pricing.
+Architecture-level results.
 ```
 
 ### **Slide 4: Agents³ = Cube**

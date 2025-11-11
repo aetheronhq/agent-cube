@@ -38,5 +38,5 @@ Thumbs.db
 
 # Agent Cube specific
 .history/
-.prompts/temp-*.md
+.prompts/
 .agent-sessions/

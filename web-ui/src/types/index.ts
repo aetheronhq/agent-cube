@@ -39,6 +39,7 @@ export interface TripleLayoutProps {
   judge3Lines: string[];
 }
 
+<<<<<<< HEAD
 export interface JudgeVote {
   judge: number;
   model: string;
@@ -62,3 +63,49 @@ export interface Decision {
   synthesis?: SynthesisInfo;
   timestamp: string;
 }
+=======
+export interface WorkflowState {
+  task_id: string;
+  current_phase: number;
+  path: string;
+  completed_phases: number[];
+  winner?: string | null;
+  next_action?: string | null;
+  writers_complete: boolean;
+  panel_complete: boolean;
+  synthesis_complete: boolean;
+  peer_review_complete: boolean;
+  updated_at?: string;
+}
+
+export type SSEMessageType = "thinking" | "output" | "status" | "heartbeat";
+
+export interface SSEMessage {
+  type: SSEMessageType;
+  taskId?: string;
+  box?: string;
+  agent?: string;
+  text?: string;
+  content?: string;
+  status?: string;
+  error?: string;
+  resume?: boolean;
+  reviewType?: string;
+  timestamp: string;
+}
+
+export type ThinkingMessage = SSEMessage & {
+  type: "thinking";
+  text: string;
+};
+
+export type OutputMessage = SSEMessage & {
+  type: "output";
+  content: string;
+};
+
+export type StatusMessage = SSEMessage & {
+  type: "status";
+  status: string;
+};
+>>>>>>> origin/main
