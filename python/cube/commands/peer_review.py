@@ -50,5 +50,5 @@ def peer_review_command(
                 print("Or use --fresh to launch new judges instead")
                 raise typer.Exit(1)
         
-        asyncio.run(launch_judge_panel(task_id, prompt_path, "panel", resume_mode=True))
+        asyncio.run(launch_judge_panel(task_id, prompt_path, "peer-review", resume_mode=True))
 
