@@ -240,6 +240,20 @@ All 3 judges missed it!
 - 11 calendar days (73% faster!)
 - Higher quality (0 vs ~4 bugs expected)
 - More thorough review (3 judges vs 1-2 humans)
+- **Maximum observed:** 3 tasks in parallel simultaneously!
+
+**The 3-Split Terminal Setup:**
+```
+Terminal 1: 04-exemplar (6 agents: 2 writers + 3 judges + 1 prompter)
+Terminal 2: 05-feature-flags (6 agents)
+Terminal 3: 05-rate-limit (6 agents)
+
+Total: 18 agents working simultaneously
+Human time: 0 minutes (just watching)
+Conflicts: 0 (isolated file paths)
+
+"Building 3 features at once ⚡🔥"
+```
 
 **Caveat:** Requires good planning docs upfront (1-2 days investment)
 
