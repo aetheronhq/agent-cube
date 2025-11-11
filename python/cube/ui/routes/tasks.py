@@ -38,7 +38,7 @@ class TaskSummary(BaseModel):
     id: str
     current_phase: int
     path: str
-    status: str
+    workflow_status: str
     updated_at: str | None = None
 
 
@@ -97,7 +97,7 @@ async def list_tasks() -> TaskListResponse:
                 id=state.task_id,
                 current_phase=state.current_phase,
                 path=state.path,
-                status=_determine_status(state),
+                workflow_status=_determine_status(state),
                 updated_at=state.updated_at or None,
             )
         )
