@@ -54,8 +54,9 @@ export default function Dashboard(): JSX.Element {
     );
   }
 
-  const activeTasks = tasks.filter((t) => t.workflow_status !== "complete");
-  const completedTasks = tasks.filter((t) => t.workflow_status === "complete");
+  const isCompleted = (status: string) => status === "complete" || status.endsWith("-complete");
+  const activeTasks = tasks.filter((t) => !isCompleted(t.workflow_status));
+  const completedTasks = tasks.filter((t) => isCompleted(t.workflow_status));
 
   return (
     <div>

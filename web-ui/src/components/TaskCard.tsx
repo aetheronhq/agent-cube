@@ -10,7 +10,7 @@ export function TaskCard({ task }: TaskCardProps): JSX.Element {
   const navigate = useNavigate();
 
   const getStatusColor = (workflowStatus: string): string => {
-    if (workflowStatus === "complete") return "bg-blue-600";
+    if (workflowStatus === "complete" || workflowStatus.endsWith("-complete")) return "bg-blue-600";
     if (workflowStatus === "failed" || workflowStatus === "error") return "bg-red-600";
     return "bg-green-600";
   };
