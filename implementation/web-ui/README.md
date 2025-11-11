@@ -6,77 +6,76 @@
 
 ---
 
-## 📋 Task Breakdown
+## 📋 Phase Organization
 
-### Phase Structure
+### Phase Structure (Dependency-Driven)
 
-This implementation is organized into **6 parallel-safe tasks** designed for the AgentCube dual-writer workflow.
+This implementation is organized into **4 phases** with **6 tasks** based on dependency analysis.
 
-**Estimated Total Time:** 16-23 hours (2-3 days with dual writers)
+**See:** `PHASES.md` for complete dependency analysis and phase discovery process.
+
+**Estimated Total Time:**
+- **Wall time:** 12-17 hours (with parallelization)
+- **Total effort:** 16-23 hours (sum of all tasks)
+- **Efficiency gain:** 21-26% from parallelization
 
 ---
 
-### Tasks
+### Phase 00: Foundation (Parallel) ✅
 
-#### **Task 01: Project Scaffold** (2-3 hours)
-- **File:** `tasks/01-project-scaffold.md`
-- **Goal:** Set up Vite + React + TypeScript + Tailwind project
-- **Deliverables:**
-  - Vite project initialized
-  - Tailwind CSS configured
-  - React Router with 3 routes
-  - Dark theme and navigation
-- **Dependencies:** None (foundation task)
+**Goal:** Establish independent frontend and backend foundations
 
-#### **Task 02: Backend API** (3-4 hours)
-- **File:** `tasks/02-backend-api.md`
-- **Goal:** FastAPI server wrapping cube.automation modules
-- **Deliverables:**
-  - FastAPI app with CORS
-  - Task management endpoints
-  - Workflow control endpoints (start writers, panel)
-  - `cube ui` CLI command
-- **Dependencies:** None (imports from existing cube modules)
+**Tasks:**
+- **01: Project Scaffold** (2-3h) - `phase-00/tasks/01-project-scaffold.md`
+- **02: Backend API** (3-4h) - `phase-00/tasks/02-backend-api.md`
 
-#### **Task 03: Thinking Boxes Component** (3-4 hours)
-- **File:** `tasks/03-thinking-boxes.md`
-- **Goal:** Dual and triple thinking box layouts
-- **Deliverables:**
-  - ThinkingBox component (reusable)
-  - DualLayout (Writer A + B)
-  - TripleLayout (Judge 1, 2, 3)
-  - TypeScript types
-- **Dependencies:** Task 01 (React structure)
+**Why parallel?** Zero file overlap (01=frontend, 02=backend)
 
-#### **Task 04: Dashboard** (2-3 hours)
-- **File:** `tasks/04-dashboard.md`
-- **Goal:** Multi-workflow management dashboard
-- **Deliverables:**
-  - Task list with cards
-  - Status overview (active/completed counts)
-  - Auto-refresh every 5 seconds
-  - Navigation to task detail
-- **Dependencies:** Task 01 (routing), Task 02 (API)
+**Gate:** Both servers run, CORS works, basic endpoints respond
 
-#### **Task 05: Task Detail View** (4-6 hours) ⭐ **Core Feature**
-- **File:** `tasks/05-task-detail-view.md`
-- **Goal:** Real-time SSE streaming of thinking boxes and output
-- **Deliverables:**
-  - SSE endpoint (`/api/tasks/{id}/stream`)
-  - `useSSE` React hook
-  - OutputStream component
-  - TaskDetail page with live updates
-- **Dependencies:** Task 02 (backend), Task 03 (thinking boxes)
+---
 
-#### **Task 06: Decisions UI** (2-3 hours)
-- **File:** `tasks/06-decisions-ui.md`
-- **Goal:** Display judge votes and synthesis instructions
-- **Deliverables:**
-  - Decision endpoint
-  - JudgeVote component
-  - SynthesisView component
-  - Decisions page
-- **Dependencies:** Task 01 (routing), Task 02 (API)
+### Phase 01: Core Components ⚙️
+
+**Goal:** Build reusable thinking box components
+
+**Tasks:**
+- **03: Thinking Boxes** (3-4h) - `phase-01/tasks/03-thinking-boxes.md`
+
+**Dependencies:** Phase 00 complete (needs React structure from Task 01)
+
+**Gate:** Components render with mock data, match CLI aesthetic
+
+---
+
+### Phase 02: Basic Views (Parallel) 📊
+
+**Goal:** Implement non-streaming pages
+
+**Tasks:**
+- **04: Dashboard** (2-3h) - `phase-02/tasks/04-dashboard.md`
+- **06: Decisions UI** (2-3h) - `phase-02/tasks/06-decisions-ui.md`
+
+**Why parallel?** Different pages, same dependencies, zero conflicts
+
+**Dependencies:** Phase 00 complete (needs routing + API)
+
+**Gate:** Navigation works, API endpoints validated, pages display data
+
+---
+
+### Phase 03: Real-Time Integration ⭐ (Core Feature)
+
+**Goal:** Implement SSE streaming - the heart of AgentCube UI
+
+**Tasks:**
+- **05: Task Detail View** (4-6h) - `phase-03/tasks/05-task-detail-view.md`
+
+**Dependencies:** Phase 00, 01, 02 all complete
+
+**Why single task?** Integration point, tightly coupled backend + frontend
+
+**Gate:** End-to-end test passes (run cube writers, watch real-time updates in browser)
 
 ---
 
@@ -186,26 +185,41 @@ cd web-ui && npm run dev
 
 ## 📝 Implementation Notes
 
-### Task Execution Order
+### Phase Execution Flow
 
-**Parallel Groups:**
-- **Group 1 (foundation):** Task 01 + Task 02 can run fully parallel
-- **Group 2 (components):** Task 03 + Task 04 depend on Group 1, can run parallel to each other
-- **Group 3 (integration):** Task 05 + Task 06 depend on Groups 1 & 2, can run parallel to each other
+```
+Phase 00: Foundation (3-4h wall time)
+├─ Task 01: Frontend Scaffold ────┐
+└─ Task 02: Backend API ───────────┤ Parallel
+                                   ↓
+Phase 01: Core Components (3-4h)
+└─ Task 03: Thinking Boxes ────────┐ Sequential
+                                   ↓
+Phase 02: Basic Views (2-3h wall time)
+├─ Task 04: Dashboard ─────────────┐
+└─ Task 06: Decisions UI ──────────┤ Parallel
+                                   ↓
+Phase 03: Real-Time Integration (4-6h)
+└─ Task 05: Task Detail with SSE ──┐ Sequential, Integration
+                                   ↓
+                              ✅ Complete
+```
 
-**Critical Path:** 01 → 03 → 05 (real-time streaming is core feature)
+**Critical Path:** Phase 00 → Phase 01 → Phase 03 (12-13 hours)  
+**Parallel Gains:** Phase 00 (43% gain), Phase 02 (50% gain)
 
-### Path Ownership
+### Path Ownership (Zero Conflicts)
 
-Tasks have **clear file ownership** to enable parallel development:
-- Task 01: `web-ui/` structure and config
-- Task 02: `python/cube/ui/` backend
-- Task 03: `web-ui/src/components/Thinking*`
-- Task 04: `web-ui/src/components/TaskCard`, `pages/Dashboard`
-- Task 05: Both backend SSE and frontend streaming
-- Task 06: `web-ui/src/components/Judge*`, `pages/Decisions`
+| Phase | Task | Owned Paths |
+|-------|------|-------------|
+| 00 | 01 | `web-ui/` (entire frontend structure) |
+| 00 | 02 | `python/cube/ui/` (entire backend) |
+| 01 | 03 | `web-ui/src/components/Thinking*.tsx` |
+| 02 | 04 | `web-ui/src/pages/Dashboard.tsx`, `components/TaskCard.tsx` |
+| 02 | 06 | `web-ui/src/pages/Decisions.tsx`, `components/Judge*.tsx`, `components/SynthesisView.tsx` |
+| 03 | 05 | Backend: `routes/stream.py`, `sse_layout.py`<br>Frontend: `hooks/useSSE.ts`, `pages/TaskDetail.tsx`, `components/OutputStream.tsx` |
 
-**No overlapping edits** - perfect for dual-writer workflow!
+**Zero file overlap between parallel tasks** - perfect for dual-writer workflow!
 
 ---
 
