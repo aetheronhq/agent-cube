@@ -4,7 +4,7 @@ import logging
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
@@ -14,6 +14,7 @@ from cube.automation.dual_writers import launch_dual_writers
 from cube.automation.judge_panel import launch_judge_panel
 from cube.commands.feedback import send_feedback_async
 from cube.core.config import PROJECT_ROOT, WRITER_LETTERS, get_worktree_path
+from cube.core.decision_files import read_decision_file
 from cube.core.session import load_session
 from cube.core.state import WorkflowState, load_state
 
@@ -157,6 +158,35 @@ async def get_task_logs(task_id: str) -> TaskLogsResponse:
         )
 
     return TaskLogsResponse(logs=log_entries)
+
+
+@router.get(
+    "/{task_id}/decisions",
+    status_code=status.HTTP_200_OK,
+)
+async def get_task_decisions(task_id: str) -> dict[str, Any]:
+    """Return decision data for a task."""
+    try:
+        decisions = read_decision_file(task_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No decisions found for task '{task_id}'",
+        ) from exc
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.exception("Failed to read decisions for task %s", task_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error reading decisions: {exc}",
+        ) from exc
+
+    if not decisions:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No decisions found for task '{task_id}'",
+        )
+
+    return {"decisions": decisions}
 
 
 @router.post("/{task_id}/writers")

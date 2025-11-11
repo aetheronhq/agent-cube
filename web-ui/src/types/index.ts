@@ -38,3 +38,27 @@ export interface TripleLayoutProps {
   judge2Lines: string[];
   judge3Lines: string[];
 }
+
+export interface JudgeVote {
+  judge: number;
+  model: string;
+  vote: "A" | "B" | "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
+  rationale: string;
+}
+
+export interface SynthesisInfo {
+  instructions: string[];
+  bestBits: {
+    writerA: string[];
+    writerB: string[];
+  };
+  compatible: boolean;
+}
+
+export interface Decision {
+  type: "panel" | "peer-review";
+  judges: JudgeVote[];
+  winner?: "A" | "B";
+  synthesis?: SynthesisInfo;
+  timestamp: string;
+}

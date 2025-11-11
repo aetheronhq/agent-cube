@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Navigation from "./components/Navigation";
 import Dashboard from "./pages/Dashboard";
 import TaskDetail from "./pages/TaskDetail";
-import Decisions from "./pages/Decisions";
+import { Decisions } from "./pages/Decisions";
 
 function App(): JSX.Element {
   return (
