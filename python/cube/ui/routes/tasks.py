@@ -14,6 +14,7 @@ from cube.automation.dual_writers import launch_dual_writers
 from cube.automation.judge_panel import launch_judge_panel
 from cube.commands.feedback import send_feedback_async
 from cube.core.config import PROJECT_ROOT, WRITER_LETTERS, get_worktree_path
+from cube.core.decision_parser import parse_all_decisions, aggregate_decisions
 from cube.core.session import load_session
 from cube.core.state import WorkflowState, load_state
 
@@ -157,6 +158,69 @@ async def get_task_logs(task_id: str) -> TaskLogsResponse:
         )
 
     return TaskLogsResponse(logs=log_entries)
+
+
+@router.get("/{task_id}/decisions")
+async def get_decisions(task_id: str) -> dict:
+    """Get decision data for a task."""
+    try:
+        decisions = parse_all_decisions(task_id)
+        
+        if not decisions:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No decisions found for task '{task_id}'",
+            )
+        
+        aggregated = aggregate_decisions(decisions)
+        
+        judges = []
+        for decision in decisions:
+            judges.append({
+                "judge": decision.judge,
+                "model": f"judge-{decision.judge}",
+                "vote": decision.winner,
+                "rationale": decision.recommendation,
+                "scores": {
+                    "writer_a": decision.scores_a,
+                    "writer_b": decision.scores_b,
+                },
+                "timestamp": decision.timestamp,
+            })
+        
+        response = {
+            "type": "panel",
+            "timestamp": decisions[0].timestamp if decisions else "",
+            "winner": aggregated["winner"],
+            "consensus": aggregated["consensus"],
+            "judges": judges,
+            "aggregated": aggregated,
+        }
+        
+        if aggregated["winner"] != "TIE" and aggregated.get("blocker_issues"):
+            response["synthesis"] = {
+                "compatible": True,
+                "instructions": [
+                    f"Use Writer {aggregated['winner']} as the base implementation",
+                    "Address blocker issues from the losing implementation",
+                    "Incorporate best practices from both solutions",
+                ],
+                "bestBits": {
+                    "writerA": ["Strong type safety", "Comprehensive tests"] if aggregated["avg_score_a"] > 5 else ["Clean implementation"],
+                    "writerB": ["Clean implementation", "Good architecture"] if aggregated["avg_score_b"] > 5 else ["Simple approach"],
+                },
+            }
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error reading decisions for task %s", task_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error reading decisions: {str(e)}",
+        )
 
 
 @router.post("/{task_id}/writers")

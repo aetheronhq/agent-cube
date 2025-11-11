@@ -38,3 +38,39 @@ export interface TripleLayoutProps {
   judge2Lines: string[];
   judge3Lines: string[];
 }
+
+export interface JudgeVote {
+  judge: number;
+  model: string;
+  vote: string;
+  rationale: string;
+  scores?: {
+    writer_a: number;
+    writer_b: number;
+  };
+  timestamp?: string;
+}
+
+export interface SynthesisInfo {
+  instructions: string[];
+  bestBits: {
+    writerA: string[];
+    writerB: string[];
+  };
+  compatible: boolean;
+}
+
+export interface Decision {
+  type: "panel" | "peer-review";
+  judges: JudgeVote[];
+  winner?: string;
+  consensus?: boolean;
+  synthesis?: SynthesisInfo;
+  timestamp: string;
+  aggregated?: {
+    avg_score_a: number;
+    avg_score_b: number;
+    next_action: string;
+    blocker_issues: string[];
+  };
+}
