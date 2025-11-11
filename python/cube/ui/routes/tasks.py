@@ -13,8 +13,8 @@ from pydantic import BaseModel, model_validator
 from cube.automation.dual_writers import launch_dual_writers
 from cube.automation.judge_panel import launch_judge_panel
 from cube.commands.feedback import send_feedback_async
-from cube.core.config import PROJECT_ROOT, WRITER_LETTERS, get_worktree_path
-from cube.core.decision_files import read_decision_file
+from cube.core.config import JUDGE_MODELS, PROJECT_ROOT, WRITER_LETTERS, get_worktree_path
+from cube.core.decision_parser import JudgeDecision, aggregate_decisions, parse_all_decisions
 from cube.core.session import load_session
 from cube.core.state import WorkflowState, load_state
 
@@ -167,12 +167,7 @@ async def get_task_logs(task_id: str) -> TaskLogsResponse:
 async def get_task_decisions(task_id: str) -> dict[str, Any]:
     """Return decision data for a task."""
     try:
-        decisions = read_decision_file(task_id)
-    except FileNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No decisions found for task '{task_id}'",
-        ) from exc
+        judge_decisions = parse_all_decisions(task_id)
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.exception("Failed to read decisions for task %s", task_id)
         raise HTTPException(
@@ -180,13 +175,14 @@ async def get_task_decisions(task_id: str) -> dict[str, Any]:
             detail=f"Error reading decisions: {exc}",
         ) from exc
 
-    if not decisions:
+    if not judge_decisions:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No decisions found for task '{task_id}'",
         )
 
-    return {"decisions": decisions}
+    response = _build_decision_payload(judge_decisions)
+    return {"decisions": response}
 
 
 @router.post("/{task_id}/writers")
@@ -360,3 +356,54 @@ def _parse_timestamp(value: str | None) -> datetime:
         return datetime.fromisoformat(value)
     except ValueError:
         return datetime.min
+
+
+def _build_decision_payload(
+    judge_decisions: list[JudgeDecision],
+) -> list[dict[str, Any]]:
+    if not judge_decisions:
+        return []
+
+    serialized_votes = [_serialize_judge_decision(decision) for decision in judge_decisions]
+
+    summary = aggregate_decisions(judge_decisions)
+    winner = summary.get("winner")
+    winner_letter = winner if winner in {"A", "B"} else None
+
+    timestamps = [decision.timestamp for decision in judge_decisions if decision.timestamp]
+    latest_timestamp = max(timestamps) if timestamps else datetime.utcnow().isoformat()
+
+    decision_payload: dict[str, Any] = {
+        "type": "panel",
+        "judges": serialized_votes,
+        "timestamp": latest_timestamp,
+    }
+
+    if winner_letter:
+        decision_payload["winner"] = winner_letter
+
+    return [decision_payload]
+
+
+def _serialize_judge_decision(decision: JudgeDecision) -> dict[str, Any]:
+    model_name = JUDGE_MODELS.get(decision.judge, f"judge-{decision.judge}")
+    vote_value = _resolve_vote(decision)
+
+    return {
+        "judge": decision.judge,
+        "model": model_name,
+        "vote": vote_value,
+        "rationale": decision.recommendation,
+    }
+
+
+def _resolve_vote(decision: JudgeDecision) -> str:
+    if decision.winner in {"A", "B"}:
+        return decision.winner
+
+    normalized_decision = (decision.decision or "").upper()
+    if normalized_decision in {"APPROVE", "APPROVED"}:
+        return "APPROVE"
+    if normalized_decision == "REQUEST_CHANGES":
+        return "REQUEST_CHANGES"
+    return "COMMENT"
