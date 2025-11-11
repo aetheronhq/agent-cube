@@ -14,16 +14,18 @@ logger = logging.getLogger(__name__)
 
 def ui_command(port: int = 3030) -> None:
     """Start the FastAPI UI server and open the dashboard."""
-    url = f"http://localhost:{port}"
+    backend_url = f"http://localhost:{port}"
+    frontend_url = "http://localhost:5173"
 
-    console.print(f"[green]🚀 Starting AgentCube UI server on {url}[/green]")
-    console.print("[cyan]Dashboard will open in your browser...[/cyan]")
+    console.print(f"[green]🚀 Starting AgentCube UI backend on {backend_url}[/green]")
+    console.print(f"[cyan]Frontend should be running on {frontend_url}[/cyan]")
+    console.print("[yellow]Start frontend: cd web-ui && npm run dev[/yellow]")
     console.print("[dim]Press Ctrl+C to stop[/dim]")
 
     try:
-        webbrowser.open(url, new=2, autoraise=True)
+        webbrowser.open(frontend_url, new=2, autoraise=True)
     except webbrowser.Error as exc:
-        logger.warning("Failed to open browser for %s: %s", url, exc)
+        logger.warning("Failed to open browser for %s: %s", frontend_url, exc)
 
     try:
         uvicorn.run(
