@@ -31,7 +31,7 @@ def get_decision_file_path(judge_num: int, task_id: str) -> Path:
     return PROJECT_ROOT / ".prompts" / "decisions" / f"judge-{judge_num}-{task_id}-decision.json"
 
 def parse_judge_decision(judge_num: int, task_id: str) -> Optional[JudgeDecision]:
-    """Parse a single judge's decision JSON file."""
+    """Parse a single judge's decision JSON file with flexible format support."""
     decision_file = get_decision_file_path(judge_num, task_id)
     
     if not decision_file.exists():
@@ -41,11 +41,52 @@ def parse_judge_decision(judge_num: int, task_id: str) -> Optional[JudgeDecision
         with open(decision_file) as f:
             data = json.load(f)
         
+        # Extract judge number (flexible field names)
+        judge_id = data.get("judge")
+        if judge_id is None:
+            judge_id_str = data.get("judge_id", f"judge-{judge_num}")
+            if isinstance(judge_id_str, str) and "judge-" in judge_id_str:
+                judge_id = int(judge_id_str.replace("judge-", ""))
+            else:
+                judge_id = judge_num
+        
+        # Extract decision (try top-level, then nested)
+        decision = data.get("decision")
+        if not decision and "panel_recommendation" in data:
+            decision = data["panel_recommendation"].get("final_decision", "APPROVED")
+        if not decision:
+            decision = "UNKNOWN"
+        
+        # Extract winner (try top-level, then nested, normalize format)
+        winner = data.get("winner")
+        if not winner and "panel_recommendation" in data:
+            winner = data["panel_recommendation"].get("selected_writer", "TIE")
+        if not winner and "comparison" in data:
+            winner = data["comparison"].get("better_implementation", "TIE")
+        
+        # Normalize winner format (writer_a/writer_b → A/B)
+        if isinstance(winner, str):
+            winner_lower = winner.lower()
+            if "writer_a" in winner_lower or winner_lower == "a":
+                winner = "A"
+            elif "writer_b" in winner_lower or winner_lower == "b":
+                winner = "B"
+            else:
+                winner = "TIE"
+        
+        # Extract scores (try standard location, then nested reviews)
         scores_a = data.get("scores", {}).get("writer_a", {})
         scores_b = data.get("scores", {}).get("writer_b", {})
         
-        total_a = scores_a.get("total_weighted")
+        # If scores not in standard location, try nested reviews
+        if not scores_a and "reviews" in data:
+            scores_a = data["reviews"].get("writer_a", {}).get("scores", {})
+            scores_b = data["reviews"].get("writer_b", {}).get("scores", {})
+        
+        # Extract total score (try multiple field names)
+        total_a = scores_a.get("total_weighted") or scores_a.get("total")
         if total_a is None:
+            # Calculate from individual scores
             total_a = sum([
                 scores_a.get("kiss_compliance", 0),
                 scores_a.get("architecture", 0),
@@ -54,8 +95,9 @@ def parse_judge_decision(judge_num: int, task_id: str) -> Optional[JudgeDecision
                 scores_a.get("production_ready", 0)
             ]) / 5.0
         
-        total_b = scores_b.get("total_weighted")
+        total_b = scores_b.get("total_weighted") or scores_b.get("total")
         if total_b is None:
+            # Calculate from individual scores
             total_b = sum([
                 scores_b.get("kiss_compliance", 0),
                 scores_b.get("architecture", 0),
@@ -64,19 +106,33 @@ def parse_judge_decision(judge_num: int, task_id: str) -> Optional[JudgeDecision
                 scores_b.get("production_ready", 0)
             ]) / 5.0
         
+        # Extract blocker issues (try multiple locations)
         blockers = data.get("blocker_issues", [])
+        if not blockers and "reviews" in data:
+            blockers_a = data["reviews"].get("writer_a", {}).get("critical_issues", [])
+            blockers_b = data["reviews"].get("writer_b", {}).get("critical_issues", [])
+            blockers = blockers_a + blockers_b
         if not isinstance(blockers, list):
             blockers = [str(blockers)] if blockers else []
         
+        # Extract recommendation (try multiple locations)
+        recommendation = data.get("recommendation")
+        if not recommendation and "panel_recommendation" in data:
+            recommendation = data["panel_recommendation"].get("reasoning", "No recommendation provided")
+        if not recommendation and "comparison" in data:
+            recommendation = data["comparison"].get("rationale", "No recommendation provided")
+        if not recommendation:
+            recommendation = "No recommendation provided"
+        
         return JudgeDecision(
-            judge=data.get("judge", judge_num),
+            judge=judge_id,
             task_id=data.get("task_id", task_id),
-            decision=data.get("decision", "UNKNOWN"),
-            winner=data.get("winner", "TIE"),
+            decision=decision,
+            winner=winner,
             scores_a=float(total_a),
             scores_b=float(total_b),
             blocker_issues=blockers,
-            recommendation=data.get("recommendation", "No recommendation provided"),
+            recommendation=recommendation[:200],  # Truncate long recommendations
             timestamp=data.get("timestamp", "")
         )
     except (json.JSONDecodeError, Exception) as e:

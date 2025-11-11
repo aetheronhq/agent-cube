@@ -22,7 +22,8 @@ class BaseThinkingLayout:
         self.width = 100
         self.buffers = {box_id: deque(maxlen=lines_per_box) for box_id in boxes}
         self.current_lines = {box_id: "" for box_id in boxes}
-        self.output_lines = deque(maxlen=50)
+        self.output_lines = deque(maxlen=1000)
+        self.printed_line_count = 0
         self.started = False
         self.live = None
         self.layout = None
@@ -112,9 +113,22 @@ class BaseThinkingLayout:
         try:
             term_height = os.get_terminal_size().lines
             thinking_boxes_height = len(self.boxes) * (self.lines_per_box + 2) + 2
-            available_lines = max(10, term_height - thinking_boxes_height - 5)
+            available_lines = max(20, term_height - thinking_boxes_height - 5)
         except:
-            available_lines = 20
+            available_lines = 30
+        
+        total_lines = len(self.output_lines)
+        lines_to_keep = available_lines * 2
+        
+        if total_lines > lines_to_keep and self.printed_line_count < total_lines - lines_to_keep:
+            lines_to_print = list(self.output_lines)[self.printed_line_count:total_lines - lines_to_keep]
+            if lines_to_print:
+                self.live.stop()
+                for line in lines_to_print:
+                    from rich.text import Text
+                    self.console.print(Text.from_markup(line))
+                self.printed_line_count = total_lines - lines_to_keep
+                self.live.start()
         
         recent_output = list(self.output_lines)[-available_lines:]
         output_text = "\n".join(recent_output)
@@ -130,4 +144,10 @@ class BaseThinkingLayout:
             if self.started and self.live:
                 self.live.stop()
                 self.started = False
+                
+                remaining_lines = list(self.output_lines)[self.printed_line_count:]
+                if remaining_lines:
+                    from rich.text import Text
+                    for line in remaining_lines:
+                        self.console.print(Text.from_markup(line))
 

@@ -23,6 +23,7 @@ from .commands.decide import decide_command
 from .commands.logs import logs_command
 from .commands.clean import clean_command
 from .commands.orchestrate import extract_task_id_from_file
+from .commands.ui import ui_command
 
 app = typer.Typer(
     name="cube-py",
@@ -213,6 +214,13 @@ def logs(
 ):
     """View agent log files."""
     logs_command(task_id, agent, tail)
+
+@app.command(name="ui")
+def ui(
+    port: Annotated[int, typer.Option("--port", help="Port to run UI server on", show_default=True)] = 3030
+):
+    """Launch AgentCube web UI."""
+    ui_command(port)
 
 @app.command(name="clean")
 def clean(
