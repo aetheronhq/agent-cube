@@ -128,7 +128,7 @@ Use read_file or git commands to review the updated code.
 
 **File:** `.prompts/decisions/judge-{{your-number}}-{task_id}-peer-review.json`
 
-**Format:**
+**REQUIRED FORMAT (TOP-LEVEL FIELDS MANDATORY):**
 ```json
 {{
   "judge": {{your-judge-number}},
@@ -136,16 +136,29 @@ Use read_file or git commands to review the updated code.
   "review_type": "peer-review",
   "timestamp": "{{current-iso-timestamp}}",
   "decision": "APPROVED" | "REQUEST_CHANGES" | "REJECTED",
-  "concerns_addressed": true | false,
   "remaining_issues": [
-    "Specific issue to fix (REQUIRED if REQUEST_CHANGES)"
+    "Specific issue to fix (REQUIRED if REQUEST_CHANGES, empty array if APPROVED)"
   ],
-  "recommendation": "Ready to merge" | "Needs more work"
+  "recommendation": "Ready to merge" | "Needs more work",
+  "verification": {{
+    "your_detailed_checks": "optional_object"
+  }}
 }}
 ```
 
-**CRITICAL:** If decision is REQUEST_CHANGES, you MUST list specific issues.
-Empty remaining_issues with REQUEST_CHANGES will be treated as malformed.
+**⚠️ CRITICAL - DECISION FIELD IS MANDATORY:**
+- The "decision" field MUST be at the TOP LEVEL of the JSON
+- Valid values: "APPROVED", "REQUEST_CHANGES", or "REJECTED"
+- Do NOT bury the decision inside nested objects
+- The parser will fail if "decision" is missing or misspelled
+
+**If decision is REQUEST_CHANGES:**
+- You MUST list specific issues in "remaining_issues" array
+- Empty remaining_issues with REQUEST_CHANGES will be treated as malformed
+
+**If decision is APPROVED:**
+- Set "remaining_issues" to empty array: []
+- You may include additional verification details in nested objects
 
 ---
 

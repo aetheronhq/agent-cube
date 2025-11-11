@@ -779,6 +779,33 @@ Provide YOUR individual review using this format:
 
 **Rationale:** [2-3 sentences explaining vote]
 
+**REQUIRED: Peer Review Decision JSON File**
+
+After completing your review, you MUST create a JSON file:
+
+**File:** `.prompts/decisions/judge-[your-number]-[task-id]-peer-review.json`
+
+**MANDATORY TOP-LEVEL FIELDS:**
+```json
+{
+  "judge": [1|2|3],
+  "task_id": "[task-id]",
+  "review_type": "peer-review",
+  "timestamp": "[ISO 8601]",
+  "decision": "APPROVED" | "REQUEST_CHANGES" | "REJECTED",
+  "remaining_issues": [
+    "Specific issue (REQUIRED if REQUEST_CHANGES, empty array [] if APPROVED)"
+  ],
+  "recommendation": "Ready to merge" | "Needs more work"
+}
+```
+
+**⚠️ CRITICAL - THE "decision" FIELD IS MANDATORY:**
+- MUST be at TOP LEVEL (not nested)
+- Valid values: "APPROVED", "REQUEST_CHANGES", or "REJECTED"
+- Parser will fail if missing or misspelled
+- You may add additional nested verification details, but "decision" MUST be at top level
+
 **CRITICAL REMINDER:**
 
 - You are ONLY a judge - provide YOUR review and vote
