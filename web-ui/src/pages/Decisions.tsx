@@ -98,6 +98,18 @@ export function Decisions(): JSX.Element {
     );
   }
 
+  // Calculate these BEFORE early returns (React Hooks rules)
+  const latestDecision = decisions.length > 0 ? decisions[decisions.length - 1] : null;
+  
+  const voteSummary = useMemo<VoteSummary>(() => {
+    if (!latestDecision) return {};
+    return latestDecision.judges.reduce<VoteSummary>((acc, judge) => {
+      acc[judge.vote] = (acc[judge.vote] ?? 0) + 1;
+      return acc;
+    }, {});
+  }, [latestDecision]);
+
+  // Now safe to do early returns
   if (error) {
     return (
       <div className="space-y-4 py-12 text-center">
@@ -114,7 +126,7 @@ export function Decisions(): JSX.Element {
     );
   }
 
-  if (decisions.length === 0) {
+  if (decisions.length === 0 || !latestDecision) {
     return (
       <div className="space-y-4 py-12 text-center text-gray-400">
         <p>No decisions recorded for this task yet.</p>
@@ -130,17 +142,9 @@ export function Decisions(): JSX.Element {
     );
   }
 
-  const latestDecision = decisions[decisions.length - 1];
   const badgeStyle =
     DECISION_BADGE_STYLES[latestDecision.type] ?? "bg-gray-600 text-white";
   const consensus = calculateConsensus(latestDecision);
-
-  const voteSummary = useMemo<VoteSummary>(() => {
-    return latestDecision.judges.reduce<VoteSummary>((acc, judge) => {
-      acc[judge.vote] = (acc[judge.vote] ?? 0) + 1;
-      return acc;
-    }, {});
-  }, [latestDecision]);
 
   return (
     <div className="space-y-8 px-4 pb-12 pt-6">
