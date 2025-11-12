@@ -11,8 +11,10 @@ export function TaskCard({ task }: TaskCardProps): JSX.Element {
 
   const getStatusColor = (workflowStatus: string | undefined): string => {
     if (!workflowStatus) return "bg-gray-600";
-    if (workflowStatus === "complete" || workflowStatus.endsWith("-complete")) return "bg-blue-600";
     if (workflowStatus === "failed" || workflowStatus === "error") return "bg-red-600";
+    // Only peer-review-complete and complete are truly done (blue)
+    if (workflowStatus === "peer-review-complete" || workflowStatus === "complete") return "bg-blue-600";
+    // Everything else is active work (green)
     return "bg-green-600";
   };
 
