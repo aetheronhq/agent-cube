@@ -222,30 +222,40 @@ router = APIRouter(prefix="/tasks", tags=["stream"])
 async def stream_task(task_id: str) -> StreamingResponse:
     """Stream task events by tailing log files in real-time."""
     from pathlib import Path
-    import json
+    from cube.automation.stream import format_stream_message
+    from cube.core.parsers.registry import get_parser
     
     logs_dir = Path.home() / ".cube" / "logs"
+    parser = get_parser("cursor-agent")
     
     async def event_stream() -> AsyncGenerator[str, None]:
-        # Send heartbeat first
         yield _format_sse({"type": "heartbeat", "taskId": task_id, "timestamp": _now_iso()})
         
-        # Find log files for this task
-        log_files = sorted(logs_dir.glob(f"*{task_id}*.json")) if logs_dir.exists() else []
-        
-        # Track what we've already sent
         file_positions: dict[str, int] = {}
         
         try:
             while True:
-                # Refresh log file list
                 current_logs = sorted(logs_dir.glob(f"*{task_id}*.json")) if logs_dir.exists() else []
                 
                 for log_file in current_logs:
                     if not log_file.exists():
                         continue
                     
-                    # Get current position
+                    # Detect agent info from filename
+                    filename = str(log_file.name)
+                    if "writer-sonnet" in filename:
+                        box_id, agent_label, color = "writer-a", "Writer A", "green"
+                    elif "writer-codex" in filename:
+                        box_id, agent_label, color = "writer-b", "Writer B", "blue"
+                    elif "judge-1" in filename:
+                        box_id, agent_label, color = "judge-1", "Judge 1", "yellow"
+                    elif "judge-2" in filename:
+                        box_id, agent_label, color = "judge-2", "Judge 2", "yellow"
+                    elif "judge-3" in filename:
+                        box_id, agent_label, color = "judge-3", "Judge 3", "yellow"
+                    else:
+                        continue
+                    
                     pos = file_positions.get(str(log_file), 0)
                     
                     try:
@@ -255,32 +265,41 @@ async def stream_task(task_id: str) -> StreamingResponse:
                                 line = line.strip()
                                 if not line:
                                     continue
-                                try:
-                                    msg = json.loads(line)
-                                    # Convert to SSE format
-                                    if msg.get("type") == "thinking" and msg.get("text"):
+                                
+                                # Use CLI parser
+                                msg = parser.parse(line)
+                                if not msg:
+                                    continue
+                                
+                                # Use CLI formatter
+                                formatted = format_stream_message(msg, agent_label, color)
+                                if not formatted:
+                                    continue
+                                
+                                # Convert to SSE
+                                if formatted.startswith("[thinking]"):
+                                    text = formatted.replace("[thinking]", "").replace("[/thinking]", "").strip()
+                                    if text:
                                         yield _format_sse({
                                             "type": "thinking",
-                                            "box": "writer-a",  # TODO: detect from filename
-                                            "text": msg["text"],
+                                            "box": box_id,
+                                            "text": text,
                                             "timestamp": _now_iso()
                                         })
-                                    elif msg.get("type") in ["tool_call", "result"]:
-                                        yield _format_sse({
-                                            "type": "output",
-                                            "content": f"{msg.get('type')}: ...",
-                                            "timestamp": _now_iso()
-                                        })
-                                except:
-                                    pass
+                                else:
+                                    # Output message
+                                    yield _format_sse({
+                                        "type": "output",
+                                        "content": formatted,
+                                        "timestamp": _now_iso()
+                                    })
+                            
                             file_positions[str(log_file)] = f.tell()
                     except:
                         pass
                 
-                # Wait before checking again
                 await asyncio.sleep(0.5)
                 
-                # Send heartbeat periodically
                 if len(file_positions) == 0:
                     yield _format_sse({"type": "heartbeat", "taskId": task_id, "timestamp": _now_iso()})
         except asyncio.CancelledError:
