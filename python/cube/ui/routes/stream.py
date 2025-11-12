@@ -275,38 +275,32 @@ async def stream_task(task_id: str) -> StreamingResponse:
                                 if not msg:
                                     continue
                                 
-                                # Use CLI formatter
-                                formatted = format_stream_message(msg, agent_label, color)
-                                if not formatted:
-                                    continue
-                                
-                                # Convert to SSE
-                                if formatted.startswith("[thinking]"):
-                                    text = formatted.replace("[thinking]", "").replace("[/thinking]", "").strip()
-                                    if text:
-                                        # Accumulate like CLI does
-                                        current_lines[box_id] += text
+                                # Handle thinking directly (accumulate tokens like CLI)
+                                if msg.type == "thinking" and msg.content:
+                                    current_lines[box_id] += msg.content
+                                    
+                                    # Only send when we hit punctuation (exactly like BaseThinkingLayout)
+                                    if msg.content.endswith(('.', '!', '?', '\n')) and current_lines[box_id].strip():
+                                        complete_line = current_lines[box_id].strip()
+                                        if len(complete_line) > 94:
+                                            complete_line = complete_line[:91] + "..."
                                         
-                                        # Only send when we hit punctuation (like CLI)
-                                        if text.endswith(('.', '!', '?', '\n')) and current_lines[box_id].strip():
-                                            complete_line = current_lines[box_id].strip()
-                                            if len(complete_line) > 94:
-                                                complete_line = complete_line[:91] + "..."
-                                            
-                                            yield _format_sse({
-                                                "type": "thinking",
-                                                "box": box_id,
-                                                "text": complete_line,
-                                                "timestamp": _now_iso()
-                                            })
-                                            current_lines[box_id] = ""
+                                        yield _format_sse({
+                                            "type": "thinking",
+                                            "box": box_id,
+                                            "text": complete_line,
+                                            "timestamp": _now_iso()
+                                        })
+                                        current_lines[box_id] = ""
                                 else:
-                                    # Output message
-                                    yield _format_sse({
-                                        "type": "output",
-                                        "content": formatted,
-                                        "timestamp": _now_iso()
-                                    })
+                                    # Use CLI formatter for output
+                                    formatted = format_stream_message(msg, agent_label, color)
+                                    if formatted and not formatted.startswith("[thinking]"):
+                                        yield _format_sse({
+                                            "type": "output",
+                                            "content": formatted,
+                                            "timestamp": _now_iso()
+                                        })
                             
                             file_positions[str(log_file)] = f.tell()
                     except:
