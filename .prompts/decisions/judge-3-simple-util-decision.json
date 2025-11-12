@@ -1,0 +1,29 @@
+{
+  "judge": 3,
+  "task_id": "simple-util",
+  "timestamp": "2025-11-08T12:00:00Z",
+  "decision": "REQUEST_CHANGES",
+  "winner": "B",
+  "scores": {
+    "writer_a": {
+      "kiss_compliance": 10,
+      "architecture": 0,
+      "type_safety": 10,
+      "tests": 9,
+      "production_ready": 0,
+      "total_weighted": 3.8
+    },
+    "writer_b": {
+      "kiss_compliance": 9,
+      "architecture": 10,
+      "type_safety": 10,
+      "tests": 9,
+      "production_ready": 10,
+      "total_weighted": 9.6
+    }
+  },
+  "blocker_issues": [
+    "Writer A failed architectural compliance by modifying project configuration files, which is a critical failure and disqualifies the submission."
+  ],
+  "recommendation": "Writer B is the winner due to strict adherence to architectural constraints. However, the final version should synthesize the best parts of both submissions: use Writer B as the base, but incorporate Writer A's more concise 'capitalize' function, its JSDoc examples, and its more exhaustive test cases for certain functions."
+}
