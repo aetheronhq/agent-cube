@@ -7,6 +7,7 @@ cube/automation/__init__.py
 cube/automation/dual_feedback.py
 cube/automation/dual_writers.py
 cube/automation/judge_panel.py
+cube/automation/message_broadcaster.py
 cube/automation/stream.py
 cube/commands/__init__.py
 cube/commands/clean.py

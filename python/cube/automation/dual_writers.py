@@ -29,9 +29,6 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     layout = get_dual_layout()
     layout.start()
     
-    from .message_broadcaster import create_broadcaster
-    broadcaster = create_broadcaster(writer_info.task_id, layout)
-    
     from pathlib import Path
     logs_dir = Path.home() / ".cube" / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -71,9 +68,9 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
                     if formatted:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            await broadcaster.broadcast_thinking(writer_info.letter, thinking_text)
+                            layout.add_thinking(writer_info.letter, thinking_text)
                         else:
-                            await broadcaster.broadcast_output(formatted, writer_info.label)
+                            layout.add_output(formatted)
     finally:
         watcher.stop()
     

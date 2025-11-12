@@ -81,6 +81,10 @@ class TaskStreamState:
     def add_subscriber(self) -> asyncio.Queue[Dict[str, Any]]:
         queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
         self.subscribers.add(queue)
+        # Hijack layouts when first subscriber connects
+        if len(self.subscribers) == 1:
+            self.ensure_writers_layout()
+            self.ensure_judges_layout()
         return queue
 
     def remove_subscriber(self, queue: asyncio.Queue[Dict[str, Any]]) -> None:

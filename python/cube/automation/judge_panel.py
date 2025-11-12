@@ -26,9 +26,6 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
     layout = get_triple_layout()
     layout.start()
     
-    from .message_broadcaster import create_broadcaster
-    broadcaster = create_broadcaster(judge_info.task_id, layout)
-    
     from pathlib import Path
     logs_dir = Path.home() / ".cube" / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -75,9 +72,9 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                     if formatted:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            await broadcaster.broadcast_thinking(judge_info.number, thinking_text)
+                            layout.add_thinking(judge_info.number, thinking_text)
                         else:
-                            await broadcaster.broadcast_output(formatted, f"Judge {judge_info.number}")
+                            layout.add_output(formatted)
     finally:
         watcher.stop()
     
