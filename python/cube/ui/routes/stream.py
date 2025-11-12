@@ -220,32 +220,71 @@ router = APIRouter(prefix="/tasks", tags=["stream"])
 
 @router.get("/{task_id}/stream")
 async def stream_task(task_id: str) -> StreamingResponse:
-    state = task_stream_registry.ensure(task_id)
-    subscriber_queue = state.add_subscriber()
-    history = state.get_history()
-
+    """Stream task events by tailing log files in real-time."""
+    from pathlib import Path
+    import json
+    
+    logs_dir = Path.home() / ".cube" / "logs"
+    
     async def event_stream() -> AsyncGenerator[str, None]:
+        # Send heartbeat first
+        yield _format_sse({"type": "heartbeat", "taskId": task_id, "timestamp": _now_iso()})
+        
+        # Find log files for this task
+        log_files = sorted(logs_dir.glob(f"*{task_id}*.json")) if logs_dir.exists() else []
+        
+        # Track what we've already sent
+        file_positions: dict[str, int] = {}
+        
         try:
-            for item in history:
-                yield _format_sse(item)
-
             while True:
-                try:
-                    message = await asyncio.wait_for(
-                        subscriber_queue.get(), timeout=HEARTBEAT_INTERVAL
-                    )
-                    yield _format_sse(message)
-                except asyncio.TimeoutError:
-                    heartbeat = {
-                        "type": "heartbeat",
-                        "taskId": task_id,
-                        "timestamp": _now_iso(),
-                    }
-                    yield _format_sse(heartbeat)
+                # Refresh log file list
+                current_logs = sorted(logs_dir.glob(f"*{task_id}*.json")) if logs_dir.exists() else []
+                
+                for log_file in current_logs:
+                    if not log_file.exists():
+                        continue
+                    
+                    # Get current position
+                    pos = file_positions.get(str(log_file), 0)
+                    
+                    try:
+                        with open(log_file) as f:
+                            f.seek(pos)
+                            for line in f:
+                                line = line.strip()
+                                if not line:
+                                    continue
+                                try:
+                                    msg = json.loads(line)
+                                    # Convert to SSE format
+                                    if msg.get("type") == "thinking" and msg.get("text"):
+                                        yield _format_sse({
+                                            "type": "thinking",
+                                            "box": "writer-a",  # TODO: detect from filename
+                                            "text": msg["text"],
+                                            "timestamp": _now_iso()
+                                        })
+                                    elif msg.get("type") in ["tool_call", "result"]:
+                                        yield _format_sse({
+                                            "type": "output",
+                                            "content": f"{msg.get('type')}: ...",
+                                            "timestamp": _now_iso()
+                                        })
+                                except:
+                                    pass
+                            file_positions[str(log_file)] = f.tell()
+                    except:
+                        pass
+                
+                # Wait before checking again
+                await asyncio.sleep(0.5)
+                
+                # Send heartbeat periodically
+                if len(file_positions) == 0:
+                    yield _format_sse({"type": "heartbeat", "taskId": task_id, "timestamp": _now_iso()})
         except asyncio.CancelledError:
             raise
-        finally:
-            state.remove_subscriber(subscriber_queue)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream", headers=STREAM_HEADERS)
 
