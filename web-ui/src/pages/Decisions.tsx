@@ -90,15 +90,7 @@ export function Decisions(): JSX.Element {
     };
   }, [taskId]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-sm text-gray-400">Loading decisions…</p>
-      </div>
-    );
-  }
-
-  // Calculate these BEFORE early returns (React Hooks rules)
+  // Calculate these BEFORE any early returns (React Hooks rules)
   const latestDecision = decisions.length > 0 ? decisions[decisions.length - 1] : null;
   
   const voteSummary = useMemo<VoteSummary>(() => {
@@ -109,7 +101,15 @@ export function Decisions(): JSX.Element {
     }, {});
   }, [latestDecision]);
 
-  // Now safe to do early returns
+  // NOW safe to do early returns
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-gray-400">Loading decisions…</p>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="space-y-4 py-12 text-center">

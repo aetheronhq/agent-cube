@@ -1,6 +1,6 @@
 import type { JSX } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { DualLayout } from "../components/DualLayout";
 import { TripleLayout } from "../components/TripleLayout";
 import { OutputStream } from "../components/OutputStream";
@@ -173,7 +173,15 @@ export default function TaskDetail(): JSX.Element {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Task {taskId || "Unknown Task"}</h1>
+          <div className="flex items-center gap-4 mb-2">
+            <h1 className="text-2xl font-bold">Task {taskId || "Unknown Task"}</h1>
+            <Link 
+              to={`/tasks/${taskId}/decisions`}
+              className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-white transition-colors"
+            >
+              View Decisions →
+            </Link>
+          </div>
           <div className="text-sm text-gray-400">
             <span className="mr-4">Phase {currentPhase}/10</span>
             <span className="mr-4 capitalize">Path: {task?.path?.toLowerCase() ?? "unknown"}</span>
