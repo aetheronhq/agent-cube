@@ -232,6 +232,7 @@ async def stream_task(task_id: str) -> StreamingResponse:
         yield _format_sse({"type": "heartbeat", "taskId": task_id, "timestamp": _now_iso()})
         
         file_positions: dict[str, int] = {}
+        current_lines: dict[str, str] = {}  # Accumulate thinking per box
         
         try:
             while True:
@@ -255,6 +256,9 @@ async def stream_task(task_id: str) -> StreamingResponse:
                         box_id, agent_label, color = "judge-3", "Judge 3", "yellow"
                     else:
                         continue
+                    
+                    if box_id not in current_lines:
+                        current_lines[box_id] = ""
                     
                     pos = file_positions.get(str(log_file), 0)
                     
@@ -280,12 +284,22 @@ async def stream_task(task_id: str) -> StreamingResponse:
                                 if formatted.startswith("[thinking]"):
                                     text = formatted.replace("[thinking]", "").replace("[/thinking]", "").strip()
                                     if text:
-                                        yield _format_sse({
-                                            "type": "thinking",
-                                            "box": box_id,
-                                            "text": text,
-                                            "timestamp": _now_iso()
-                                        })
+                                        # Accumulate like CLI does
+                                        current_lines[box_id] += text
+                                        
+                                        # Only send when we hit punctuation (like CLI)
+                                        if text.endswith(('.', '!', '?', '\n')) and current_lines[box_id].strip():
+                                            complete_line = current_lines[box_id].strip()
+                                            if len(complete_line) > 94:
+                                                complete_line = complete_line[:91] + "..."
+                                            
+                                            yield _format_sse({
+                                                "type": "thinking",
+                                                "box": box_id,
+                                                "text": complete_line,
+                                                "timestamp": _now_iso()
+                                            })
+                                            current_lines[box_id] = ""
                                 else:
                                     # Output message
                                     yield _format_sse({
