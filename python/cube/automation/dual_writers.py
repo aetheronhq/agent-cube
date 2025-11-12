@@ -89,6 +89,18 @@ async def launch_dual_writers(
     if not prompt_file.exists():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
     
+    # Create minimal state file for UI tracking
+    if not resume_mode:
+        from ..core.state import save_state, WorkflowState
+        state = WorkflowState(
+            task_id=task_id,
+            current_phase=2,
+            path="INIT",
+            completed_phases=[1, 2],
+            writers_complete=False
+        )
+        save_state(state)
+    
     prompt = prompt_file.read_text()
     project_name = Path(PROJECT_ROOT).name
     
@@ -146,6 +158,16 @@ async def launch_dual_writers(
     console.print()
     console.print("✅ Both writers completed")
     console.print()
+    
+    # Update state file
+    from ..core.state import load_state, save_state
+    state = load_state(task_id)
+    if state:
+        state.writers_complete = True
+        state.current_phase = 2
+        if 2 not in state.completed_phases:
+            state.completed_phases.append(2)
+        save_state(state)
     
     console.print("📤 Ensuring all changes are committed and pushed...")
     console.print()
