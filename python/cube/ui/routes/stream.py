@@ -227,7 +227,7 @@ async def stream_task(task_id: str) -> StreamingResponse:
     
     logs_dir = Path.home() / ".cube" / "logs"
     parser = get_parser("cursor-agent")
-    
+
     async def event_stream() -> AsyncGenerator[str, None]:
         yield _format_sse({"type": "heartbeat", "taskId": task_id, "timestamp": _now_iso()})
         

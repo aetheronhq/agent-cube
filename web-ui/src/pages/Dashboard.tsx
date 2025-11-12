@@ -54,8 +54,13 @@ export default function Dashboard(): JSX.Element {
     );
   }
 
-  // Task is only complete when workflow is done (phase 10), not just when a phase completes
-  const isCompleted = (task: Task) => task.current_phase >= 10 || task.workflow_status === "complete";
+  // Task is complete when peer review passes or workflow fully done
+  const isCompleted = (task: Task) => {
+    if (task.current_phase >= 10) return true;
+    if (task.workflow_status === "peer-review-complete") return true;
+    if (task.workflow_status === "complete") return true;
+    return false;
+  };
   const activeTasks = tasks.filter((t) => !isCompleted(t));
   const completedTasks = tasks.filter((t) => isCompleted(t));
 
