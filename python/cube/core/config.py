@@ -52,9 +52,23 @@ WRITER_LETTERS: Final[dict] = {
     "codex": "B",
 }
 
-JUDGE_MODELS: Final[dict] = {
-    1: "sonnet-4.5-thinking",
-    2: "gpt-5-codex-high",
-    3: "grok",
-}
+def _get_judge_models_from_config() -> dict:
+    """Load judge models from cube.yaml config."""
+    try:
+        from .user_config import load_config
+        config = load_config()
+        return {
+            1: config.judges.judge_1.model,
+            2: config.judges.judge_2.model,
+            3: config.judges.judge_3.model,
+        }
+    except:
+        # Fallback to defaults if config fails
+        return {
+            1: "sonnet-4.5-thinking",
+            2: "gpt-5-codex-high",
+            3: "gemini-2.5-pro",
+        }
+
+JUDGE_MODELS: dict = _get_judge_models_from_config()
 
