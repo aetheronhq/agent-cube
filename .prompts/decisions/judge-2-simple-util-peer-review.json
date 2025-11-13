@@ -1,20 +1,45 @@
 {
+  "judge": 2,
   "judge_id": 2,
   "task_id": "simple-util",
   "writer": "B",
   "branch": "writer-codex/simple-util",
-  "review_type": "peer_review",
-  "timestamp": "2025-11-08T02:15:43Z",
-  "decision": "APPROVED",
+  "review_type": "peer-review",
+  "timestamp": "2025-11-12T14:50:57+10:30",
+  "decision": "REQUEST_CHANGES",
+  "remaining_issues": [
+    "Root-level package-lock.json was added on branch writer-codex/simple-util, violating the architecture requirement to modify only the three specified source files."
+  ],
+  "recommendation": "Needs more work",
+  "verification": {
+    "your_detailed_checks": {
+      "files_modified": [
+        ".prompts/decisions/judge-3-simple-util-peer-review.json",
+        "package-lock.json",
+        "src/utils/index.ts",
+        "src/utils/string-utils.test.ts",
+        "src/utils/string-utils.ts"
+      ],
+      "config_files_detected": [
+        "package-lock.json"
+      ],
+      "tests_reviewed": [
+        "capitalize cases: empty, numeric start, mixed case",
+        "truncate cases: <= max length, ellipsis, maxLength < 3, zero/negative",
+        "slugify cases: punctuation, whitespace, emoji"
+      ]
+    }
+  },
   "checks": {
-    "architecture_compliance": true,
-    "files_modified_count": 3,
-    "config_files_touched": false,
+    "architecture_compliance": false,
+    "files_modified_count": 5,
+    "config_files_touched": true,
     "functional_correctness": true,
     "test_coverage": "sufficient",
     "synthesis_applied": false
   },
-  "blocker_issues": [],
-  "recommended_improvements": [],
-  "rationale": "Writer B keeps changes confined to the three utility files, the functions satisfy all functional requirements, and the accompanying tests exercise key paths and edge cases."
+  "blocker_issues": [
+    "Remove the accidental package-lock.json addition; only the three utility files should change."
+  ],
+  "recommended_improvements": []
 }
