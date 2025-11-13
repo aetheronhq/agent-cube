@@ -8,6 +8,8 @@ Run multiple AI coders in parallel → AI judges pick the best → Automated syn
 cube auto task.md  # One command: task spec → PR
 ```
 
+[![GitHub stars](https://img.shields.io/github/stars/aetheronhq/agent-cube?style=flat&color=94FFBC)](https://github.com/aetheronhq/agent-cube/stargazers) [![GitHub issues](https://img.shields.io/github/issues/aetheronhq/agent-cube?style=flat&color=94FFBC)](https://github.com/aetheronhq/agent-cube/issues) [![License](https://img.shields.io/github/license/aetheronhq/agent-cube?style=flat&color=94FFBC)](https://github.com/aetheronhq/agent-cube/blob/main/LICENSE) [![Python](https://img.shields.io/badge/python-3.10+-94FFBC?style=flat)](https://www.python.org/downloads/) [![Last Commit](https://img.shields.io/github/last-commit/aetheronhq/agent-cube?style=flat&color=94FFBC)](https://github.com/aetheronhq/agent-cube/commits/main)
+
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/aetheronhq/agent-cube)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
