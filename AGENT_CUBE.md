@@ -191,12 +191,12 @@ flowchart TD
 - **Default orchestrator: Cursor Composer** (recommended). Cursor Composer is well-suited as the default orchestrator because it:
   - Is already integrated in Cursor (no additional setup)
   - Can read planning docs, task files, and codebase state
-  - Can generate universal prompts, track todos, and coordinate handoffs
-  - Works effectively with copy/paste handoffs between agents
+  - Can generate universal prompts and track todos
+  - Integrated in Cursor (no additional setup)
   - Fits the scale of dual-writer + 3-judge panel workflows
-- Current approach: Cursor v2 Cloud plus local Git worktrees. A central master orchestrator agent issues multi-agent requests, and handoffs use copy/paste. No Cursor API required. Orchestration remains separate from code ownership.
-- Use the same universal instructions for all agents by substituting agent ID.
-- **When to consider alternatives**: For persistent state tracking across many sessions, or when orchestrating dozens of concurrent agents, a dedicated orchestrator service or specialized tool may be more appropriate. For most workflows (dual-writer + panel), Cursor Composer is sufficient.
+- **Current implementation**: Python `cube` CLI orchestrates autonomous workflows via cursor-agent, gemini CLI, and other adapters. Supports headless execution with state management, streaming output, and resume capabilities.
+- Orchestration uses ports & adapters pattern: pluggable CLI tools, parsers for different output formats, and layout adapters for display.
+- **Fully automated**: `cube auto task.md` handles entire workflow (writers → judges → synthesis → peer review → PR) autonomously with human validation only for final merge.
 
 ### PR Quality Gates (CI)
 
@@ -959,7 +959,8 @@ Copy this snippet into PRs:
 
 ### Notes from the Field
 
-- **Cursor v2 Cloud + local Git worktrees** works well for rapid kickoff; copy/paste handoffs, no API dependency
-- **"Agent Cube" mental model**: time (phase) × domain (track) × ownership (paths)
-- **Human‑assisted but heavily automated**: agents collaborate efficiently with quality‑first approach
+- **Python `cube` CLI + Git worktrees**: Fully autonomous orchestration with pluggable adapters (cursor-agent, gemini, etc.)
+- **"Agent Cube" mental model**: Agents³ (orchestrator → prompters → writers+judges) with git worktrees for isolation
+- **Autonomous with human validation**: Agents work unattended; humans validate architectural decisions and final PRs
+- **The AI Village**: Multiple model perspectives (Sonnet simplicity, Codex completeness, judges catching different issues)
 - **Expected results**: Near‑zero conflicts, high quality, parallel velocity without sacrificing correctness
