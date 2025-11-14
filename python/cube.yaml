@@ -9,7 +9,7 @@ version: "1.0.0"
 # Note: Gemini doesn't support session resume - peer-review will be fresh conversation
 cli_tools:
   sonnet-4.5-thinking: cursor-agent
-  gpt-5-codex-high: cursor-agent
+  gpt-5.1-codex-high: cursor-agent
   grok: cursor-agent
   gemini-2.5-pro: gemini
 
@@ -23,7 +23,7 @@ writers:
     
   writer_b:
     name: "codex"
-    model: "gpt-5-codex-high"
+    model: "gpt-5.1-codex-high"
     label: "Writer B"
     color: "blue"
 
@@ -35,7 +35,7 @@ judges:
     color: "green"
     
   judge_2:
-    model: "gpt-5-codex-high"
+    model: "gpt-5.1-codex-high"
     label: "Judge 2"
     color: "yellow"
     
