@@ -15,5 +15,13 @@ if ! command -v cube-py &> /dev/null; then
     exit 1
 fi
 
+# Set CUBE_TASK_ID from last-used task if not already set
+CUBE_STATE_DIR="${HOME}/.cube"
+CURRENT_TASK_FILE="${CUBE_STATE_DIR}/current-task"
+
+if [ -z "$CUBE_TASK_ID" ] && [ -f "$CURRENT_TASK_FILE" ]; then
+    export CUBE_TASK_ID=$(cat "$CURRENT_TASK_FILE" 2>/dev/null || echo "")
+fi
+
 # Delegate to Python implementation
 exec cube-py "$@"

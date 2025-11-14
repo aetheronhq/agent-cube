@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Final
+from typing import Final, Optional
 
 VERSION: Final[str] = "1.0.0"
 
@@ -72,3 +72,36 @@ def _get_judge_models_from_config() -> dict:
 
 JUDGE_MODELS: dict = _get_judge_models_from_config()
 
+
+# Current task tracking
+CURRENT_TASK_FILE: Path = HOME_DIR / ".cube" / "current-task"
+
+
+def get_current_task_id() -> Optional[str]:
+    """Get the current task ID from environment or state file."""
+    # Environment variable takes precedence
+    task_id = os.getenv("CUBE_TASK_ID")
+    if task_id:
+        return task_id
+    
+    # Fall back to state file
+    if CURRENT_TASK_FILE.exists():
+        try:
+            return CURRENT_TASK_FILE.read_text().strip()
+        except:
+            return None
+    
+    return None
+
+
+def set_current_task_id(task_id: str) -> None:
+    """Save the current task ID to state file."""
+    CURRENT_TASK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    CURRENT_TASK_FILE.write_text(task_id)
+
+
+def resolve_task_id(provided: Optional[str]) -> Optional[str]:
+    """Resolve task ID: provided > env var > state file."""
+    if provided:
+        return provided
+    return get_current_task_id()
