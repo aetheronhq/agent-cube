@@ -153,10 +153,15 @@ def get_max_path_width() -> int:
         return 80
 
 def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Optional[str]:
-    """Format a stream message for display."""
+    """Format a stream message for display.
+    
+    Note: Returns Rich markup. Prefix should NOT contain markup tags.
+    """
     
     if msg.type == "system" and msg.subtype == "init":
-        return f"[{color}]{prefix}[/{color}] 🤖 {msg.model} | Session: {msg.session_id}"
+        # Escape any square brackets in session_id to prevent Rich markup conflicts
+        session_safe = str(msg.session_id).replace("[", "\\[").replace("]", "\\]") if msg.session_id else ""
+        return f"[{color}]{prefix}[/{color}] 🤖 {msg.model} | Session: {session_safe}"
     
     if msg.type == "thinking" and msg.content:
         return f"[thinking]{msg.content}[/thinking]"

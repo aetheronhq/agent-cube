@@ -8,6 +8,7 @@ from ..core.agent import check_cursor_agent
 from ..core.output import print_error, console
 from ..core.config import PROJECT_ROOT
 from ..automation.judge_panel import launch_judge_panel
+from ..core.state import update_phase
 
 def panel_command(
     task_id: str,
@@ -36,4 +37,5 @@ def panel_command(
         prompt_path = temp_path
     
     asyncio.run(launch_judge_panel(task_id, prompt_path, "panel", resume))
+    update_phase(task_id, 4, panel_complete=True)
 

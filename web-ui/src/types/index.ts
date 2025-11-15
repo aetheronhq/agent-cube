@@ -89,6 +89,7 @@ export interface SSEMessage {
   taskId?: string;
   box?: string;
   agent?: string;
+  agentColor?: string;
   text?: string;
   content?: string;
   status?: string;

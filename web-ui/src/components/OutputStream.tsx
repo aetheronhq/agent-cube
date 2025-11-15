@@ -14,6 +14,15 @@ const AGENT_COLOR_MAP: Record<string, string> = {
   "Judge 3": "text-purple-100",
 };
 
+const RICH_COLOR_MAP: Record<string, string> = {
+  green: "text-emerald-300",
+  blue: "text-sky-300",
+  yellow: "text-amber-300",
+  purple: "text-purple-300",
+  magenta: "text-pink-300",
+  cyan: "text-cyan-300",
+};
+
 function formatTimestamp(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -43,7 +52,8 @@ export function OutputStream({ messages, className }: OutputStreamProps) {
         <p className="text-gray-500">No output yet.</p>
       ) : (
         latestMessages.map((message, index) => {
-          const agentColor = message.agent ? AGENT_COLOR_MAP[message.agent] ?? "text-gray-200" : "text-gray-200";
+          const defaultColor = message.agent ? AGENT_COLOR_MAP[message.agent] ?? "text-gray-200" : "text-gray-200";
+          const agentColor = message.agentColor ? RICH_COLOR_MAP[message.agentColor] ?? defaultColor : defaultColor;
           return (
             <div key={`${message.timestamp}-${index}`} className="text-gray-200 leading-tight">
               <span className="text-gray-500 mr-2">[{formatTimestamp(message.timestamp)}]</span>
