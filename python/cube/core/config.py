@@ -73,35 +73,82 @@ def _get_judge_models_from_config() -> dict:
 JUDGE_MODELS: dict = _get_judge_models_from_config()
 
 
-# Current task tracking
-CURRENT_TASK_FILE: Path = HOME_DIR / ".cube" / "current-task"
+# Current task tracking (per-terminal using TTY)
+CURRENT_TASKS_FILE: Path = HOME_DIR / ".cube" / "current-tasks"
+
+
+def _get_current_tty() -> Optional[str]:
+    """Get current TTY identifier (e.g., ttys001)."""
+    try:
+        import subprocess
+        # Use full path to avoid zsh conflicts
+        result = subprocess.run(['/usr/bin/tty'], capture_output=True, text=True)
+        tty = result.stdout.strip()
+        # Extract just the device name (e.g., /dev/ttys001 -> ttys001)
+        if tty and tty.startswith('/dev/'):
+            return tty.split('/')[-1]
+        return None
+    except:
+        return None
 
 
 def get_current_task_id() -> Optional[str]:
-    """Get the current task ID from environment or state file."""
-    # Environment variable takes precedence
+    """Get the current task ID for this terminal session."""
+    # Environment variable takes precedence (for manual override)
     task_id = os.getenv("CUBE_TASK_ID")
     if task_id:
         return task_id
     
-    # Fall back to state file
-    if CURRENT_TASK_FILE.exists():
-        try:
-            return CURRENT_TASK_FILE.read_text().strip()
-        except:
-            return None
+    # Get from TTY-based mapping
+    tty = _get_current_tty()
+    if not tty or not CURRENT_TASKS_FILE.exists():
+        return None
     
-    return None
+    try:
+        # Read TTY → task_id mapping
+        tasks_map = {}
+        for line in CURRENT_TASKS_FILE.read_text().splitlines():
+            line = line.strip()
+            if not line or ':' not in line:
+                continue
+            tty_id, task = line.split(':', 1)
+            tasks_map[tty_id.strip()] = task.strip()
+        
+        return tasks_map.get(tty)
+    except:
+        return None
 
 
 def set_current_task_id(task_id: str) -> None:
-    """Save the current task ID to state file."""
-    CURRENT_TASK_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CURRENT_TASK_FILE.write_text(task_id)
+    """Save the current task ID for this terminal session (by TTY)."""
+    tty = _get_current_tty()
+    if not tty:
+        return  # Can't track without TTY
+    
+    CURRENT_TASKS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Read existing mappings
+    tasks_map = {}
+    if CURRENT_TASKS_FILE.exists():
+        try:
+            for line in CURRENT_TASKS_FILE.read_text().splitlines():
+                line = line.strip()
+                if not line or ':' not in line:
+                    continue
+                tty_id, task = line.split(':', 1)
+                tasks_map[tty_id.strip()] = task.strip()
+        except:
+            pass
+    
+    # Update this TTY's task
+    tasks_map[tty] = task_id
+    
+    # Write back
+    CURRENT_TASKS_FILE.write_text('\n'.join(f"{t}: {tid}" for t, tid in tasks_map.items()) + '\n')
 
 
 def resolve_task_id(provided: Optional[str]) -> Optional[str]:
-    """Resolve task ID: provided > env var > state file."""
+    """Resolve task ID: provided > CUBE_TASK_ID env > TTY mapping."""
     if provided:
         return provided
     return get_current_task_id()
