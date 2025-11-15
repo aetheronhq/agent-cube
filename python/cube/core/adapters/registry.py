@@ -4,10 +4,12 @@ from typing import Dict, Type
 from ..cli_adapter import CLIAdapter
 from .cursor_adapter import CursorAdapter
 from .gemini_adapter import GeminiAdapter
+from .coderabbit_adapter import CodeRabbitAdapter
 
 _ADAPTERS: Dict[str, Type[CLIAdapter]] = {
     "cursor-agent": CursorAdapter,
     "gemini": GeminiAdapter,
+    "coderabbit": CodeRabbitAdapter,
 }
 
 def get_adapter(cli_name: str) -> CLIAdapter:
