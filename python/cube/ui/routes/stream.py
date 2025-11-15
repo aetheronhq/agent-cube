@@ -5,6 +5,7 @@ import json
 from collections import deque
 from contextlib import suppress
 from datetime import datetime, timezone
+import re
 from threading import Lock
 from typing import Any, AsyncGenerator, Deque, Dict, Iterable, Set
 
@@ -35,9 +36,33 @@ JUDGE_BOXES = {
     "judge_3": "Judge 3",
 }
 
+RICH_TAG_PATTERN = re.compile(r"\[(?:\/)?[a-zA-Z0-9_-]+\]")
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _strip_rich_markup(text: str) -> str:
+    """Remove Rich markup tags from a string."""
+    return RICH_TAG_PATTERN.sub("", text)
+
+
+def _strip_agent_prefix(text: str, agent_label: str) -> str:
+    """Remove redundant agent label prefixes from output lines."""
+    if text.startswith(agent_label):
+        return text[len(agent_label):].lstrip()
+
+    # Some entries include a colon-style prefix, e.g. "Writer A:"
+    prefix = f"{agent_label}:"
+    if text.startswith(prefix):
+        return text[len(prefix):].lstrip()
+
+    bracketed = f"[{agent_label}]"
+    if text.startswith(bracketed):
+        return text[len(bracketed):].lstrip()
+
+    return text
 
 
 def _format_sse(event: Dict[str, Any]) -> str:
@@ -296,9 +321,13 @@ async def stream_task(task_id: str) -> StreamingResponse:
                                     # Use CLI formatter for output
                                     formatted = format_stream_message(msg, agent_label, color)
                                     if formatted and not formatted.startswith("[thinking]"):
+                                        plain = _strip_rich_markup(formatted)
+                                        plain = _strip_agent_prefix(plain, agent_label)
                                         yield _format_sse({
                                             "type": "output",
-                                            "content": formatted,
+                                            "agent": agent_label,
+                                            "agentColor": color,
+                                            "content": plain,
                                             "timestamp": _now_iso()
                                         })
                             

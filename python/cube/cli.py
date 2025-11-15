@@ -1,13 +1,15 @@
 """Main CLI entry point for cube-py."""
 
+import sys
+from typing import Optional
+
 import typer
 from typing_extensions import Annotated
-from typing import Optional
-import sys
 
-from .core.updater import auto_update
 from .core.config import VERSION
 from .core.output import console
+from .core.phases import format_phase_aliases, resolve_phase_identifier
+from .core.updater import auto_update
 from .commands.version import version_command
 from .commands.status import status_command
 from .commands.sessions import sessions_command
@@ -24,6 +26,38 @@ from .commands.logs import logs_command
 from .commands.clean import clean_command
 from .commands.orchestrate import extract_task_id_from_file
 from .commands.ui import ui_command
+
+PHASE_ALIAS_SUMMARY = format_phase_aliases()
+
+
+def _parse_resume_option(value: Optional[str]) -> Optional[int]:
+    """Convert --resume-from input into a phase number if provided."""
+    if value is None:
+        return None
+    try:
+        return resolve_phase_identifier(value)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--resume-from") from exc
+
+
+def _resolve_resume_from(task_id: str, resume_flag: bool, resume_from_value: Optional[str]) -> int:
+    """Determine final phase number to resume from."""
+    parsed = _parse_resume_option(resume_from_value)
+
+    if resume_flag and parsed is None:
+        from .core.state import load_state
+
+        state = load_state(task_id)
+        if state:
+            parsed = state.current_phase + 1 if state.current_phase < 10 else state.current_phase
+            console.print(f"[cyan]Auto-resuming from Phase {parsed}[/cyan]")
+        else:
+            parsed = 1
+    elif parsed is None:
+        parsed = 1
+
+    return parsed
+
 
 app = typer.Typer(
     name="cube-py",
@@ -48,18 +82,30 @@ def main(
 
 @app.command(name="writers")
 def writers(
-    task_id: Annotated[str, typer.Argument(help="Task ID for the writers")],
+    task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None,
     prompt_file: Annotated[Optional[str], typer.Argument(help="Prompt file or message (optional if --resume)")] = None,
     resume: Annotated[bool, typer.Option("--resume", help="Resume existing writer sessions")] = False
 ):
     """Launch dual writers for a task."""
+    from .core.config import resolve_task_id, set_current_task_id
+    
+    resolved_task_id = resolve_task_id(task_id)
+    if not resolved_task_id:
+        from .core.output import print_error
+        print_error("No task ID provided and CUBE_TASK_ID not set")
+        print_error("Usage: cube writers <task-id> <prompt-file>")
+        print_error("   or: export CUBE_TASK_ID=my-task && cube writers <prompt-file>")
+        raise typer.Exit(1)
+    
     if not prompt_file and not resume:
         from .core.output import print_error
         print_error("Prompt file/message is required unless using --resume")
         raise typer.Exit(1)
     
+    set_current_task_id(resolved_task_id)
+    
     try:
-        writers_command(task_id, prompt_file or "", resume)
+        writers_command(resolved_task_id, prompt_file or "", resume)
     except Exception as e:
         from .core.output import console_err
         console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
@@ -67,13 +113,28 @@ def writers(
 
 @app.command(name="panel")
 def panel(
-    task_id: Annotated[str, typer.Argument(help="Task ID for the panel")],
-    panel_prompt_file: Annotated[str, typer.Argument(help="Path to the panel prompt file")],
+    task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None,
+    panel_prompt_file: Annotated[Optional[str], typer.Argument(help="Path to the panel prompt file")] = None,
     resume: Annotated[bool, typer.Option("--resume", help="Resume existing judge sessions")] = False
 ):
     """Launch 3-judge panel for solution review."""
+    from .core.config import resolve_task_id, set_current_task_id
+    
+    resolved_task_id = resolve_task_id(task_id)
+    if not resolved_task_id:
+        from .core.output import print_error
+        print_error("No task ID provided and CUBE_TASK_ID not set")
+        raise typer.Exit(1)
+    
+    if not panel_prompt_file:
+        from .core.output import print_error
+        print_error("Panel prompt file is required")
+        raise typer.Exit(1)
+    
+    set_current_task_id(resolved_task_id)
+    
     try:
-        panel_command(task_id, panel_prompt_file, resume)
+        panel_command(resolved_task_id, panel_prompt_file, resume)
     except Exception as e:
         from .core.output import console_err
         console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
@@ -82,36 +143,76 @@ def panel(
 @app.command(name="feedback")
 def feedback(
     writer: Annotated[str, typer.Argument(help="Writer to send feedback to (sonnet|codex)")],
-    task_id: Annotated[str, typer.Argument(help="Task ID")],
-    feedback_file: Annotated[str, typer.Argument(help="Path to the feedback file")]
+    task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None,
+    feedback_file: Annotated[Optional[str], typer.Argument(help="Path to the feedback file")] = None
 ):
     """Send feedback to a writer (resumes their session)."""
-    feedback_command(writer, task_id, feedback_file)
+    from .core.config import resolve_task_id, set_current_task_id
+    
+    resolved_task_id = resolve_task_id(task_id)
+    if not resolved_task_id:
+        from .core.output import print_error
+        print_error("No task ID provided and CUBE_TASK_ID not set")
+        raise typer.Exit(1)
+    
+    if not feedback_file:
+        from .core.output import print_error
+        print_error("Feedback file is required")
+        raise typer.Exit(1)
+    
+    set_current_task_id(resolved_task_id)
+    feedback_command(writer, resolved_task_id, feedback_file)
 
 @app.command(name="resume")
 def resume(
     target: Annotated[str, typer.Argument(help="Target to resume (writer-sonnet|writer-codex|judge-1/2/3)")],
-    task_id: Annotated[str, typer.Argument(help="Task ID")],
+    task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None,
     message: Annotated[Optional[str], typer.Argument(help="Message to send (optional, defaults to 'continue')")] = None
 ):
     """Resume a writer or judge session with a message."""
-    resume_command(target, task_id, message)
+    from .core.config import resolve_task_id, set_current_task_id
+    
+    resolved_task_id = resolve_task_id(task_id)
+    if not resolved_task_id:
+        from .core.output import print_error
+        print_error("No task ID provided and CUBE_TASK_ID not set")
+        raise typer.Exit(1)
+    
+    set_current_task_id(resolved_task_id)
+    resume_command(target, resolved_task_id, message)
 
 @app.command(name="peer-review")
 def peer_review(
-    task_id: Annotated[str, typer.Argument(help="Task ID")],
-    peer_review_prompt_file: Annotated[str, typer.Argument(help="Path to the peer review prompt file")],
+    task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None,
+    peer_review_prompt_file: Annotated[Optional[str], typer.Argument(help="Path to the peer review prompt file")] = None,
     fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False
 ):
     """Resume original 3 judges from initial panel for peer review."""
-    peer_review_command(task_id, peer_review_prompt_file, fresh)
+    from .core.config import resolve_task_id, set_current_task_id
+    
+    resolved_task_id = resolve_task_id(task_id)
+    if not resolved_task_id:
+        from .core.output import print_error
+        print_error("No task ID provided and CUBE_TASK_ID not set")
+        raise typer.Exit(1)
+    
+    if not peer_review_prompt_file:
+        from .core.output import print_error
+        print_error("Peer review prompt file is required")
+        raise typer.Exit(1)
+    
+    set_current_task_id(resolved_task_id)
+    peer_review_command(resolved_task_id, peer_review_prompt_file, fresh)
 
 @app.command(name="status")
 def status(
-    task_id: Annotated[Optional[str], typer.Argument(help="Task ID to check status for (optional)")] = None
+    task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None
 ):
     """Check workflow status and progress."""
-    status_command(task_id)
+    from .core.config import resolve_task_id
+    
+    resolved_task_id = resolve_task_id(task_id)
+    status_command(resolved_task_id)
 
 @app.command(name="sessions")
 def sessions():
@@ -123,7 +224,10 @@ def orchestrate(
     subcommand: Annotated[str, typer.Argument(help="Subcommand (prompt|auto)")],
     task_file: Annotated[str, typer.Argument(help="Path to the task file")],
     copy: Annotated[bool, typer.Option("--copy", help="Copy to clipboard (prompt only)")] = False,
-    resume_from: Annotated[Optional[int], typer.Option("--resume-from", help="Resume from phase number (1-10)")] = None,
+    resume_from: Annotated[
+        Optional[str],
+        typer.Option("--resume-from", help=f"Resume from phase number or alias ({PHASE_ALIAS_SUMMARY})")
+    ] = None,
     resume: Annotated[bool, typer.Option("--resume", help="Auto-resume from last checkpoint")] = False,
     reset: Annotated[bool, typer.Option("--reset", help="Clear state and start fresh")] = False
 ):
@@ -139,20 +243,11 @@ def orchestrate(
             from .core.output import print_success
             print_success(f"Cleared state for {task_id}")
         
-        if resume and resume_from is None:
-            from .core.state import load_state
-            state = load_state(task_id)
-            if state:
-                resume_from = state.current_phase + 1 if state.current_phase < 10 else state.current_phase
-                console.print(f"[cyan]Auto-resuming from Phase {resume_from}[/cyan]")
-            else:
-                resume_from = 1
-        elif resume_from is None:
-            resume_from = 1
+        resolved_resume_from = _resolve_resume_from(task_id, resume, resume_from)
         
         try:
             import asyncio
-            asyncio.run(orchestrate_auto_command(task_file, resume_from))
+            asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from))
         except Exception as e:
             from .core.output import console_err
             console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
@@ -188,10 +283,20 @@ def run(
 
 @app.command(name="decide")
 def decide(
-    task_id: Annotated[str, typer.Argument(help="Task ID to aggregate decisions for")],
+    task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None,
     panel: Annotated[bool, typer.Option("--panel", help="Check panel decisions")] = False,
     peer: Annotated[bool, typer.Option("--peer", help="Check peer review decisions")] = False
 ):
+    from .core.config import resolve_task_id, set_current_task_id
+    
+    resolved_task_id = resolve_task_id(task_id)
+    if not resolved_task_id:
+        from .core.output import print_error
+        print_error("No task ID provided and CUBE_TASK_ID not set")
+        raise typer.Exit(1)
+    
+    set_current_task_id(resolved_task_id)
+    
     """Aggregate judge decisions (auto-detects latest by default)."""
     review_type = "auto"
     if panel:
@@ -235,12 +340,18 @@ def clean(
 @app.command(name="auto")
 def auto(
     task_file: Annotated[str, typer.Argument(help="Path to the task file")],
-    resume_from: Annotated[Optional[int], typer.Option("--resume-from", help="Resume from phase number (1-10)")] = None,
+    resume_from: Annotated[
+        Optional[str],
+        typer.Option("--resume-from", help=f"Resume from phase number or alias ({PHASE_ALIAS_SUMMARY})")
+    ] = None,
     resume: Annotated[bool, typer.Option("--resume", help="Auto-resume from last checkpoint")] = False,
     reset: Annotated[bool, typer.Option("--reset", help="Clear state and start fresh")] = False
 ):
     """Shortcut for: cube orchestrate auto <task-file>"""
+    from .core.config import set_current_task_id
+    
     task_id = extract_task_id_from_file(task_file)
+    set_current_task_id(task_id)
     
     if reset:
         from .core.state import clear_state
@@ -248,20 +359,11 @@ def auto(
         from .core.output import print_success
         print_success(f"Cleared state for {task_id}")
     
-    if resume and resume_from is None:
-        from .core.state import load_state
-        state = load_state(task_id)
-        if state:
-            resume_from = state.current_phase + 1 if state.current_phase < 10 else state.current_phase
-            console.print(f"[cyan]Auto-resuming from Phase {resume_from}[/cyan]")
-        else:
-            resume_from = 1
-    elif resume_from is None:
-        resume_from = 1
+    resolved_resume_from = _resolve_resume_from(task_id, resume, resume_from)
     
     try:
         import asyncio
-        asyncio.run(orchestrate_auto_command(task_file, resume_from))
+        asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from))
     except Exception as e:
         from .core.output import console_err
         console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
@@ -269,27 +371,35 @@ def auto(
 
 @app.command(name="continue")
 def continue_task(
-    task_id: Annotated[str, typer.Argument(help="Task ID to continue")]
+    task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None
 ):
     """Continue autonomous workflow from where it left off."""
     from .core.state import load_state
     from .core.output import print_error
+    from .core.config import resolve_task_id, set_current_task_id
     
-    state = load_state(task_id)
+    resolved_task_id = resolve_task_id(task_id)
+    if not resolved_task_id:
+        print_error("No task ID provided and CUBE_TASK_ID not set")
+        raise typer.Exit(1)
+    
+    set_current_task_id(resolved_task_id)
+    
+    state = load_state(resolved_task_id)
     if not state:
-        print_error(f"No state found for {task_id}")
+        print_error(f"No state found for {resolved_task_id}")
         console.print("Start with: cube auto <task-file>")
         raise typer.Exit(1)
     
-    task_file = f"implementation/phase-*/tasks/{task_id}.md"
+    task_file = f"implementation/phase-*/tasks/{resolved_task_id}.md"
     next_phase = state.current_phase + 1 if state.current_phase < 10 else state.current_phase
     
-    console.print(f"[cyan]Continuing {task_id} from Phase {next_phase}[/cyan]")
+    console.print(f"[cyan]Continuing {resolved_task_id} from Phase {next_phase}[/cyan]")
     console.print()
     
     try:
         import asyncio
-        asyncio.run(orchestrate_auto_command(f"**/{task_id}.md", next_phase))
+        asyncio.run(orchestrate_auto_command(f"**/{resolved_task_id}.md", next_phase))
     except Exception as e:
         from .core.output import console_err
         console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
