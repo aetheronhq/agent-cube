@@ -20,10 +20,11 @@ class CodeRabbitAdapter(CLIAdapter):
         session_id: Optional[str] = None,
         resume: bool = False,
     ) -> AsyncGenerator[str, None]:
-        """Run CodeRabbit review and yield JSON output lines.
+        """Run CodeRabbit review and yield plain text output lines.
 
-        The CodeRabbit CLI manages its own models, prompts, and sessions, so the
-        related parameters are accepted for interface compatibility but ignored.
+        The CodeRabbit CLI outputs plain text reviews, not JSON. It manages its
+        own models, prompts, and sessions, so the related parameters are
+        accepted for interface compatibility but ignored.
 
         Args:
             worktree: Path to the repository being reviewed.
@@ -33,7 +34,7 @@ class CodeRabbitAdapter(CLIAdapter):
             resume: Unused flag indicating session resume requests.
 
         Yields:
-            Raw JSON lines emitted by the CodeRabbit CLI.
+            Plain text lines from CodeRabbit CLI review output.
 
         Raises:
             RuntimeError: If the CodeRabbit CLI exits with a non-zero status.
@@ -43,9 +44,9 @@ class CodeRabbitAdapter(CLIAdapter):
         cmd = [
             "coderabbit",
             "review",
-            "--json",
             "--plain",
-            "--yes",
+            "--type",
+            "all",
         ]
 
         process = await asyncio.create_subprocess_exec(
