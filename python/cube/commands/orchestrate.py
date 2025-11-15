@@ -266,6 +266,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
         console.print()
         console.print("[yellow]═══ Phase 3: Generate Panel Prompt ═══[/yellow]")
         panel_prompt_path = await generate_panel_prompt(task_id, prompts_dir)
+        update_phase(task_id, 3)
     
     if resume_from <= 4:
         console.print()
@@ -311,6 +312,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
             console.print("[yellow]═══ Phase 8: Final Decision ═══[/yellow]")
         
         final_result = run_decide_peer_review(task_id)
+        update_phase(task_id, 8)
         
         if final_result["approved"] and not final_result["remaining_issues"]:
             await create_pr(task_id, result["winner"])
@@ -326,11 +328,13 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
             if resume_from <= 9:
                 console.print("[yellow]═══ Phase 9: Address Minor Issues ═══[/yellow]")
                 await run_minor_fixes(task_id, result, final_result["remaining_issues"], prompts_dir)
+                update_phase(task_id, 9)
             
             if resume_from <= 10:
                 console.print()
                 console.print("[yellow]═══ Phase 10: Final Peer Review ═══[/yellow]")
                 await run_peer_review(task_id, result, prompts_dir)
+                update_phase(task_id, 10)
             
             final_check = run_decide_peer_review(task_id)
             if final_check["approved"]:
@@ -378,6 +382,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
             console.print()
             console.print("[yellow]═══ Phase 6: Generate Feedback for Both Writers ═══[/yellow]")
             await generate_dual_feedback(task_id, result, prompts_dir)
+            update_phase(task_id, 6, path="FEEDBACK")
         
         console.print()
         print_warning("Both writers need major changes. Re-run panel after they complete:")
@@ -388,6 +393,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
             console.print()
             console.print("[yellow]═══ Phase 6: Create PR ═══[/yellow]")
             await create_pr(task_id, result["winner"])
+            update_phase(task_id, 6, path="MERGE")
     
     else:
         console.print()
