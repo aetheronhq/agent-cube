@@ -74,7 +74,7 @@ JUDGE_MODELS: dict = _get_judge_models_from_config()
 
 
 # Current task tracking (per-terminal using TTY)
-CURRENT_TASKS_FILE: Path = HOME_DIR / ".cube" / "current-tasks"
+TTY_SESSIONS_DIR: Path = HOME_DIR / ".cube" / "tty-sessions"
 
 
 def _get_current_tty() -> Optional[str]:
@@ -99,24 +99,19 @@ def get_current_task_id() -> Optional[str]:
     if task_id:
         return task_id
     
-    # Get from TTY-based mapping
+    # Get from TTY-specific file
     tty = _get_current_tty()
-    if not tty or not CURRENT_TASKS_FILE.exists():
+    if not tty:
         return None
     
-    try:
-        # Read TTY → task_id mapping
-        tasks_map = {}
-        for line in CURRENT_TASKS_FILE.read_text().splitlines():
-            line = line.strip()
-            if not line or ':' not in line:
-                continue
-            tty_id, task = line.split(':', 1)
-            tasks_map[tty_id.strip()] = task.strip()
-        
-        return tasks_map.get(tty)
-    except:
-        return None
+    tty_file = TTY_SESSIONS_DIR / f"tty-{tty}"
+    if tty_file.exists():
+        try:
+            return tty_file.read_text().strip()
+        except:
+            return None
+    
+    return None
 
 
 def set_current_task_id(task_id: str) -> None:
@@ -125,30 +120,13 @@ def set_current_task_id(task_id: str) -> None:
     if not tty:
         return  # Can't track without TTY
     
-    CURRENT_TASKS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    
-    # Read existing mappings
-    tasks_map = {}
-    if CURRENT_TASKS_FILE.exists():
-        try:
-            for line in CURRENT_TASKS_FILE.read_text().splitlines():
-                line = line.strip()
-                if not line or ':' not in line:
-                    continue
-                tty_id, task = line.split(':', 1)
-                tasks_map[tty_id.strip()] = task.strip()
-        except:
-            pass
-    
-    # Update this TTY's task
-    tasks_map[tty] = task_id
-    
-    # Write back
-    CURRENT_TASKS_FILE.write_text('\n'.join(f"{t}: {tid}" for t, tid in tasks_map.items()) + '\n')
+    tty_file = TTY_SESSIONS_DIR / f"tty-{tty}"
+    tty_file.parent.mkdir(parents=True, exist_ok=True)
+    tty_file.write_text(task_id)
 
 
 def resolve_task_id(provided: Optional[str]) -> Optional[str]:
-    """Resolve task ID: provided > CUBE_TASK_ID env > TTY mapping."""
+    """Resolve task ID: provided > CUBE_TASK_ID env > TTY file."""
     if provided:
         return provided
     return get_current_task_id()
