@@ -52,10 +52,23 @@ def backfill_state_from_artifacts(task_id: str) -> WorkflowState:
                 next_action = result.get("next_action")
     
     synthesis_file = prompts_dir / f"synthesis-{task_id}.md"
-    if synthesis_file.exists() and path == "SYNTHESIS":
-        if 6 not in completed_phases:
+    if synthesis_file.exists():
+        if path == "UNKNOWN":
+            path = "SYNTHESIS"
+        if path == "SYNTHESIS" and 6 not in completed_phases:
             completed_phases.append(6)
-        current_phase = max(current_phase, 6)
+        if path == "SYNTHESIS":
+            current_phase = max(current_phase, 6)
+    
+    feedback_a = prompts_dir / f"feedback-a-{task_id}.md"
+    feedback_b = prompts_dir / f"feedback-b-{task_id}.md"
+    if feedback_a.exists() or feedback_b.exists():
+        if path == "UNKNOWN":
+            path = "FEEDBACK"
+        if path == "FEEDBACK" and 6 not in completed_phases:
+            completed_phases.append(6)
+        if path == "FEEDBACK":
+            current_phase = max(current_phase, 6)
     
     peer_1 = load_session("JUDGE_1", f"{task_id}_peer-review")
     peer_2 = load_session("JUDGE_2", f"{task_id}_peer-review")
@@ -65,6 +78,12 @@ def backfill_state_from_artifacts(task_id: str) -> WorkflowState:
         if 7 not in completed_phases:
             completed_phases.append(7)
         current_phase = max(current_phase, 7)
+    
+    minor_fixes_path = prompts_dir / f"minor-fixes-{task_id}.md"
+    if minor_fixes_path.exists():
+        if 9 not in completed_phases:
+            completed_phases.append(9)
+        current_phase = max(current_phase, 9)
     
     state = WorkflowState(
         task_id=task_id,

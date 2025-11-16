@@ -15,5 +15,5 @@ if ! command -v cube-py &> /dev/null; then
     exit 1
 fi
 
-# Delegate to Python implementation
+# Delegate to Python implementation (TTY tracking handled in Python)
 exec cube-py "$@"

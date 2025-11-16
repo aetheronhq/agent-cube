@@ -8,6 +8,7 @@ from ..core.decision_parser import parse_all_decisions, aggregate_decisions, get
 from ..core.output import print_error, print_success, print_warning, print_info, console
 from ..core.config import PROJECT_ROOT
 from ..core.session import load_session
+from ..core.state import update_phase
 
 def decide_command(task_id: str, review_type: str = "auto") -> None:
     """Aggregate judge decisions and determine next action.
@@ -137,4 +138,12 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
         json.dump(result, f, indent=2, default=str)
     
     print_success(f"Aggregated decision saved: {save_path}")
+    update_phase(
+        task_id,
+        5,
+        path=result["next_action"],
+        winner=result["winner"],
+        next_action=result["next_action"],
+        panel_complete=True
+    )
 

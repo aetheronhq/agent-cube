@@ -1,6 +1,7 @@
 """Workflow state management for autonomous orchestration."""
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -55,7 +56,12 @@ def load_state(task_id: str) -> Optional[WorkflowState]:
             peer_review_complete=data.get("peer_review_complete", False),
             updated_at=data.get("updated_at", "")
         )
-    except:
+    except Exception as exc:
+        from .output import console_err
+        console_err.print(
+            f"[bold red]Failed to load workflow state for {task_id}[/bold red]\n"
+            f"[dim]{state_file}[/dim]\nError: {exc}"
+        )
         return None
 
 def save_state(state: WorkflowState) -> None:
@@ -68,11 +74,11 @@ def save_state(state: WorkflowState) -> None:
     
     temp_fd, temp_path = tempfile.mkstemp(dir=state_file.parent, suffix='.json')
     try:
-        with open(temp_fd, 'w') as f:
+        with os.fdopen(temp_fd, 'w') as f:
             json.dump(asdict(state), f, indent=2)
         
         shutil.move(temp_path, state_file)
-    except:
+    except Exception:
         Path(temp_path).unlink(missing_ok=True)
         raise
 
@@ -91,10 +97,11 @@ def update_phase(task_id: str, phase: int, **kwargs) -> WorkflowState:
     if phase not in state.completed_phases:
         state.completed_phases.append(phase)
     
+    state.completed_phases = sorted(set(state.completed_phases))
     state.current_phase = phase
     
     for key, value in kwargs.items():
-        if hasattr(state, key):
+        if hasattr(state, key) and value is not None:
             setattr(state, key, value)
     
     save_state(state)

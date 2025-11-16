@@ -153,17 +153,22 @@ def get_max_path_width() -> int:
         return 80
 
 def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Optional[str]:
-    """Format a stream message for display."""
+    """Format a stream message for display.
+    
+    Note: Returns Rich markup. Prefix should NOT contain markup tags.
+    """
     
     if msg.type == "system" and msg.subtype == "init":
-        return f"[{color}][{prefix}][/{color}] 🤖 {msg.model} | Session: {msg.session_id}"
+        # Escape any square brackets in session_id to prevent Rich markup conflicts
+        session_safe = str(msg.session_id).replace("[", "\\[").replace("]", "\\]") if msg.session_id else ""
+        return f"[{color}]{prefix}[/{color}] 🤖 {msg.model} | Session: {session_safe}"
     
     if msg.type == "thinking" and msg.content:
         return f"[thinking]{msg.content}[/thinking]"
     
     if msg.type == "assistant" and msg.content:
         if len(msg.content) > 100:
-            return f"[{color}][{prefix}][/{color}] 💭 {msg.content}"
+            return f"[{color}]{prefix}[/{color}] 💭 {msg.content}"
         return None
     
     max_width = get_max_path_width()
@@ -173,56 +178,56 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
             cmd = strip_worktree_path(msg.tool_args.get("command", ""))
             if len(cmd) > max_width:
                 cmd = cmd[:max_width - 3] + "..."
-            return f"[{color}][{prefix}][/{color}] 🔧 {cmd}"
+            return f"[{color}]{prefix}[/{color}] 🔧 {cmd}"
         
         elif msg.tool_name == "write" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", ""))
             if len(path) > max_width:
                 path = path[:max_width - 3] + "..."
-            return f"[{color}][{prefix}][/{color}] 📝 {path}"
+            return f"[{color}]{prefix}[/{color}] 📝 {path}"
         
         elif msg.tool_name == "edit" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", ""))
             if len(path) > max_width:
                 path = path[:max_width - 3] + "..."
-            return f"[{color}][{prefix}][/{color}] ✏️  {path}"
+            return f"[{color}]{prefix}[/{color}] ✏️  {path}"
         
         elif msg.tool_name == "read" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", ""))
-            prefix_len = len(f"[{prefix}] 📖 ")
+            prefix_len = len(f"{prefix} 📖 ")
             available = max_width - prefix_len
             if len(path) > available:
                 path = path[:available - 3] + "..."
-            return f"[{color}][{prefix}][/{color}] 📖 {path}"
+            return f"[{color}]{prefix}[/{color}] 📖 {path}"
         
         elif msg.tool_name == "ls" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", "."))
             if len(path) > max_width:
                 path = path[:max_width - 3] + "..."
-            return f"[{color}][{prefix}][/{color}] 📂 ls {path}"
+            return f"[{color}]{prefix}[/{color}] 📂 ls {path}"
         
         elif msg.tool_name == "todos" and msg.tool_args:
             count = msg.tool_args.get("count", 0)
-            return f"[{color}][{prefix}][/{color}] 📋 {count} todos"
+            return f"[{color}]{prefix}[/{color}] 📋 {count} todos"
     
     if msg.type == "tool_call" and msg.subtype == "completed":
         if msg.exit_code is not None and msg.exit_code != 0:
-            return f"[{color}][{prefix}][/{color}]    ❌ Exit: {msg.exit_code}"
+            return f"[{color}]{prefix}[/{color}]    ❌ Exit: {msg.exit_code}"
         
         if msg.tool_name == "write" and msg.tool_args:
             lines = msg.tool_args.get("lines", 0)
-            return f"[{color}][{prefix}][/{color}]    ✅ {lines} lines"
+            return f"[{color}]{prefix}[/{color}]    ✅ {lines} lines"
         
         if msg.tool_name == "edit":
-            return f"[{color}][{prefix}][/{color}]    ✅ Applied"
+            return f"[{color}]{prefix}[/{color}]    ✅ Applied"
         
         if msg.tool_name == "read" and msg.tool_args:
             lines = msg.tool_args.get("lines", 0)
-            return f"[{color}][{prefix}][/{color}]    ✅ {lines} lines"
+            return f"[{color}]{prefix}[/{color}]    ✅ {lines} lines"
     
     if msg.type == "result":
         duration = format_duration(msg.duration_ms or 0)
-        return f"[{color}][{prefix}][/{color}] 🎯 Completed in {duration}"
+        return f"[{color}]{prefix}[/{color}] 🎯 Completed in {duration}"
     
     return None
 

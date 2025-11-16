@@ -8,6 +8,7 @@ from ..core.agent import check_cursor_agent
 from ..core.output import print_error, print_info, console
 from ..core.config import PROJECT_ROOT
 from ..automation.judge_panel import launch_judge_panel
+from ..core.state import update_phase
 
 def peer_review_command(
     task_id: str,
@@ -51,4 +52,6 @@ def peer_review_command(
                 raise typer.Exit(1)
         
         asyncio.run(launch_judge_panel(task_id, prompt_path, "peer-review", resume_mode=True))
+    
+    update_phase(task_id, 7, peer_review_complete=True)
 
