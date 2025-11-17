@@ -76,4 +76,8 @@ After installation, authenticate with:
   (Choose: Login with Google)
 
 Documentation: https://github.com/google-gemini/gemini-cli"""
+    
+    async def check_authenticated(self) -> bool:
+        """Gemini doesn't require separate authentication check."""
+        return True
 

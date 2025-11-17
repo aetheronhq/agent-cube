@@ -29,6 +29,18 @@ class CLIAdapter(ABC):
     def get_install_instructions(self) -> str:
         """Get installation instructions for this CLI."""
         pass
+    
+    async def check_authenticated(self) -> bool:
+        """Check if the CLI tool is authenticated.
+        
+        Returns:
+            True if authenticated (or authentication not required), False if auth required but missing.
+        
+        Note:
+            Most adapters don't require authentication and should return True.
+            Only adapters like CodeRabbit that require explicit auth should override this.
+        """
+        return True
 
 async def read_stream_with_buffer(
     stdout: asyncio.StreamReader,

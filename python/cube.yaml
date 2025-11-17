@@ -12,6 +12,7 @@ cli_tools:
   gpt-5.1-codex-high: cursor-agent
   grok: cursor-agent
   gemini-2.5-pro: gemini
+  coderabbit: coderabbit
 
 # Writer personas
 writers:
@@ -40,8 +41,8 @@ judges:
     color: "yellow"
     
   judge_3:
-    model: "gemini-2.5-pro"
-    label: "Judge 3"
+    model: "coderabbit"
+    label: "Judge 3 (CodeRabbit)"
     color: "magenta"
 
 # Paths

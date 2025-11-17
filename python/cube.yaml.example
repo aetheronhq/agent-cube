@@ -1,0 +1,104 @@
+# Agent Cube Configuration Example
+# Copy this file to cube.yaml and customize for your setup
+
+version: "1.0.0"
+
+# CLI tool mapping for each model
+# Maps model names to the CLI tool used to run them
+cli_tools:
+  # Cursor Agent models (default CLI)
+  sonnet-4.5-thinking: cursor-agent
+  gpt-5.1-codex-high: cursor-agent
+  o3-mini: cursor-agent
+  grok: cursor-agent
+  
+  # Gemini models (requires @google/gemini-cli)
+  # Install: npm install -g @google/gemini-cli
+  # Authenticate: gemini (choose Login with Google)
+  # Note: Gemini doesn't support session resume
+  gemini-2.5-flash-thinking-exp-01-21: gemini
+  gemini-2.5-pro: gemini
+  
+  # CodeRabbit static analysis (requires CodeRabbit CLI)
+  # Install: curl -fsSL https://get.coderabbit.ai/install.sh | sh
+  # Authenticate: coderabbit login
+  # Note: CodeRabbit provides objective code quality analysis
+  coderabbit: coderabbit
+
+# Writer personas - dual writers compete on each task
+writers:
+  writer_a:
+    name: "sonnet"
+    model: "sonnet-4.5-thinking"
+    label: "Writer A (Sonnet)"
+    color: "green"
+    
+  writer_b:
+    name: "codex"
+    model: "gpt-5.1-codex-high"
+    label: "Writer B (Codex)"
+    color: "blue"
+
+# Judge personas - 3-judge panel reviews both implementations
+judges:
+  # Judge 1: AI subjective review
+  judge_1:
+    model: "sonnet-4.5-thinking"
+    label: "Judge 1 (Sonnet)"
+    color: "green"
+  
+  # Judge 2: AI subjective review (different perspective)
+  judge_2:
+    model: "gpt-5.1-codex-high"
+    label: "Judge 2 (GPT)"
+    color: "yellow"
+  
+  # Judge 3: Static analysis with CodeRabbit (objective)
+  judge_3:
+    model: "coderabbit"
+    label: "Judge 3 (CodeRabbit)"
+    color: "magenta"
+
+# Alternative judge configurations:
+
+# Option A: Three AI judges (all subjective)
+# judges:
+#   judge_1:
+#     model: "sonnet-4.5-thinking"
+#     label: "Judge 1 (Sonnet)"
+#     color: "green"
+#   judge_2:
+#     model: "gpt-5.1-codex-high"
+#     label: "Judge 2 (GPT)"
+#     color: "yellow"
+#   judge_3:
+#     model: "gemini-2.5-pro"
+#     label: "Judge 3 (Gemini)"
+#     color: "magenta"
+
+# Option B: Two AI judges + CodeRabbit (balanced)
+# judges:
+#   judge_1:
+#     model: "sonnet-4.5-thinking"
+#     label: "Judge 1 (Sonnet)"
+#     color: "green"
+#   judge_2:
+#     model: "gemini-2.5-flash-thinking-exp-01-21"
+#     label: "Judge 2 (Gemini)"
+#     color: "cyan"
+#   judge_3:
+#     model: "coderabbit"
+#     label: "Judge 3 (CodeRabbit)"
+#     color: "magenta"
+
+# Paths configuration
+paths:
+  worktree_base: "~/.cube/worktrees"
+  sessions_dir: ".agent-sessions"
+
+# Behavior settings
+behavior:
+  auto_commit: true
+  auto_push: true
+  auto_update: true
+  session_recording_at_start: true

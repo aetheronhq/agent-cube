@@ -90,4 +90,8 @@ Or add to your PATH if already installed:
 
 After installation, authenticate with:
   cursor-agent login"""
+    
+    async def check_authenticated(self) -> bool:
+        """Cursor doesn't require separate authentication check."""
+        return True
 

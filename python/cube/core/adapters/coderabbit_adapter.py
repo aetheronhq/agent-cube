@@ -101,3 +101,20 @@ Verify installation:
 
 Documentation:
   https://docs.coderabbit.ai/cli"""
+    
+    async def check_authenticated(self) -> bool:
+        """Check if CodeRabbit CLI is authenticated.
+        
+        Returns:
+            True if authenticated, False if authentication required.
+        """
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "coderabbit", "--version",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await process.wait()
+            return process.returncode == 0
+        except Exception:
+            return False

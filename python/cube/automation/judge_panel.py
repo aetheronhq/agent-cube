@@ -297,15 +297,33 @@ Use absolute path when writing the file. The project root is available in your w
     from ..core.adapters.registry import get_adapter
     
     config = load_user_config()
-    for judge in judges:
+    for i, judge in enumerate(judges, 1):
         cli_name = config.cli_tools.get(judge.model, "cursor-agent")
-        adapter = get_adapter(cli_name)
+        
+        try:
+            adapter = get_adapter(cli_name)
+        except ValueError as e:
+            from ..core.output import print_error
+            print_error(f"Judge {i} ({judge.model}): Unknown CLI tool '{cli_name}'")
+            raise RuntimeError(str(e))
+        
         if not adapter.check_installed():
             from ..core.output import print_error
-            print_error(f"{cli_name} not installed (needed for {judge.model})")
+            print_error(f"Judge {i} ({judge.model}): {cli_name} not installed")
             console.print()
             console.print(adapter.get_install_instructions())
             raise RuntimeError(f"{cli_name} not installed")
+        
+        if not await adapter.check_authenticated():
+            from ..core.output import print_error
+            print_error(f"Judge {i} ({judge.model}): {cli_name} not authenticated")
+            console.print()
+            console.print(adapter.get_install_instructions())
+            raise RuntimeError(f"{cli_name} authentication required")
+    
+    from ..core.output import print_success
+    print_success("All judge prerequisites validated")
+    console.print()
     
     console.print(f"🚀 Starting {judges[0].label} with {judges[0].model}...")
     console.print(f"🚀 Starting {judges[1].label} with {judges[1].model}...")
