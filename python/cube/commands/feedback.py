@@ -7,7 +7,8 @@ import typer
 from ..core.agent import check_cursor_agent, run_agent
 from ..core.session import load_session
 from ..core.output import print_error, print_info, console
-from ..core.config import PROJECT_ROOT, MODELS, get_worktree_path, WRITER_LETTERS
+from ..core.config import PROJECT_ROOT, get_worktree_path, WRITER_LETTERS
+from ..core.user_config import resolve_writer_alias, get_writer_aliases
 async def send_feedback_async(
     writer: str,
     task_id: str,
@@ -24,7 +25,8 @@ async def send_feedback_async(
     if not worktree.exists():
         raise RuntimeError(f"Worktree not found: {worktree}")
     
-    wconfig = get_writer_config(f"writer_{'a' if writer == 'sonnet' else 'b'}")
+    wconfig = resolve_writer_alias(writer)
+    writer_slug = wconfig.name
     model = wconfig.model
     
     config = load_config()
@@ -41,8 +43,8 @@ async def send_feedback_async(
         resume=True
     )
     
-    writer_label = f"Writer {WRITER_LETTERS[writer]}"
-    color = "green" if writer == "sonnet" else "blue"
+    writer_label = wconfig.label
+    color = wconfig.color
     
     layout = SingleAgentLayout(title=writer_label)
     layout.start()
@@ -67,9 +69,13 @@ def feedback_command(
 ) -> None:
     """Send feedback to a writer (resumes their session)."""
     
-    if writer not in ["sonnet", "codex"]:
-        print_error(f"Invalid writer: {writer} (must be 'sonnet' or 'codex')")
+    try:
+        wconfig = resolve_writer_alias(writer)
+    except KeyError:
+        print_error(f"Invalid writer: {writer} (choices: {', '.join(get_writer_aliases())})")
         raise typer.Exit(1)
+    
+    writer_slug = wconfig.name
     
     if not check_cursor_agent():
         print_error("cursor-agent CLI is not installed")
@@ -83,7 +89,7 @@ def feedback_command(
         temp_path.write_text(feedback_file)
         feedback_path = temp_path
     
-    writer_letter = WRITER_LETTERS[writer]
+    writer_letter = WRITER_LETTERS[writer_slug]
     session_id = load_session(f"WRITER_{writer_letter}", task_id)
     
     if not session_id:
@@ -92,18 +98,18 @@ def feedback_command(
         raise typer.Exit(1)
     
     project_name = Path(PROJECT_ROOT).name
-    worktree = get_worktree_path(project_name, writer, task_id)
+    worktree = get_worktree_path(project_name, writer_slug, task_id)
     
     if not worktree.exists():
         print_error(f"Worktree not found: {worktree}")
         raise typer.Exit(1)
     
-    print_info(f"Sending feedback to writer-{writer} for task: {task_id}")
+    print_info(f"Sending feedback to {wconfig.label} for task: {task_id}")
     console.print()
     console.print("[yellow]📋 Resuming session:[/yellow]")
     console.print(f"  Session ID: [cyan]{session_id}[/cyan]")
     console.print(f"  Feedback: {feedback_file}")
     console.print()
     
-    asyncio.run(send_feedback_async(writer, task_id, feedback_path, session_id, worktree))
+    asyncio.run(send_feedback_async(writer_slug, task_id, feedback_path, session_id, worktree))
 

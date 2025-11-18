@@ -12,7 +12,7 @@ from ..core.git import (
 )
 from ..core.session import save_session, load_session, SessionWatcher
 from ..core.output import print_info, print_success, print_warning, console
-from ..core.config import PROJECT_ROOT, get_sessions_dir, WRITER_LETTERS
+from ..core.config import PROJECT_ROOT, get_sessions_dir
 from ..core.user_config import get_writer_config
 from ..models.types import WriterInfo
 
@@ -112,8 +112,7 @@ async def launch_dual_writers(
         
         session_id = None
         if resume_mode:
-            letter = WRITER_LETTERS[wconfig.name]
-            session_id = load_session(f"WRITER_{letter}", task_id)
+            session_id = load_session(f"WRITER_{wconfig.letter}", task_id)
             if not session_id:
                 raise RuntimeError(f"No session found for writer {wconfig.name}")
         
@@ -122,7 +121,7 @@ async def launch_dual_writers(
             model=wconfig.model,
             color=wconfig.color,
             label=wconfig.label,
-            letter=WRITER_LETTERS[wconfig.name],
+            letter=wconfig.letter,
             task_id=task_id,
             worktree=worktree,
             branch=branch,

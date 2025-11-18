@@ -25,32 +25,41 @@ def get_worktree_path(project_name: str, writer_name: str, task_id: str) -> Path
     """Get the worktree path for a specific writer and task."""
     return WORKTREE_BASE / project_name / f"writer-{writer_name}-{task_id}"
 
-MODELS: Final[dict] = {
-    "sonnet": "sonnet-4.5-thinking",
-    "codex": "gpt-5-codex-high",
-    "grok": "grok",
-}
+def _get_writer_metadata() -> tuple[dict, dict, dict, dict]:
+    """Load writer metadata (model/color/label/letter) from user config."""
+    try:
+        from .user_config import load_config
+        config = load_config()
+        models = {}
+        colors = {}
+        labels = {}
+        letters = {}
+        for writer in config.writers.values():
+            models[writer.name] = writer.model
+            colors[writer.name] = writer.color
+            labels[writer.name] = writer.label
+            letters[writer.name] = writer.letter
+        return models, colors, labels, letters
+    except Exception:
+        models = {
+            "sonnet": "sonnet-4.5-thinking",
+            "codex": "gpt-5-codex-high",
+        }
+        colors = {
+            "sonnet": "green",
+            "codex": "blue",
+        }
+        labels = {
+            "sonnet": "Writer A",
+            "codex": "Writer B",
+        }
+        letters = {
+            "sonnet": "A",
+            "codex": "B",
+        }
+        return models, colors, labels, letters
 
-WRITER_COLORS: Final[dict] = {
-    "sonnet": "green",
-    "codex": "blue",
-}
-
-JUDGE_COLORS: Final[dict] = {
-    1: "green",
-    2: "yellow",
-    3: "magenta",
-}
-
-WRITER_LABELS: Final[dict] = {
-    "sonnet": "Writer A",
-    "codex": "Writer B",
-}
-
-WRITER_LETTERS: Final[dict] = {
-    "sonnet": "A",
-    "codex": "B",
-}
+MODELS, WRITER_COLORS, WRITER_LABELS, WRITER_LETTERS = _get_writer_metadata()
 
 def _get_judge_models_from_config() -> dict:
     """Load judge models from cube.yaml config."""

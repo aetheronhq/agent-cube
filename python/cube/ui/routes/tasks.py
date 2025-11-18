@@ -14,6 +14,7 @@ from cube.automation.dual_writers import launch_dual_writers
 from cube.automation.judge_panel import launch_judge_panel
 from cube.commands.feedback import send_feedback_async
 from cube.core.config import JUDGE_MODELS, PROJECT_ROOT, WRITER_LETTERS, get_worktree_path
+from cube.core.user_config import resolve_writer_alias, get_writer_aliases
 from cube.core.decision_parser import JudgeDecision, aggregate_decisions, parse_all_decisions
 from cube.core.session import load_session
 from cube.core.state import WorkflowState, load_state
@@ -25,13 +26,6 @@ logger = logging.getLogger(__name__)
 STATE_DIR = Path.home() / ".cube" / "state"
 LOGS_DIR = Path.home() / ".cube" / "logs"
 PROMPTS_DIR = PROJECT_ROOT / ".prompts"
-
-WRITER_ALIASES = {
-    "writer-a": "sonnet",
-    "writer-b": "codex",
-    "sonnet": "sonnet",
-    "codex": "codex",
-}
 
 
 class TaskSummary(BaseModel):
@@ -67,7 +61,7 @@ class PanelRequest(BaseModel):
 
 
 class FeedbackRequest(BaseModel):
-    writer: Literal["writer-a", "writer-b", "sonnet", "codex"]
+    writer: str
     feedback_file: str | None = None
     feedback_text: str | None = None
 
@@ -75,6 +69,12 @@ class FeedbackRequest(BaseModel):
     def validate_payload(self) -> "FeedbackRequest":
         if bool(self.feedback_file) == bool(self.feedback_text):
             raise ValueError("Provide exactly one of feedback_file or feedback_text")
+        try:
+            resolve_writer_alias(self.writer)
+        except KeyError:
+            raise ValueError(
+                f"Unknown writer '{self.writer}'. Choices: {', '.join(get_writer_aliases())}"
+            )
         return self
 
 
@@ -266,7 +266,8 @@ async def send_feedback(
     background_tasks: BackgroundTasks,
 ) -> dict[str, str]:
     """Queue feedback to resume a writer session."""
-    writer = WRITER_ALIASES[request.writer]
+    writer_cfg = resolve_writer_alias(request.writer)
+    writer = writer_cfg.name
     writer_letter = WRITER_LETTERS[writer]
     session_id = load_session(f"WRITER_{writer_letter}", task_id)
 
