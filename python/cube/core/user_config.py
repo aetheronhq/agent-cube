@@ -192,12 +192,12 @@ def get_default_config() -> dict:
                 "color": "green"
             },
             "judge_2": {
-                "model": "gpt-5-codex-high",
+                "model": "gpt-5.1-codex-high",
                 "label": "Judge 2",
                 "color": "yellow"
             },
             "judge_3": {
-                "model": "grok",
+                "model": "gemini-3-pro",
                 "label": "Judge 3",
                 "color": "magenta"
             }
