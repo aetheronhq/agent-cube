@@ -107,7 +107,7 @@ def load_config() -> CubeConfig:
     if _config_cache:
         return _config_cache
     
-    data = get_default_config()
+    data = {}
     
     base_config, global_config, repo_config = find_config_files()
     
@@ -160,20 +160,6 @@ def load_config() -> CubeConfig:
     )
     
     return _config_cache
-
-def get_default_config() -> dict:
-    """Get default configuration structure."""
-    return {
-        "cli_tools": {},
-        "writers": {},
-        "judges": {},
-        "behavior": {
-            "auto_commit": True,
-            "auto_push": True,
-            "auto_update": True,
-            "session_recording_at_start": True
-        }
-    }
 
 def get_cli_tool_for_model(model: str) -> str:
     """Get the CLI tool to use for a given model."""
