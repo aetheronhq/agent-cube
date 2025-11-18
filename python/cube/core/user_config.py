@@ -49,8 +49,6 @@ def find_config_files() -> tuple[Optional[Path], Optional[Path]]:
     
     global_search_paths = [
         Path.home() / ".cube" / "cube.yaml",
-        Path.home() / ".cube" / "config.yaml",
-        Path.home() / ".config" / "cube" / "cube.yaml",
         Path(__file__).parent.parent.parent / "cube.yaml",
     ]
     
@@ -60,8 +58,6 @@ def find_config_files() -> tuple[Optional[Path], Optional[Path]]:
             break
     
     repo_search_paths = [
-        Path.cwd() / ".cube.yml",
-        Path.cwd() / ".cube.yaml",
         Path.cwd() / "cube.yaml",
     ]
     
