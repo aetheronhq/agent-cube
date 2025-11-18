@@ -162,46 +162,11 @@ def load_config() -> CubeConfig:
     return _config_cache
 
 def get_default_config() -> dict:
-    """Get default configuration."""
+    """Get default configuration structure."""
     return {
-        "cli_tools": {
-            "sonnet-4.5-thinking": "cursor-agent",
-            "gpt-5-codex-high": "cursor-agent",
-            "grok": "cursor-agent",
-            "gemini-3-pro": "cursor-agent",
-            "gemini-2.5-pro": "gemini",
-        },
-        "writers": {
-            "writer_a": {
-                "name": "sonnet",
-                "model": "sonnet-4.5-thinking",
-                "label": "Writer A",
-                "color": "green"
-            },
-            "writer_b": {
-                "name": "codex",
-                "model": "gpt-5-codex-high",
-                "label": "Writer B",
-                "color": "blue"
-            }
-        },
-        "judges": {
-            "judge_1": {
-                "model": "sonnet-4.5-thinking",
-                "label": "Judge 1",
-                "color": "green"
-            },
-            "judge_2": {
-                "model": "gpt-5.1-codex-high",
-                "label": "Judge 2",
-                "color": "yellow"
-            },
-            "judge_3": {
-                "model": "gemini-3-pro",
-                "label": "Judge 3",
-                "color": "magenta"
-            }
-        },
+        "cli_tools": {},
+        "writers": {},
+        "judges": {},
         "behavior": {
             "auto_commit": True,
             "auto_push": True,
