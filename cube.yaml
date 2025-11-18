@@ -1,19 +1,17 @@
 # Agent Cube Project Configuration
-# Override Writer A to use Gemini 3
 
 writers:
-  writer_a:  # ← Replaces SONNET
+  writer_a:
     name: "gemini"
-    model: "gemini-3-pro"
-    label: "Writer A (Gemini 3)"
-    color: "green"
-  
-  writer_b:  # ← Replaces CODEX  
-    name: "codex"
-    model: "gpt-5.1-codex-high"
-    label: "Writer B (Codex)"
-    color: "blue"
+    model: "gemini-3-pro-preview"
+    label: "Writer A (Gemini CLI)"
+    color: "magenta"
+
+judges:
+  judge_3:
+    model: "gemini-3-pro-preview"
+    label: "Gemini 3 Pro"
+    color: "magenta"
 
 cli_tools:
-  gemini-3-pro: cursor-agent
-  gpt-5.1-codex-high: cursor-agent
+  gemini-3-pro-preview: gemini
