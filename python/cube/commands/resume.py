@@ -8,13 +8,15 @@ from ..core.agent import check_cursor_agent, run_agent
 from ..core.session import load_session
 from ..core.output import print_error, print_info, console
 from ..core.config import PROJECT_ROOT, MODELS, get_worktree_path, WRITER_LETTERS
+from ..core.user_config import get_judge_config, get_writer_config_by_slug, get_writer_slugs
 async def resume_async(
-    target: str,
+    target_label: str,
     task_id: str,
     message: str,
     session_id: str,
     worktree: Path,
-    model: str
+    model: str,
+    color: str = "green"
 ) -> None:
     """Resume a session asynchronously."""
     from ..automation.stream import format_stream_message
@@ -35,14 +37,13 @@ async def resume_async(
     
     from ..core.single_layout import SingleAgentLayout
     
-    color = "green" if "sonnet" in target else "blue"
-    layout = SingleAgentLayout(title=target)
+    layout = SingleAgentLayout(title=target_label)
     layout.start()
     
     async for line in stream:
         msg = parser.parse(line)
         if msg:
-            formatted = format_stream_message(msg, target, color)
+            formatted = format_stream_message(msg, target_label, color)
             if formatted:
                 if formatted.startswith("[thinking]"):
                     thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
@@ -70,30 +71,35 @@ def resume_command(
     writer_letter = None
     judge_num = None
     model = None
+    target_label = target
+    color = "green"
     
-    if target.startswith("judge-"):
+    target_lower = target.lower()
+    
+    if target_lower.startswith("judge-"):
         try:
-            judge_num = int(target.split("-")[1])
+            judge_num = int(target_lower.split("-")[1])
             if judge_num not in [1, 2, 3]:
                 raise ValueError()
             
-            from ..core.user_config import get_judge_config
             jconfig = get_judge_config(judge_num)
             model = jconfig.model
         except:
             print_error(f"Invalid target: {target} (must be writer-sonnet, writer-codex, or judge-1/2/3)")
             raise typer.Exit(1)
-    elif target in ["writer-sonnet", "sonnet", "a", "A"]:
-        writer_name = "sonnet"
-        writer_letter = "A"
-        model = MODELS["sonnet"]
-    elif target in ["writer-codex", "codex", "b", "B"]:
-        writer_name = "codex"
-        writer_letter = "B"
-        model = MODELS["codex"]
     else:
-        print_error(f"Invalid target: {target} (must be writer-sonnet, writer-codex, or judge-1/2/3)")
-        raise typer.Exit(1)
+        try:
+            writer_cfg = resolve_writer_alias(target)
+            writer_name = writer_cfg.name
+        except KeyError:
+            print_error(f"Invalid target: {target} (must be writer-sonnet, writer-codex, or judge-1/2/3)")
+            raise typer.Exit(1)
+    
+    if writer_name:
+        writer_letter = writer_cfg.letter
+        model = MODELS.get(writer_name, writer_cfg.model)
+    else:
+        writer_cfg = None
     
     if judge_num:
         session_id = load_session(f"JUDGE_{judge_num}", f"{task_id}_panel")
@@ -106,7 +112,11 @@ def resume_command(
             raise typer.Exit(1)
         
         worktree = PROJECT_ROOT
+        target_label = f"judge-{judge_num}"
+        color = "yellow"
     else:
+        target_label = writer_cfg.label
+        color = writer_cfg.color
         session_id = load_session(f"WRITER_{writer_letter}", task_id)
         
         if not session_id:
@@ -128,5 +138,5 @@ def resume_command(
     console.print(f"  Message: {message}")
     console.print()
     
-    asyncio.run(resume_async(target, task_id, message, session_id, worktree, model))
+    asyncio.run(resume_async(target_label, task_id, message, session_id, worktree, model, color))
 
