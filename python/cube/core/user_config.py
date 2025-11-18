@@ -118,21 +118,30 @@ def load_config() -> CubeConfig:
     
     if base_config:
         with open(base_config) as f:
-            base_data = yaml.safe_load(f)
-            if base_data:
-                data = merge_config_data(data, base_data)
+            try:
+                base_data = yaml.safe_load(f)
+                if base_data:
+                    data = merge_config_data(data, base_data)
+            except (yaml.YAMLError, Exception) as e:
+                print(f"Warning: Failed to parse base config {base_config}: {e}")
     
     if global_config:
         with open(global_config) as f:
-            global_data = yaml.safe_load(f)
-            if global_data:
-                data = merge_config_data(data, global_data)
+            try:
+                global_data = yaml.safe_load(f)
+                if global_data:
+                    data = merge_config_data(data, global_data)
+            except (yaml.YAMLError, Exception) as e:
+                print(f"Warning: Failed to parse global config {global_config}: {e}")
     
     if repo_config:
         with open(repo_config) as f:
-            repo_data = yaml.safe_load(f)
-            if repo_data:
-                data = merge_config_data(data, repo_data)
+            try:
+                repo_data = yaml.safe_load(f)
+                if repo_data:
+                    data = merge_config_data(data, repo_data)
+            except (yaml.YAMLError, Exception) as e:
+                print(f"Warning: Failed to parse repo config {repo_config}: {e}")
     
     writer_order: list[str] = []
     writers: Dict[str, WriterConfig] = {}
