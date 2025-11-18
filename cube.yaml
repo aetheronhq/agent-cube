@@ -5,3 +5,10 @@ judges:
     model: "gemini-3-pro"
     label: "Gemini 3 Pro"
     color: "magenta"
+
+writers:
+  writer_a:
+    name: "gemini"
+    model: "gemini-3-pro"
+    label: "Writer A"
+    color: "magenta"
