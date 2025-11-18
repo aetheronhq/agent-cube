@@ -1,0 +1,20 @@
+# Agent Cube - Repository Config Override Example
+# This file demonstrates repo-level config overrides
+# 
+# To use Gemini 3 Pro when available:
+# 1. Ensure Gemini CLI is v0.16.0+: npm install -g @google/gemini-cli@latest
+# 2. Enable Preview features in CLI: run `gemini` then `/settings`
+# 3. Use 'auto' as model name to use the CLI default (which becomes Gemini 3 Pro)
+#    Note: 'gemini-3-pro-preview' is the underlying model but may not work as a CLI alias yet.
+
+cli_tools:
+  gemini-3-pro: gemini
+  gemini-3-pro-preview: gemini
+  auto: gemini
+
+judges:
+  judge_3:
+    model: "auto"
+    label: "Gemini 3 Pro"
+    color: "magenta"
+

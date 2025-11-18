@@ -33,35 +33,85 @@ class CubeConfig:
 
 _config_cache: Optional[CubeConfig] = None
 
-def find_config_file() -> Optional[Path]:
-    """Find the cube.yaml config file."""
-    search_paths = [
-        Path.cwd() / "cube.yaml",
-        Path.cwd() / ".cube.yaml",
+def clear_config_cache() -> None:
+    """Clear the config cache to force reload."""
+    global _config_cache
+    _config_cache = None
+
+def find_config_files() -> tuple[Optional[Path], Optional[Path]]:
+    """Find the global and repo-level config files.
+    
+    Returns:
+        Tuple of (global_config, repo_config)
+    """
+    global_config = None
+    repo_config = None
+    
+    global_search_paths = [
+        Path.home() / ".cube" / "cube.yaml",
+        Path.home() / ".cube" / "config.yaml",
         Path.home() / ".config" / "cube" / "cube.yaml",
         Path(__file__).parent.parent.parent / "cube.yaml",
     ]
     
-    for path in search_paths:
+    for path in global_search_paths:
         if path.exists():
-            return path
+            global_config = path
+            break
     
-    return None
+    repo_search_paths = [
+        Path.cwd() / ".cube.yml",
+        Path.cwd() / ".cube.yaml",
+        Path.cwd() / "cube.yaml",
+    ]
+    
+    for path in repo_search_paths:
+        if path.exists():
+            repo_config = path
+            break
+    
+    return global_config, repo_config
+
+def merge_config_data(base: dict, override: dict) -> dict:
+    """Deep merge override config into base config."""
+    result = base.copy()
+    
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = {**result[key], **value}
+        else:
+            result[key] = value
+    
+    return result
 
 def load_config() -> CubeConfig:
-    """Load configuration from cube.yaml or use defaults."""
+    """Load configuration from cube.yaml or use defaults.
+    
+    Priority order (later overrides earlier):
+    1. Default config
+    2. Global config (~/.config/cube/cube.yaml or python/cube.yaml)
+    3. Repo-level config (.cube.yml, .cube.yaml, or cube.yaml in repo root)
+    """
     global _config_cache
     
     if _config_cache:
         return _config_cache
     
-    config_file = find_config_file()
+    data = get_default_config()
     
-    if config_file:
-        with open(config_file) as f:
-            data = yaml.safe_load(f)
-    else:
-        data = get_default_config()
+    global_config, repo_config = find_config_files()
+    
+    if global_config:
+        with open(global_config) as f:
+            global_data = yaml.safe_load(f)
+            if global_data:
+                data = merge_config_data(data, global_data)
+    
+    if repo_config:
+        with open(repo_config) as f:
+            repo_data = yaml.safe_load(f)
+            if repo_data:
+                data = merge_config_data(data, repo_data)
     
     writers = {}
     for key, w in data.get("writers", {}).items():
