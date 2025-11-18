@@ -86,12 +86,12 @@ def find_config_files() -> tuple[Optional[Path], Optional[Path], Optional[Path]]
 
 
 def merge_config_data(base: dict, override: dict) -> dict:
-    """Deep merge override config into base config."""
+    """Deep merge override config into base config recursively."""
     result = base.copy()
     
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = {**result[key], **value}
+            result[key] = merge_config_data(result[key], value)
         else:
             result[key] = value
     
