@@ -4,7 +4,7 @@ writers:
   writer_a:
     name: "gemini"
     model: "gemini-3-pro-preview"
-    label: "Writer A (Gemini CLI)"
+    label: "Writer A"
     color: "magenta"
 
 judges:
@@ -12,6 +12,3 @@ judges:
     model: "gemini-3-pro-preview"
     label: "Gemini 3 Pro"
     color: "magenta"
-
-cli_tools:
-  gemini-3-pro-preview: gemini
