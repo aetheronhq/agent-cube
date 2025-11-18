@@ -41,7 +41,7 @@ judges:
     color: "yellow"
     
   judge_3:
-    model: "gemini-3-pro"
+    model: "gemini-2.5-pro"
     label: "Judge 3"
     color: "magenta"
 
