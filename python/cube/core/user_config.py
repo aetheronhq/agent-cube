@@ -38,35 +38,47 @@ def clear_config_cache() -> None:
     global _config_cache
     _config_cache = None
 
-def find_config_files() -> tuple[Optional[Path], Optional[Path]]:
-    """Find the global and repo-level config files.
+def find_config_files() -> tuple[Optional[Path], Optional[Path], Optional[Path]]:
+    """Find the base, global and repo-level config files.
     
     Returns:
-        Tuple of (global_config, repo_config)
+        Tuple of (base_config, global_config, repo_config)
     """
+    base_config = None
     global_config = None
     repo_config = None
     
-    global_search_paths = [
-        Path.home() / ".cube" / "cube.yaml",
-        Path(__file__).parent.parent.parent / "cube.yaml",
-    ]
-    
-    for path in global_search_paths:
-        if path.exists():
-            global_config = path
+    # 1. Base (python/cube.yaml)
+    base_path = Path(__file__).parent.parent.parent / "cube.yaml"
+    if base_path.exists():
+        base_config = base_path
+
+    # 2. Global (~/.cube/cube.yaml)
+    global_path = Path.home() / ".cube" / "cube.yaml"
+    if global_path.exists():
+        global_config = global_path
+
+    # 3. Repo (cube.yaml in CWD or root)
+    # Walk up from CWD to find cube.yaml
+    current = Path.cwd()
+    while True:
+        check_path = current / "cube.yaml"
+        if check_path.exists():
+            repo_config = check_path
             break
-    
-    repo_search_paths = [
-        Path.cwd() / "cube.yaml",
-    ]
-    
-    for path in repo_search_paths:
-        if path.exists():
-            repo_config = path
+        
+        if (current / ".git").exists():
+            # Stop at git root
             break
+            
+        if current.parent == current:
+            # Stop at filesystem root
+            break
+            
+        current = current.parent
     
-    return global_config, repo_config
+    return base_config, global_config, repo_config
+
 
 def merge_config_data(base: dict, override: dict) -> dict:
     """Deep merge override config into base config."""
@@ -80,13 +92,15 @@ def merge_config_data(base: dict, override: dict) -> dict:
     
     return result
 
+
 def load_config() -> CubeConfig:
     """Load configuration from cube.yaml or use defaults.
     
     Priority order (later overrides earlier):
-    1. Default config
-    2. Global config (~/.config/cube/cube.yaml or python/cube.yaml)
-    3. Repo-level config (.cube.yml, .cube.yaml, or cube.yaml in repo root)
+    1. Hardcoded Defaults
+    2. Base config (python/cube.yaml)
+    3. Global config (~/.cube/cube.yaml)
+    4. Repo-level config (cube.yaml)
     """
     global _config_cache
     
@@ -95,7 +109,13 @@ def load_config() -> CubeConfig:
     
     data = get_default_config()
     
-    global_config, repo_config = find_config_files()
+    base_config, global_config, repo_config = find_config_files()
+    
+    if base_config:
+        with open(base_config) as f:
+            base_data = yaml.safe_load(f)
+            if base_data:
+                data = merge_config_data(data, base_data)
     
     if global_config:
         with open(global_config) as f:
