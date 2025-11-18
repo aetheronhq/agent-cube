@@ -168,6 +168,8 @@ def get_default_config() -> dict:
             "sonnet-4.5-thinking": "cursor-agent",
             "gpt-5-codex-high": "cursor-agent",
             "grok": "cursor-agent",
+            "gemini-3-pro": "cursor-agent",
+            "gemini-2.5-pro": "gemini",
         },
         "writers": {
             "writer_a": {
