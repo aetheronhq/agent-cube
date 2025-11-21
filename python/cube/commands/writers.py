@@ -6,7 +6,7 @@ import typer
 
 from ..core.agent import check_cursor_agent
 from ..core.output import print_error, print_info, console
-from ..core.config import PROJECT_ROOT
+from ..core.config import PROJECT_ROOT, resolve_path
 from ..automation.dual_writers import launch_dual_writers
 from ..core.state import update_phase
 
@@ -45,10 +45,10 @@ def writers_command(
         asyncio.run(launch_dual_writers(task_id, prompt_path, resume_mode=True))
         update_phase(task_id, 2, writers_complete=True)
     else:
-        prompt_path = PROJECT_ROOT / prompt_file_or_message
-        
-        if not prompt_path.exists():
-            print_error(f"Prompt file not found: {prompt_file_or_message}")
+        try:
+            prompt_path = resolve_path(prompt_file_or_message)
+        except FileNotFoundError as e:
+            print_error(str(e))
             raise typer.Exit(1)
         
         asyncio.run(launch_dual_writers(task_id, prompt_path, resume_mode=False))

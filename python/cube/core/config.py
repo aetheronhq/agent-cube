@@ -39,6 +39,49 @@ def get_project_root() -> Path:
     """
     return _find_git_root()
 
+def resolve_path(path_str: str) -> Path:
+    """Resolve a file path, trying multiple strategies.
+    
+    Resolution order:
+    1. Absolute path - use as-is
+    2. Relative to current directory
+    3. Relative to PROJECT_ROOT
+    
+    Args:
+        path_str: Path string (can be relative or absolute)
+        
+    Returns:
+        Resolved Path object
+        
+    Raises:
+        FileNotFoundError: If path cannot be resolved
+    """
+    path = Path(path_str)
+    
+    # Absolute path - use as-is
+    if path.is_absolute():
+        if path.exists():
+            return path
+        raise FileNotFoundError(f"File not found: {path}")
+    
+    # Try relative to current directory first
+    cwd_path = Path.cwd() / path
+    if cwd_path.exists():
+        return cwd_path
+    
+    # Fall back to relative to PROJECT_ROOT
+    root_path = get_project_root() / path
+    if root_path.exists():
+        return root_path
+    
+    # Not found anywhere
+    raise FileNotFoundError(
+        f"File not found: {path_str}\n"
+        f"Tried:\n"
+        f"  - {cwd_path}\n"
+        f"  - {root_path}"
+    )
+
 # Proxy class that dynamically evaluates PROJECT_ROOT on each access
 # This fixes issue #19: PROJECT_ROOT cached at module import time
 class _ProjectRootProxy:

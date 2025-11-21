@@ -7,7 +7,7 @@ import typer
 from ..core.agent import check_cursor_agent, run_agent
 from ..core.session import load_session
 from ..core.output import print_error, print_info, console
-from ..core.config import PROJECT_ROOT, get_worktree_path, WRITER_LETTERS
+from ..core.config import PROJECT_ROOT, get_worktree_path, WRITER_LETTERS, resolve_path
 from ..core.user_config import resolve_writer_alias, get_writer_aliases
 async def send_feedback_async(
     writer: str,
@@ -81,9 +81,9 @@ def feedback_command(
         print_error("cursor-agent CLI is not installed")
         raise typer.Exit(1)
     
-    feedback_path = PROJECT_ROOT / feedback_file
-    
-    if not feedback_path.exists():
+    try:
+        feedback_path = resolve_path(feedback_file)
+    except FileNotFoundError:
         temp_path = PROJECT_ROOT / ".prompts" / f"temp-feedback-{task_id}.md"
         temp_path.parent.mkdir(exist_ok=True)
         temp_path.write_text(feedback_file)
