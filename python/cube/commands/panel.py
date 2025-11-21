@@ -6,7 +6,7 @@ import typer
 
 from ..core.agent import check_cursor_agent
 from ..core.output import print_error, console
-from ..core.config import PROJECT_ROOT
+from ..core.config import PROJECT_ROOT, resolve_path
 from ..automation.judge_panel import launch_judge_panel
 from ..core.state import update_phase
 
@@ -28,9 +28,9 @@ def panel_command(
         print()
         raise typer.Exit(1)
     
-    prompt_path = PROJECT_ROOT / panel_prompt_file
-    
-    if not prompt_path.exists():
+    try:
+        prompt_path = resolve_path(panel_prompt_file)
+    except FileNotFoundError:
         temp_path = PROJECT_ROOT / ".prompts" / f"temp-panel-{task_id}.md"
         temp_path.parent.mkdir(exist_ok=True)
         temp_path.write_text(panel_prompt_file)

@@ -6,7 +6,7 @@ from pathlib import Path
 import typer
 
 from ..core.output import print_error, print_success, print_warning, print_info, console
-from ..core.config import PROJECT_ROOT
+from ..core.config import PROJECT_ROOT, resolve_path
 from ..core.agent import run_agent
 from ..core.parsers.registry import get_parser
 from ..automation.stream import format_stream_message
@@ -45,10 +45,10 @@ def orchestrate_prompt_command(
 ) -> None:
     """Generate orchestrator prompt for autonomous workflow execution."""
     
-    task_path = PROJECT_ROOT / task_file
-    
-    if not task_path.exists():
-        print_error(f"Task file not found: {task_file}")
+    try:
+        task_path = resolve_path(task_file)
+    except FileNotFoundError as e:
+        print_error(str(e))
         raise typer.Exit(1)
     
     task_content = task_path.read_text()
@@ -215,10 +215,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
     """
     from ..core.state import validate_resume, update_phase, load_state, get_progress
     
-    task_path = PROJECT_ROOT / task_file
-    
-    if not task_path.exists():
-        raise FileNotFoundError(f"Task file not found: {task_file}")
+    task_path = resolve_path(task_file)
     
     task_id = extract_task_id_from_file(task_file)
     prompts_dir = PROJECT_ROOT / ".prompts"
