@@ -351,7 +351,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
         else:
             console.print()
             decisions_count = final_result.get("decisions_found", 0)
-            approvals_count = sum(1 for j in [1,2,3] if final_result.get(f"judge_{j}_decision") == "APPROVED")
+            approvals_count = final_result.get("approvals", 0)
             
             if decisions_count < 3:
                 print_warning(f"Missing peer review decisions ({decisions_count}/3)")
@@ -366,7 +366,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
                 console.print(f"  2. Continue with {decisions_count}/3 decisions:")
                 console.print(f"     cube auto task.md --resume-from 8")
             else:
-                print_warning(f"Peer review rejected ({approvals_count}/3 approved) - synthesis needs more work")
+                print_warning(f"Peer review rejected ({approvals_count}/{decisions_count} approved) - synthesis needs more work")
                 console.print()
                 console.print("Next steps:")
                 console.print(f"  1. Review judge feedback in peer-review decisions")
@@ -520,6 +520,7 @@ def run_decide_peer_review(task_id: str) -> dict:
     all_issues = []
     approvals = 0
     decisions_found = 0
+    judge_decisions = {}
     
     console.print(f"[cyan]📊 Checking peer review decisions for: {task_id}[/cyan]")
     console.print()
@@ -537,6 +538,8 @@ def run_decide_peer_review(task_id: str) -> dict:
                 data = json.load(f)
                 decision = data.get("decision", "UNKNOWN")
                 remaining = data.get("remaining_issues", [])
+                
+                judge_decisions[f"judge_{judge_num}_decision"] = decision
                 
                 console.print(f"Judge {judge_num}: {decision}")
                 if remaining:
@@ -559,7 +562,7 @@ def run_decide_peer_review(task_id: str) -> dict:
         for judge_num in [1, 2, 3]:
             console.print(f"  .prompts/decisions/judge-{judge_num}-{task_id}-peer-review.json")
         console.print()
-        return {"approved": False, "remaining_issues": []}
+        return {"approved": False, "remaining_issues": [], "decisions_found": 0, "approvals": 0}
     
     console.print(f"Decisions: {decisions_found}/3, Approvals: {approvals}/{decisions_found}")
     
@@ -570,11 +573,14 @@ def run_decide_peer_review(task_id: str) -> dict:
         console.print()
         print_warning("Cannot approve: Judge(s) requested changes but didn't list issues")
     
-    return {
+    result = {
         "approved": approved,
         "remaining_issues": all_issues,
-        "decisions_found": decisions_found
+        "decisions_found": decisions_found,
+        "approvals": approvals
     }
+    result.update(judge_decisions)
+    return result
 
 async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
     """Phase 6: Run synthesis if needed."""
