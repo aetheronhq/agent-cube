@@ -56,7 +56,7 @@ class BaseThinkingLayout:
                 console=self.console, 
                 refresh_per_second=2,
                 screen=False,
-                transient=False
+                transient=True
             )
             self.live.start()
             self.started = True
