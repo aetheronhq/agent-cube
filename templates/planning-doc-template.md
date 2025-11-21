@@ -143,15 +143,48 @@ const badExample = {
 
 ## 📚 **References**
 
-**External:**
+### **External Documentation** (For Third-Party Tools)
+
+**When documenting third-party tools, include:**
+
+**Primary Documentation:**
+- **Official Docs:** [URL] - Overview and getting started
+- **API Reference:** [URL] - Complete API documentation
+- **Version-Specific Guide:** [URL] - Documentation for the specific version we use
+
+**Critical Sections (MANDATORY READING):**
+- **[Section Name]:** [URL to specific section]
+  - **Why this matters:** [Brief explanation]
+  - **Time to read:** [Estimate - e.g., "10 minutes"]
+
+**Migration & Changes:**
+- **Changelog:** [URL] - Breaking changes and new features
+- **Migration Guide:** [URL] - Upgrading from previous versions
+
+**Examples & Patterns:**
+- **Official Examples:** [URL] - Code examples from official docs
+- **Best Practices:** [URL] - Recommended patterns
+
+**Tips for effective documentation links:**
+- ✅ Link to specific sections, not just homepage
+- ✅ Include version in URL when possible (e.g., `/docs/v5/`)
+- ✅ Explain WHY each link matters
+- ✅ Provide time estimates for reading
+- ✅ Mark critical vs. optional reading
+- ✅ Update links when versions change
+
+### **External References** (General)
+
 - [Industry standard, RFC, or best practice doc]
 - [Research paper or article]
 
-**Internal:**
+### **Internal References**
+
 - [Related planning docs]
 - [Architecture diagrams]
 
-**Examples:**
+### **Examples**
+
 - [Link to example implementation]
 - [Link to reference code]
 

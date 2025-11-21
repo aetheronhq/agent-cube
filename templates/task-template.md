@@ -14,8 +14,38 @@
 - [How it fits in the bigger picture]
 
 **Planning docs (Golden Source):**
-- `planning/[relevant-doc-1].md` - [What it defines]
-- `planning/[relevant-doc-2].md` - [What it defines]
+- `planning/[relevant-doc-1].md` [KEY] - [What it defines]
+- `planning/[relevant-doc-2].md` - [What it defines - reference only]
+
+**Note:** Mark critical planning docs with `[KEY]` - orchestrator will automatically include them in writer prompts. Non-KEY docs are included as references only.
+
+---
+
+## 📚 **Required Reading** (MANDATORY)
+
+**BEFORE implementing, you MUST read these external documentation sources:**
+
+### [Third-Party Tool Name] (e.g., DaisyUI v5)
+
+**Documentation:**
+- **Primary Docs:** [URL to official documentation]
+  - **Why:** [Brief explanation - e.g., "We use v5, NOT v4 - API has breaking changes"]
+  - **Time:** [Estimated reading time - e.g., "15 minutes"]
+
+**Sections to read:**
+- **[Section Name]:** [URL to specific section]
+  - **Focus on:** [What to pay attention to]
+- **[Another Section]:** [URL]
+  - **Focus on:** [What to pay attention to]
+
+### [Another Tool Name] (if applicable)
+
+[Repeat structure above]
+
+**Critical:** Don't skip these docs! Judges will verify you:
+- ✅ Used the correct versions
+- ✅ Followed the documented patterns
+- ✅ Avoided deprecated APIs
 
 ---
 

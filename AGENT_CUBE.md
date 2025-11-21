@@ -229,6 +229,64 @@ For any project, maintain these planning documents as the source of truth:
 - CI/CD & Environments: pipeline stages, preview envs, release/rollback policy.
 - TBD/Decisions: open questions, owners, due dates, conservative defaults.
 
+### Third-Party Tool Documentation Workflow
+
+**Purpose:** Ensure agents use the latest APIs and patterns from third-party tools (e.g., DaisyUI v5, Tailwind v4), avoiding outdated training data.
+
+**Version Registry:**
+- Maintain `planning/third-party-versions.md` as single source of truth for required tool versions
+- Include: tool name, required version, documentation links, key changes from previous versions
+
+**Tool-Specific Planning Docs:**
+- Create dedicated planning docs for critical tools (e.g., `planning/daisyui-v5.md`, `planning/tailwindcss-v4.md`)
+- Include: principles, usage patterns (good/bad examples), anti-patterns, external documentation links
+- Structure external doc references with: URL, "why this matters", estimated reading time
+
+**Task File Integration:**
+- Mark critical planning docs with `[KEY]` in task files' Context section
+- Orchestrator should automatically include full content of [KEY] planning docs in writer prompts
+- Non-KEY planning docs are included as references only
+- Add "Required Reading" section in task files with mandatory external documentation links
+
+**Required Reading Section Format:**
+```markdown
+## 📚 Required Reading (MANDATORY)
+
+### [Tool Name] (e.g., DaisyUI v5)
+
+**Documentation:**
+- **Primary Docs:** [URL]
+  - **Why:** [e.g., "We use v5, NOT v4 - API has breaking changes"]
+  - **Time:** [e.g., "15 minutes"]
+
+**Sections to read:**
+- **[Section Name]:** [URL to specific section]
+  - **Focus on:** [What to pay attention to]
+
+**Critical:** Judges will verify:
+- ✅ Correct versions used
+- ✅ Documented patterns followed
+- ✅ No deprecated APIs
+```
+
+**Enforcement:**
+- Judges check architecture compliance during panel review (PASS/FAIL)
+- Verify agents used correct tool versions from planning docs
+- Confirm patterns match latest external documentation
+- Flag use of deprecated or outdated APIs as automatic failure
+
+**Best Practices for Documentation Links:**
+- Link to specific sections, not just homepage
+- Include version in URL when possible (e.g., `/docs/v5/`)
+- Explain WHY each link matters
+- Provide reading time estimates
+- Mark critical vs. optional reading
+- Update links when versions change
+
+**Templates:**
+- Use `templates/task-template.md` for task file structure with Required Reading section
+- Use `templates/planning-doc-template.md` for creating tool-specific planning docs
+
 ### Initial Orchestrator Outputs
 
 An orchestrator/lead agent should generate:
