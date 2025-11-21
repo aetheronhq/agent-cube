@@ -10,12 +10,72 @@ HOME_DIR: Path = Path.home()
 WORKTREE_BASE: Path = HOME_DIR / ".cube" / "worktrees"
 SESSIONS_DIR_NAME: Final[str] = ".agent-sessions"
 
-def get_project_root() -> Path:
-    """Get the current project root (runtime cwd)."""
+def _find_git_root() -> Path:
+    """Find git repository root by walking up from cwd."""
+    current = Path.cwd()
+    
+    # Debug: help diagnose directory issues
+    import sys
+    if os.getenv("CUBE_DEBUG"):
+        print(f"[DEBUG] cwd: {current}", file=sys.stderr)
+        print(f"[DEBUG] __file__: {__file__}", file=sys.stderr)
+    
+    while current != current.parent:
+        if (current / ".git").exists():
+            if os.getenv("CUBE_DEBUG"):
+                print(f"[DEBUG] Found .git at: {current}", file=sys.stderr)
+            return current
+        current = current.parent
+    
+    if os.getenv("CUBE_DEBUG"):
+        print(f"[DEBUG] No .git found, using cwd: {Path.cwd()}", file=sys.stderr)
     return Path.cwd()
 
-# Use function for runtime evaluation
-PROJECT_ROOT: Path = get_project_root()
+def get_project_root() -> Path:
+    """Get the current project root (finds git repository root).
+    
+    This is called dynamically to ensure we always get the correct working directory,
+    not a cached value from module import time.
+    """
+    return _find_git_root()
+
+# Proxy class that dynamically evaluates PROJECT_ROOT on each access
+# This fixes issue #19: PROJECT_ROOT cached at module import time
+class _ProjectRootProxy:
+    """Proxy that acts like a Path but evaluates dynamically."""
+    
+    def __getattr__(self, name):
+        return getattr(get_project_root(), name)
+    
+    def __str__(self) -> str:
+        return str(get_project_root())
+    
+    def __repr__(self) -> str:
+        return repr(get_project_root())
+    
+    def __fspath__(self) -> str:
+        return str(get_project_root())
+    
+    def __truediv__(self, other) -> Path:
+        return get_project_root() / other
+    
+    def __rtruediv__(self, other) -> Path:
+        return other / get_project_root()
+    
+    def __eq__(self, other) -> bool:
+        return get_project_root() == other
+    
+    def __ne__(self, other) -> bool:
+        return get_project_root() != other
+    
+    def __hash__(self) -> int:
+        return hash(get_project_root())
+    
+    def __bool__(self) -> bool:
+        return bool(get_project_root())
+
+# Type hint to help type checkers understand this is Path-like
+PROJECT_ROOT: Path = _ProjectRootProxy()  # type: ignore[assignment]
 
 def get_sessions_dir() -> Path:
     """Get the sessions directory path relative to current project."""
