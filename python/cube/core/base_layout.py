@@ -29,6 +29,8 @@ class BaseThinkingLayout:
         self.layout = None
         self.console = Console()
         self.lock = Lock()
+        self.last_update_time = 0
+        self.min_update_interval = 0.1
     
     def start(self):
         """Start the live layout."""
@@ -49,7 +51,13 @@ class BaseThinkingLayout:
                 self.layout[box_id].update(self._create_panel(title, []))
             self.layout["output"].update("")
             
-            self.live = Live(self.layout, console=self.console, refresh_per_second=4, screen=False)
+            self.live = Live(
+                self.layout, 
+                console=self.console, 
+                refresh_per_second=2,
+                screen=False,
+                transient=False
+            )
             self.live.start()
             self.started = True
     
@@ -104,6 +112,13 @@ class BaseThinkingLayout:
         """Update all regions."""
         if not self.live or not self.layout:
             return
+        
+        import time
+        current_time = time.time()
+        if current_time - self.last_update_time < self.min_update_interval:
+            return
+        
+        self.last_update_time = current_time
         
         for box_id, title in self.boxes.items():
             visible = list(self.buffers[box_id])[-self.lines_per_box:]
