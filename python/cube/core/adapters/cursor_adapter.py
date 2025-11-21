@@ -13,7 +13,7 @@ class CursorAdapter(CLIAdapter):
     
     def check_logged_in(self) -> bool:
         """Check if cursor-agent is logged in."""
-        config_file = Path.home() / ".cursor" / "agent-config.json"
+        config_file = Path.home() / ".cursor" / "cli-config.json"
         return config_file.exists()
     
     async def run(
