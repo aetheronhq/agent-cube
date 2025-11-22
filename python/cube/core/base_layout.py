@@ -25,7 +25,6 @@ class BaseThinkingLayout:
         self.buffers = {box_id: deque(maxlen=lines_per_box) for box_id in boxes}
         self.current_lines = {box_id: "" for box_id in boxes}
         self.output_lines = deque(maxlen=1000)
-        self.printed_line_count = 0
         self.started = False
         self.live = None
         self.layout = None
@@ -156,19 +155,6 @@ class BaseThinkingLayout:
         except:
             available_lines = 30
         
-        total_lines = len(self.output_lines)
-        lines_to_keep = available_lines * 2
-        
-        if total_lines > lines_to_keep and self.printed_line_count < total_lines - lines_to_keep:
-            lines_to_print = list(self.output_lines)[self.printed_line_count:total_lines - lines_to_keep]
-            if lines_to_print:
-                self.live.stop()
-                for line in lines_to_print:
-                    from rich.text import Text
-                    self.console.print(Text.from_markup(line))
-                self.printed_line_count = total_lines - lines_to_keep
-                self.live.start()
-        
         recent_output = list(self.output_lines)[-available_lines:]
         output_text = "\n".join(recent_output)
         
@@ -178,15 +164,14 @@ class BaseThinkingLayout:
         self.layout["output"].update(text)
     
     def close(self) -> None:
-        """Stop the live display."""
+        """Stop the live display and print all output to scrollback."""
         with self.lock:
             if self.started and self.live:
                 self.live.stop()
                 self.started = False
                 
-                remaining_lines = list(self.output_lines)[self.printed_line_count:]
-                if remaining_lines:
+                if self.output_lines:
                     from rich.text import Text
-                    for line in remaining_lines:
+                    for line in self.output_lines:
                         self.console.print(Text.from_markup(line))
 
