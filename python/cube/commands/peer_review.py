@@ -29,29 +29,33 @@ def peer_review_command(
         temp_path.write_text(peer_review_prompt_file)
         prompt_path = temp_path
     
-    if fresh:
-        print_info("Launching fresh judge panel for peer review")
-        asyncio.run(launch_judge_panel(task_id, prompt_path, "peer-review", resume_mode=False))
-    else:
-        print_info("Resuming original judge panel for peer review")
-        from ..core.session import session_exists
+    try:
+        if fresh:
+            print_info("Launching fresh judge panel for peer review")
+            asyncio.run(launch_judge_panel(task_id, prompt_path, "peer-review", resume_mode=False))
+        else:
+            print_info("Resuming original judge panel for peer review")
+            from ..core.session import session_exists
+            
+            for judge_num in [1, 2, 3]:
+                if not session_exists(f"JUDGE_{judge_num}", f"{task_id}_panel"):
+                    print_error(f"Could not find panel session IDs for task: {task_id}")
+                    print()
+                    print("Make sure you've run the panel first:")
+                    print(f"  cube panel {task_id} <panel-prompt.md>")
+                    print()
+                    print("Session files expected:")
+                    print(f"  .agent-sessions/JUDGE_1_{task_id}_panel_SESSION_ID.txt")
+                    print(f"  .agent-sessions/JUDGE_2_{task_id}_panel_SESSION_ID.txt")
+                    print(f"  .agent-sessions/JUDGE_3_{task_id}_panel_SESSION_ID.txt")
+                    print()
+                    print("Or use --fresh to launch new judges instead")
+                    raise typer.Exit(1)
+            
+            asyncio.run(launch_judge_panel(task_id, prompt_path, "peer-review", resume_mode=True))
         
-        for judge_num in [1, 2, 3]:
-            if not session_exists(f"JUDGE_{judge_num}", f"{task_id}_panel"):
-                print_error(f"Could not find panel session IDs for task: {task_id}")
-                print()
-                print("Make sure you've run the panel first:")
-                print(f"  cube panel {task_id} <panel-prompt.md>")
-                print()
-                print("Session files expected:")
-                print(f"  .agent-sessions/JUDGE_1_{task_id}_panel_SESSION_ID.txt")
-                print(f"  .agent-sessions/JUDGE_2_{task_id}_panel_SESSION_ID.txt")
-                print(f"  .agent-sessions/JUDGE_3_{task_id}_panel_SESSION_ID.txt")
-                print()
-                print("Or use --fresh to launch new judges instead")
-                raise typer.Exit(1)
-        
-        asyncio.run(launch_judge_panel(task_id, prompt_path, "peer-review", resume_mode=True))
-    
-    update_phase(task_id, 7, peer_review_complete=True)
+        update_phase(task_id, 7, peer_review_complete=True)
+    except RuntimeError as e:
+        print_error(str(e))
+        raise typer.Exit(1)
 

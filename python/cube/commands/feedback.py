@@ -111,5 +111,9 @@ def feedback_command(
     console.print(f"  Feedback: {feedback_file}")
     console.print()
     
-    asyncio.run(send_feedback_async(writer_slug, task_id, feedback_path, session_id, worktree))
+    try:
+        asyncio.run(send_feedback_async(writer_slug, task_id, feedback_path, session_id, worktree))
+    except RuntimeError as e:
+        print_error(str(e))
+        raise typer.Exit(1)
 

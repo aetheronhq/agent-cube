@@ -42,8 +42,12 @@ def writers_command(
         console.print("[yellow]Resuming both writers with message...[/yellow]")
         console.print()
         
-        asyncio.run(launch_dual_writers(task_id, prompt_path, resume_mode=True))
-        update_phase(task_id, 2, writers_complete=True)
+        try:
+            asyncio.run(launch_dual_writers(task_id, prompt_path, resume_mode=True))
+            update_phase(task_id, 2, writers_complete=True)
+        except RuntimeError as e:
+            print_error(str(e))
+            raise typer.Exit(1)
     else:
         try:
             prompt_path = resolve_path(prompt_file_or_message)
@@ -51,6 +55,10 @@ def writers_command(
             print_error(str(e))
             raise typer.Exit(1)
         
-        asyncio.run(launch_dual_writers(task_id, prompt_path, resume_mode=False))
-        update_phase(task_id, 2, writers_complete=True)
+        try:
+            asyncio.run(launch_dual_writers(task_id, prompt_path, resume_mode=False))
+            update_phase(task_id, 2, writers_complete=True)
+        except RuntimeError as e:
+            print_error(str(e))
+            raise typer.Exit(1)
 

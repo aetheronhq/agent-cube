@@ -62,7 +62,9 @@ def _resolve_resume_from(task_id: str, resume_flag: bool, resume_from_value: Opt
 app = typer.Typer(
     name="cube-py",
     help="Agent Cube CLI - Parallel LLM Coding Workflow Orchestrator",
-    add_completion=False
+    add_completion=False,
+    pretty_exceptions_show_locals=False,
+    pretty_exceptions_short=True
 )
 
 @app.callback(invoke_without_command=True)

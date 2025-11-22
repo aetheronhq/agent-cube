@@ -94,5 +94,9 @@ def run_command(
     print_info(f"Prompt: {prompt[:100]}...")
     console.print()
     
-    asyncio.run(run_single_agent(model, prompt, worktree))
+    try:
+        asyncio.run(run_single_agent(model, prompt, worktree))
+    except RuntimeError as e:
+        print_error(str(e))
+        raise typer.Exit(1)
 

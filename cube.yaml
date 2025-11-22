@@ -9,6 +9,6 @@ writers:
 
 judges:
   judge_3:
-    model: "gemini-3-pro-preview"
-    label: "Gemini 3 Pro"
+    model: "gemini-3-pro"
+    label: "Gemini 3 Pro (Cursor)"
     color: "magenta"
