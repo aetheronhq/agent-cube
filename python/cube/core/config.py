@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Final, Optional
 
-VERSION: Final[str] = "1.0.0"
+VERSION: Final[str] = "1.1.0"
 
 HOME_DIR: Path = Path.home()
 WORKTREE_BASE: Path = HOME_DIR / ".cube" / "worktrees"

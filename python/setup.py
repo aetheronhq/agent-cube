@@ -8,7 +8,7 @@ readme = readme_file.read_text() if readme_file.exists() else ""
 
 setup(
     name="cube-py",
-    version="1.0.0",
+    version="1.1.0",
     description="Agent Cube CLI - Parallel LLM Coding Workflow Orchestrator",
     long_description=readme,
     long_description_content_type="text/markdown",
