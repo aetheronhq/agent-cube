@@ -52,9 +52,29 @@ class CursorParser(ParserAdapter):
                         msg.tool_name = "write"
                         msg.tool_args = {"path": path}
                         return msg
+                    elif "editToolCall" in tool_call:
+                        path = tool_call["editToolCall"].get("args", {}).get("path", "unknown")
+                        msg.tool_name = "edit"
+                        msg.tool_args = {"path": path}
+                        return msg
+                    elif "shellToolCall" in tool_call:
+                        cmd = tool_call["shellToolCall"].get("args", {}).get("command", "unknown")
+                        msg.tool_name = "shell"
+                        msg.tool_args = {"command": cmd}
+                        return msg
+                    elif "grepToolCall" in tool_call:
+                        pattern = tool_call["grepToolCall"].get("args", {}).get("pattern", "")
+                        msg.tool_name = "grep"
+                        msg.tool_args = {"pattern": pattern}
+                        return msg
                     elif "lsToolCall" in tool_call:
                         path = tool_call["lsToolCall"].get("args", {}).get("path", ".")
                         msg.tool_name = "ls"
+                        msg.tool_args = {"path": path}
+                        return msg
+                    elif "deleteToolCall" in tool_call:
+                        path = tool_call["deleteToolCall"].get("args", {}).get("path", "unknown")
+                        msg.tool_name = "delete"
                         msg.tool_args = {"path": path}
                         return msg
                     elif "updateTodosToolCall" in tool_call:
@@ -70,6 +90,41 @@ class CursorParser(ParserAdapter):
                             msg.tool_name = "read"
                             msg.tool_args = {"lines": result["success"].get("totalLines", 0)}
                             return msg
+                    elif "writeToolCall" in tool_call:
+                        result = tool_call["writeToolCall"].get("result", {})
+                        if "success" in result:
+                            msg.tool_name = "write"
+                            msg.tool_args = {"lines": result["success"].get("linesCreated", 0)}
+                            return msg
+                    elif "editToolCall" in tool_call:
+                        msg.tool_name = "edit"
+                        msg.tool_args = {}
+                        return msg
+                    elif "shellToolCall" in tool_call:
+                        result = tool_call["shellToolCall"].get("result", {})
+                        if "success" in result:
+                            msg.exit_code = result["success"].get("exitCode", 0)
+                        elif "failure" in result:
+                            msg.exit_code = result["failure"].get("exitCode", 1)
+                        msg.tool_name = "shell"
+                        msg.tool_args = {}
+                        return msg
+                    elif "grepToolCall" in tool_call:
+                        msg.tool_name = "grep"
+                        msg.tool_args = {}
+                        return msg
+                    elif "lsToolCall" in tool_call:
+                        msg.tool_name = "ls"
+                        msg.tool_args = {}
+                        return msg
+                    elif "deleteToolCall" in tool_call:
+                        msg.tool_name = "delete"
+                        msg.tool_args = {}
+                        return msg
+                    elif "updateTodosToolCall" in tool_call:
+                        msg.tool_name = "todos"
+                        msg.tool_args = {}
+                        return msg
             
             if msg.type == "result":
                 msg.duration_ms = data.get("duration_ms", 0)
