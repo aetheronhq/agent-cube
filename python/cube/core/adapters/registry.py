@@ -2,7 +2,6 @@
 
 from typing import Dict, Type, Any, Optional
 from ..cli_adapter import CLIAdapter
-from .coderabbit_adapter import CodeRabbitAdapter
 from .cursor_adapter import CursorAdapter
 from .gemini_adapter import GeminiAdapter
 from .cli_review_adapter import CLIReviewAdapter
@@ -10,7 +9,6 @@ from .cli_review_adapter import CLIReviewAdapter
 _ADAPTERS: Dict[str, Type[CLIAdapter]] = {
     "cursor-agent": CursorAdapter,
     "gemini": GeminiAdapter,
-    "coderabbit": CodeRabbitAdapter,
     "cli-review": CLIReviewAdapter,
 }
 

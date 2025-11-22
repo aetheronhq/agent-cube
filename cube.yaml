@@ -6,9 +6,9 @@ writers:
     label: "Writer A (Gemini 3)"
 
 judges:
-  judge_3:
+  judge_4:
     type: "cli-review"
     cmd: "coderabbit review --plain --type all --cwd {{worktree}}"
     orchestrator: "composer-1"
-    label: "CodeRabbit (via Composer)"
+    label: "CodeRabbit"
     color: "magenta"
