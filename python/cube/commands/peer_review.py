@@ -15,7 +15,7 @@ def peer_review_command(
     peer_review_prompt_file: str,
     fresh: bool = False
 ) -> None:
-    """Resume original 3 judges from initial panel for peer review."""
+    """Resume original judges from initial panel for peer review."""
     
     if not check_cursor_agent():
         print_error("cursor-agent CLI is not installed")

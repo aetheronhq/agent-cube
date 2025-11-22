@@ -347,20 +347,25 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
                 console.print(f"  3. Or adjust synthesis and retry from Phase 6")
         else:
             console.print()
+            from ..core.user_config import get_judge_configs
+            judge_configs = get_judge_configs()
+            judge_nums = [j.number for j in judge_configs]
+            total_judges = len(judge_nums)
+            
             decisions_count = final_result.get("decisions_found", 0)
             approvals_count = final_result.get("approvals", 0)
             
-            if decisions_count < 3:
-                print_warning(f"Missing peer review decisions ({decisions_count}/3)")
+            if decisions_count < total_judges:
+                print_warning(f"Missing peer review decisions ({decisions_count}/{total_judges})")
                 console.print()
                 console.print("Options:")
                 console.print(f"  1. Get missing judge(s) to file decisions:")
-                for judge_num in [1, 2, 3]:
+                for judge_num in judge_nums:
                     peer_file = PROJECT_ROOT / ".prompts" / "decisions" / f"judge-{judge_num}-{task_id}-peer-review.json"
                     if not peer_file.exists():
                         console.print(f"     cube resume judge-{judge_num} {task_id} \"Write peer review decision\"")
                 console.print()
-                console.print(f"  2. Continue with {decisions_count}/3 decisions:")
+                console.print(f"  2. Continue with {decisions_count}/{total_judges} decisions:")
                 console.print(f"     cube auto task.md --resume-from 8")
             else:
                 print_warning(f"Peer review rejected ({approvals_count}/{decisions_count} approved) - synthesis needs more work")
@@ -512,6 +517,7 @@ def run_decide_peer_review(task_id: str) -> dict:
     """Check peer review decisions and extract any remaining issues."""
     import json
     from pathlib import Path
+    from ..core.user_config import get_judge_configs
     
     decisions_dir = PROJECT_ROOT / ".prompts" / "decisions"
     all_issues = []
@@ -525,8 +531,11 @@ def run_decide_peer_review(task_id: str) -> dict:
     from ..core.decision_files import find_decision_file
     
     has_request_changes = False
+    judge_configs = get_judge_configs()
+    judge_nums = [j.number for j in judge_configs]
+    total_judges = len(judge_nums)
     
-    for judge_num in [1, 2, 3]:
+    for judge_num in judge_nums:
         peer_file = find_decision_file(judge_num, task_id, "peer-review")
         
         if peer_file and peer_file.exists():
@@ -556,12 +565,12 @@ def run_decide_peer_review(task_id: str) -> dict:
     if decisions_found == 0:
         print_warning("No peer review decisions found!")
         console.print("Expected files:")
-        for judge_num in [1, 2, 3]:
+        for judge_num in judge_nums:
             console.print(f"  .prompts/decisions/judge-{judge_num}-{task_id}-peer-review.json")
         console.print()
         return {"approved": False, "remaining_issues": [], "decisions_found": 0, "approvals": 0}
     
-    console.print(f"Decisions: {decisions_found}/3, Approvals: {approvals}/{decisions_found}")
+    console.print(f"Decisions: {decisions_found}/{total_judges}, Approvals: {approvals}/{decisions_found}")
     
     approved = approvals >= 2 and not has_request_changes
     

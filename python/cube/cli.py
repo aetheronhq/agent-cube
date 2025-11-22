@@ -189,7 +189,7 @@ def peer_review(
     peer_review_prompt_file: Annotated[Optional[str], typer.Argument(help="Path to prompt file or prompt message")] = None,
     fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False
 ):
-    """Resume original judges from initial panel for peer review."""
+    """Resume judge panel for peer review of winner's implementation."""
     from .core.config import resolve_task_id, set_current_task_id
     from pathlib import Path
     
