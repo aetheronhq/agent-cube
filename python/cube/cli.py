@@ -191,14 +191,22 @@ def peer_review(
 ):
     """Resume original judges from initial panel for peer review."""
     from .core.config import resolve_task_id, set_current_task_id
+    from pathlib import Path
     
-    resolved_task_id = resolve_task_id(task_id_or_prompt)
-    prompt_arg = peer_review_prompt_file
+    env_task_id = resolve_task_id(None)
     
-    if not resolved_task_id and task_id_or_prompt:
-        resolved_task_id = resolve_task_id(None)
-        if resolved_task_id:
-            prompt_arg = task_id_or_prompt
+    if env_task_id:
+        resolved_task_id = env_task_id
+        prompt_arg = task_id_or_prompt if task_id_or_prompt else peer_review_prompt_file
+    elif task_id_or_prompt and peer_review_prompt_file:
+        resolved_task_id = task_id_or_prompt
+        prompt_arg = peer_review_prompt_file
+    elif task_id_or_prompt and (Path(task_id_or_prompt).exists() or " " in task_id_or_prompt):
+        resolved_task_id = env_task_id or resolve_task_id(None)
+        prompt_arg = task_id_or_prompt
+    else:
+        resolved_task_id = task_id_or_prompt
+        prompt_arg = peer_review_prompt_file
     
     if not resolved_task_id:
         from .core.output import print_error
