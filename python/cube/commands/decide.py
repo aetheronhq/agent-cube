@@ -113,9 +113,11 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     if result["next_action"] == "MERGE":
         winner = result["winner"].lower()
         winner_name = "sonnet" if winner == "a" else "codex"
-        console.print("Ready to merge!")
+        console.print("[green]✅ Ready for PR![/green]")
+        console.print()
+        console.print("Create pull request:")
         console.print(f"  git checkout writer-{winner_name}/{task_id}")
-        console.print(f"  git merge --ff-only main  # if clean")
+        console.print(f"  gh pr create --base main --title 'feat: {task_id}' --fill")
     
     elif result["next_action"] == "SYNTHESIS":
         winner = result["winner"].lower()
