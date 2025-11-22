@@ -92,6 +92,10 @@ class CursorAdapter(CLIAdapter):
                 
             except asyncio.TimeoutError:
                 health_monitor.cancel()
+                try:
+                    await health_monitor
+                except (asyncio.CancelledError, RuntimeError):
+                    pass
                 process.kill()
                 await process.wait()
                 raise RuntimeError(
@@ -101,7 +105,10 @@ class CursorAdapter(CLIAdapter):
                 )
             except StopAsyncIteration:
                 health_monitor.cancel()
-                pass
+                try:
+                    await health_monitor
+                except (asyncio.CancelledError, RuntimeError):
+                    pass
             
             try:
                 async for line in stream_iter:

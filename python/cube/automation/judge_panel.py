@@ -96,7 +96,7 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                 winner = data.get("winner", "")
                 
                 if decision == "APPROVED":
-                    status = f"✓ APPROVED"
+                    status = "✓ APPROVED"
                 elif decision == "REQUEST_CHANGES":
                     issues = len(data.get("remaining_issues", []))
                     status = f"⚠ {issues} issue{'s' if issues != 1 else ''}"
@@ -107,7 +107,7 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                         status = "Winner: B"
                     else:
                         status = f"Winner: {winner}"
-        except:
+        except (json.JSONDecodeError, KeyError, FileNotFoundError):
             pass
     
     layout.mark_complete(judge_info.number, status)
@@ -365,10 +365,12 @@ Use absolute path when writing the file. The project root is available in your w
         for label, error in errors:
             console.print(f"  {label}: {error}")
         
-        if len(errors) == 3:
+        total_judges = len(judges)
+        failed = len(errors)
+        if failed == total_judges:
             raise RuntimeError("All judges failed")
         else:
-            print_warning(f"{len(errors)} judge(s) failed but {3-len(errors)} completed successfully")
+            print_warning(f"{failed} judge(s) failed but {total_judges - failed} completed successfully")
             console.print()
     else:
         console.print("✅ All judges completed successfully")

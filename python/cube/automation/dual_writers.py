@@ -93,10 +93,10 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
         if result.returncode == 0 and result.stdout:
             lines = result.stdout.strip().split('\n')
             if lines:
-                files_changed = len([l for l in lines if '|' in l])
+                files_changed = len([line for line in lines if '|' in line])
                 if files_changed > 0:
                     status = f"{files_changed} file{'s' if files_changed != 1 else ''}"
-    except:
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError):
         pass
     
     layout.mark_complete(box_id, status)
