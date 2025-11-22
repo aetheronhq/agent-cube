@@ -120,7 +120,7 @@ class BaseThinkingLayout:
             else:
                 text.append("✅ Completed\n", style="green bold")
             
-            for i in range(self.lines_per_box - 1):
+            for _ in range(self.lines_per_box - 1):
                 text.append("\n")
         else:
             for line in lines:

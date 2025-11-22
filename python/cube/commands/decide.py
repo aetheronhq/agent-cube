@@ -117,6 +117,7 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
         console.print()
         console.print("Create pull request:")
         console.print(f"  git checkout writer-{winner_name}/{task_id}")
+        console.print(f"  git push -u origin writer-{winner_name}/{task_id}")
         console.print(f"  gh pr create --base main --title 'feat: {task_id}' --fill")
     
     elif result["next_action"] == "SYNTHESIS":

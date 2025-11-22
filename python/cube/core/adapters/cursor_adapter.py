@@ -121,7 +121,7 @@ class CursorAdapter(CLIAdapter):
                 health_monitor.cancel()
                 try:
                     await health_monitor
-                except asyncio.CancelledError:
+                except (asyncio.CancelledError, RuntimeError):
                     pass
         
         exit_code = await process.wait()

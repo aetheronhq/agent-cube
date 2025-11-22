@@ -8,7 +8,7 @@ from typing import List
 from ..core.agent import run_agent
 from ..core.git import fetch_branches, get_commit_hash, branch_exists
 from ..core.session import save_session, load_session, SessionWatcher
-from ..core.output import print_info, print_success, console
+from ..core.output import print_info, print_success, print_warning, print_error, console
 from ..core.config import PROJECT_ROOT, get_sessions_dir
 from ..core.user_config import get_judge_config
 from ..models.types import JudgeInfo
@@ -331,7 +331,6 @@ Use absolute path when writing the file. The project root is available in your w
         cli_name = config.cli_tools.get(judge.model, "cursor-agent")
         adapter = get_adapter(cli_name)
         if not adapter.check_installed():
-            from ..core.output import print_error
             print_error(f"{cli_name} not installed (needed for {judge.model})")
             console.print()
             console.print(adapter.get_install_instructions())

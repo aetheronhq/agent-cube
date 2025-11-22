@@ -11,7 +11,7 @@ from ..core.git import (
     commit_and_push
 )
 from ..core.session import save_session, load_session, SessionWatcher
-from ..core.output import print_info, print_success, print_warning, console
+from ..core.output import print_info, print_success, print_warning, print_error, console
 from ..core.config import PROJECT_ROOT, get_sessions_dir
 from ..core.user_config import get_writer_config
 from ..models.types import WriterInfo
@@ -70,7 +70,7 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
                     if formatted:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(box_id, thinking_text)
+                            layout.add_thinking(writer_info.letter, thinking_text)
                         else:
                             layout.add_output(formatted)
     finally:
