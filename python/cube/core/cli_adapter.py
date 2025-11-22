@@ -63,7 +63,7 @@ async def monitor_process_health(
     """Monitor subprocess health and detect if it dies silently.
     
     Uses dual detection for maximum reliability:
-    1. poll() - Check if process has exited
+    1. process.returncode - Check if process has exited
     2. os.kill(pid, 0) - Verify PID still exists
     
     Args:
@@ -76,10 +76,9 @@ async def monitor_process_health(
     while True:
         await asyncio.sleep(check_interval)
         
-        poll_result = process.poll()
-        if poll_result is not None:
-            if poll_result != 0:
-                raise RuntimeError(f"{name} exited with code {poll_result}")
+        if process.returncode is not None:
+            if process.returncode != 0:
+                raise RuntimeError(f"{name} exited with code {process.returncode}")
             break
         
         try:
