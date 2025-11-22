@@ -138,5 +138,9 @@ def resume_command(
     console.print(f"  Message: {message}")
     console.print()
     
-    asyncio.run(resume_async(target_label, task_id, message, session_id, worktree, model, color))
+    try:
+        asyncio.run(resume_async(target_label, task_id, message, session_id, worktree, model, color))
+    except RuntimeError as e:
+        print_error(str(e))
+        raise typer.Exit(1)
 
