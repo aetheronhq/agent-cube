@@ -43,7 +43,7 @@ class CLIReviewAdapter(CLIAdapter):
         """Run the review tool and synthesize results."""
         
         # 1. Parse the prompt to find writer branches
-        # The prompt usually contains: "Writer A Branch: writer-sonnet/task-id"
+        # The prompt usually contains: "Writer A's branch: writer-sonnet/task-id"
         branches = self._extract_branches(prompt)
         if not branches:
             yield '{"type": "error", "content": "Could not identify writer branches from prompt"}'
