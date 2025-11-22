@@ -81,6 +81,7 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
     if line_count < 10:
         raise RuntimeError(f"Judge {judge_info.number} completed suspiciously quickly ({line_count} lines). Check {log_file}")
     
+    layout.mark_complete(judge_info.number)
     console.print(f"[{judge_info.color}][Judge {judge_info.number}][/{judge_info.color}] ✅ Completed")
     return line_count
 

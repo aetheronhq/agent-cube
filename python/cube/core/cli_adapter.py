@@ -32,27 +32,13 @@ class CLIAdapter(ABC):
 
 async def read_stream_with_buffer(
     stdout: asyncio.StreamReader,
-    buffer_size: int = 8192,
-    inactivity_timeout: Optional[int] = None
+    buffer_size: int = 8192
 ) -> AsyncGenerator[str, None]:
-    """Helper to read subprocess stdout with buffering.
-    
-    Args:
-        stdout: StreamReader to read from
-        buffer_size: Bytes to read at once
-        inactivity_timeout: Seconds of no data before timeout (None = no timeout)
-    """
+    """Helper to read subprocess stdout with buffering."""
     buffer = ""
     while True:
         try:
-            if inactivity_timeout:
-                chunk = await asyncio.wait_for(
-                    stdout.read(buffer_size),
-                    timeout=inactivity_timeout
-                )
-            else:
-                chunk = await stdout.read(buffer_size)
-                
+            chunk = await stdout.read(buffer_size)
             if not chunk:
                 break
                 
@@ -63,13 +49,30 @@ async def read_stream_with_buffer(
                 line = line.strip()
                 if line:
                     yield line
-        except asyncio.TimeoutError:
-            raise RuntimeError(
-                f"Process inactive for {inactivity_timeout}s - appears hung or stalled"
-            )
         except Exception:
             break
     
     if buffer.strip():
         yield buffer.strip()
+
+async def monitor_process_health(
+    process: 'asyncio.subprocess.Process',
+    name: str,
+    check_interval: float = 5.0
+) -> None:
+    """Monitor subprocess health and detect if it dies silently.
+    
+    Args:
+        process: Subprocess to monitor
+        name: Process name for error messages
+        check_interval: How often to check (seconds)
+    """
+    while process.returncode is None:
+        await asyncio.sleep(check_interval)
+        
+        if process.returncode is not None:
+            if process.returncode != 0:
+                raise RuntimeError(
+                    f"{name} process exited unexpectedly with code {process.returncode}"
+                )
 

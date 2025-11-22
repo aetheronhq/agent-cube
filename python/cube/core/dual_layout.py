@@ -21,6 +21,11 @@ class DualWriterLayout:
         cls.get_instance().add_thinking(box_id, text)
     
     @classmethod
+    def mark_complete(cls, box_id: str):
+        """Mark a writer as complete."""
+        cls.get_instance().mark_complete(box_id)
+    
+    @classmethod
     def add_output(cls, line: str):
         """Add output line."""
         cls.get_instance().add_output(line)

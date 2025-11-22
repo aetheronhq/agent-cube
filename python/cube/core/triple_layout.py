@@ -25,6 +25,12 @@ class TripleJudgeLayout:
         cls.get_instance().add_thinking(box_id, text)
     
     @classmethod
+    def mark_complete(cls, judge_num: int):
+        """Mark a judge as complete."""
+        box_id = f"judge_{judge_num}"
+        cls.get_instance().mark_complete(box_id)
+    
+    @classmethod
     def add_output(cls, line: str):
         """Add output line."""
         cls.get_instance().add_output(line)

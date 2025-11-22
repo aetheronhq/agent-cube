@@ -29,6 +29,8 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     layout = get_dual_layout()
     layout.start()
     
+    box_id = f"writer_{writer_info.letter.lower()}"
+    
     from pathlib import Path
     logs_dir = Path.home() / ".cube" / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -68,7 +70,7 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
                     if formatted:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(writer_info.letter, thinking_text)
+                            layout.add_thinking(box_id, thinking_text)
                         else:
                             layout.add_output(formatted)
     finally:
@@ -77,6 +79,7 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     if line_count < 10:
         raise RuntimeError(f"{writer_info.label} completed suspiciously quickly ({line_count} lines). Check {log_file} for errors.")
     
+    layout.mark_complete(box_id)
     console.print(f"[{writer_info.color}][{writer_info.label}][/{writer_info.color}] ✅ Completed")
 
 async def launch_dual_writers(

@@ -50,9 +50,14 @@ class GeminiAdapter(CLIAdapter):
         last_error = None
         line_count = 0
         first_line_timeout = 30
-        inactivity_timeout = 600
         
         if process.stdout:
+            from ..cli_adapter import monitor_process_health
+            
+            health_monitor = asyncio.create_task(
+                monitor_process_health(process, "gemini", check_interval=5.0)
+            )
+            
             stream_iter = read_stream_with_buffer(process.stdout)
             
             try:
@@ -70,6 +75,7 @@ class GeminiAdapter(CLIAdapter):
                 yield first_line
                 
             except asyncio.TimeoutError:
+                health_monitor.cancel()
                 process.kill()
                 await process.wait()
                 raise RuntimeError(
@@ -78,32 +84,27 @@ class GeminiAdapter(CLIAdapter):
                     "Run: gemini (then choose 'Login with Google')"
                 )
             except StopAsyncIteration:
+                health_monitor.cancel()
                 pass
             
             try:
-                while True:
-                    try:
-                        line = await asyncio.wait_for(
-                            anext(stream_iter),
-                            timeout=inactivity_timeout
-                        )
-                        line_count += 1
-                        
-                        if "not logged in" in line.lower() or "authentication" in line.lower():
-                            last_error = "Authentication required"
-                        elif "error" in line.lower() and not last_error:
-                            last_error = line[:200]
-                        
-                        yield line
-                    except asyncio.TimeoutError:
-                        process.kill()
-                        await process.wait()
-                        raise RuntimeError(
-                            f"gemini CLI inactive for {inactivity_timeout}s - process appears hung. "
-                            "This can happen if the agent is stuck or the task is too complex."
-                        )
+                async for line in stream_iter:
+                    line_count += 1
+                    
+                    if "not logged in" in line.lower() or "authentication" in line.lower():
+                        last_error = "Authentication required"
+                    elif "error" in line.lower() and not last_error:
+                        last_error = line[:200]
+                    
+                    yield line
             except StopAsyncIteration:
                 pass
+            finally:
+                health_monitor.cancel()
+                try:
+                    await health_monitor
+                except asyncio.CancelledError:
+                    pass
         
         exit_code = await process.wait()
         
