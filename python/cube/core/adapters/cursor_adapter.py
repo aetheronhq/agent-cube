@@ -66,6 +66,12 @@ class CursorAdapter(CLIAdapter):
         first_line_timeout = 30
         
         if process.stdout:
+            from ..cli_adapter import monitor_process_health
+            
+            health_monitor = asyncio.create_task(
+                monitor_process_health(process, "cursor-agent", check_interval=5.0)
+            )
+            
             stream_iter = read_stream_with_buffer(process.stdout)
             
             try:
@@ -85,6 +91,11 @@ class CursorAdapter(CLIAdapter):
                 yield first_line
                 
             except asyncio.TimeoutError:
+                health_monitor.cancel()
+                try:
+                    await health_monitor
+                except (asyncio.CancelledError, RuntimeError):
+                    pass
                 process.kill()
                 await process.wait()
                 raise RuntimeError(
@@ -93,7 +104,11 @@ class CursorAdapter(CLIAdapter):
                     "Run: cursor-agent login"
                 )
             except StopAsyncIteration:
-                pass
+                health_monitor.cancel()
+                try:
+                    await health_monitor
+                except (asyncio.CancelledError, RuntimeError):
+                    pass
             
             try:
                 async for line in stream_iter:
@@ -109,6 +124,12 @@ class CursorAdapter(CLIAdapter):
                     yield line
             except StopAsyncIteration:
                 pass
+            finally:
+                health_monitor.cancel()
+                try:
+                    await health_monitor
+                except (asyncio.CancelledError, RuntimeError):
+                    pass
         
         exit_code = await process.wait()
         

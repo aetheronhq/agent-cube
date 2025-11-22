@@ -11,7 +11,7 @@ from ..core.git import (
     commit_and_push
 )
 from ..core.session import save_session, load_session, SessionWatcher
-from ..core.output import print_info, print_success, print_warning, console
+from ..core.output import print_info, print_success, print_warning, print_error, console
 from ..core.config import PROJECT_ROOT, get_sessions_dir
 from ..core.user_config import get_writer_config
 from ..models.types import WriterInfo
@@ -28,6 +28,8 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     parser = get_parser(cli_name)
     layout = get_dual_layout()
     layout.start()
+    
+    box_id = f"writer_{writer_info.letter.lower()}"
     
     from pathlib import Path
     logs_dir = Path.home() / ".cube" / "logs"
@@ -77,6 +79,27 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     if line_count < 10:
         raise RuntimeError(f"{writer_info.label} completed suspiciously quickly ({line_count} lines). Check {log_file} for errors.")
     
+    status = f"{line_count} events"
+    
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "diff", "--stat", "HEAD"],
+            cwd=writer_info.worktree,
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0 and result.stdout:
+            lines = result.stdout.strip().split('\n')
+            if lines:
+                files_changed = len([line for line in lines if '|' in line])
+                if files_changed > 0:
+                    status = f"{files_changed} file{'s' if files_changed != 1 else ''}"
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError):
+        pass
+    
+    layout.mark_complete(box_id, status)
     console.print(f"[{writer_info.color}][{writer_info.label}][/{writer_info.color}] ✅ Completed")
 
 async def launch_dual_writers(
@@ -146,16 +169,35 @@ async def launch_dual_writers(
     console.print("🚀 Launching writers in parallel...")
     console.print()
     
-    await asyncio.gather(
+    results = await asyncio.gather(
         run_writer(writers[0], prompt, resume_mode),
-        run_writer(writers[1], prompt, resume_mode)
+        run_writer(writers[1], prompt, resume_mode),
+        return_exceptions=True
     )
     
     from ..core.dual_layout import get_dual_layout
     get_dual_layout().close()
     
+    errors = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            errors.append((writers[i], result))
+    
     console.print()
-    console.print("✅ Both writers completed")
+    
+    if errors:
+        print_error("Some writers failed:")
+        for writer, error in errors:
+            console.print(f"  [{writer.color}]{writer.label}[/{writer.color}]: {error}")
+        
+        if len(errors) == 2:
+            raise RuntimeError("Both writers failed")
+        else:
+            print_warning("One writer failed but the other completed successfully")
+            console.print()
+    else:
+        console.print("✅ Both writers completed successfully")
+    
     console.print()
     
     # Update state file

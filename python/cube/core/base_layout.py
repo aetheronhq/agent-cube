@@ -1,5 +1,7 @@
 """Base layout class for thinking displays."""
 
+import os
+import time
 from collections import deque
 from threading import Lock
 from rich.layout import Layout
@@ -7,7 +9,7 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.console import Console
 from rich.text import Text
-from typing import Dict
+from typing import Dict, Optional
 
 class BaseThinkingLayout:
     """Base class for thinking box layouts."""
@@ -23,7 +25,6 @@ class BaseThinkingLayout:
         self.buffers = {box_id: deque(maxlen=lines_per_box) for box_id in boxes}
         self.current_lines = {box_id: "" for box_id in boxes}
         self.output_lines = deque(maxlen=1000)
-        self.printed_line_count = 0
         self.started = False
         self.live = None
         self.layout = None
@@ -31,6 +32,9 @@ class BaseThinkingLayout:
         self.lock = Lock()
         self.last_update_time = 0
         self.min_update_interval = 0.1
+        self.completed = {box_id: False for box_id in boxes}
+        self.completion_status = {box_id: None for box_id in boxes}
+        self.last_activity = {box_id: 0 for box_id in boxes}
     
     def start(self):
         """Start the live layout."""
@@ -48,7 +52,7 @@ class BaseThinkingLayout:
             self.layout.split_column(*regions)
             
             for box_id, title in self.boxes.items():
-                self.layout[box_id].update(self._create_panel(title, []))
+                self.layout[box_id].update(self._create_panel(title, [], box_id))
             self.layout["output"].update("")
             
             self.live = Live(
@@ -70,6 +74,8 @@ class BaseThinkingLayout:
             if box_id not in self.current_lines:
                 return
             
+            self.last_activity[box_id] = time.time()
+            
             self.current_lines[box_id] += text
             
             if text.endswith(('.', '!', '?', '\n')) and self.current_lines[box_id].strip():
@@ -78,6 +84,19 @@ class BaseThinkingLayout:
                     line = line[:91] + "..."
                 self.buffers[box_id].append(line)
                 self.current_lines[box_id] = ""
+                self._update()
+    
+    def mark_complete(self, box_id: str, status: Optional[str] = None) -> None:
+        """Mark a box as complete with optional status message.
+        
+        Args:
+            box_id: Box to mark complete
+            status: Optional status to display (e.g., "APPROVED", "Winner", "3 commits")
+        """
+        with self.lock:
+            if box_id in self.completed:
+                self.completed[box_id] = True
+                self.completion_status[box_id] = status
                 self._update()
     
     def add_output(self, line: str) -> None:
@@ -89,21 +108,40 @@ class BaseThinkingLayout:
             self.output_lines.append(line)
             self._update()
     
-    def _create_panel(self, title: str, lines: list) -> Panel:
+    def _create_panel(self, title: str, lines: list, box_id: str) -> Panel:
         """Create a panel."""
         text = Text()
-        for line in lines:
-            text.append(line + "\n", style="dim")
         
-        while len(text.plain.split('\n')) < self.lines_per_box:
-            text.append("\n")
+        if self.completed.get(box_id, False):
+            status = self.completion_status.get(box_id)
+            if status:
+                text.append("✅ ", style="green bold")
+                text.append(f"{status}\n", style="green")
+            else:
+                text.append("✅ Completed\n", style="green bold")
+            
+            for _ in range(self.lines_per_box - 1):
+                text.append("\n")
+        else:
+            for line in lines:
+                text.append(line + "\n", style="dim")
+            
+            while len(text.plain.split('\n')) < self.lines_per_box:
+                text.append("\n")
         
         icon = "💭" if "Writer" in title or "Prompter" in title else "⚖️ "
         
+        if self.completed.get(box_id, False):
+            border_style = "green"
+            title_text = f"[green]{icon} {title} ✓[/green]"
+        else:
+            border_style = "dim"
+            title_text = f"[dim]{icon} {title}[/dim]"
+        
         return Panel(
             text,
-            title=f"[dim]{icon} {title}[/dim]",
-            border_style="dim",
+            title=title_text,
+            border_style=border_style,
             padding=(0, 1),
             height=self.lines_per_box + 2
         )
@@ -113,7 +151,6 @@ class BaseThinkingLayout:
         if not self.live or not self.layout:
             return
         
-        import time
         current_time = time.time()
         if current_time - self.last_update_time < self.min_update_interval:
             return
@@ -122,28 +159,14 @@ class BaseThinkingLayout:
         
         for box_id, title in self.boxes.items():
             visible = list(self.buffers[box_id])[-self.lines_per_box:]
-            self.layout[box_id].update(self._create_panel(title, visible))
+            self.layout[box_id].update(self._create_panel(title, visible, box_id))
         
-        import os
         try:
             term_height = os.get_terminal_size().lines
             thinking_boxes_height = len(self.boxes) * (self.lines_per_box + 2) + 2
             available_lines = max(20, term_height - thinking_boxes_height - 5)
         except:
             available_lines = 30
-        
-        total_lines = len(self.output_lines)
-        lines_to_keep = available_lines * 2
-        
-        if total_lines > lines_to_keep and self.printed_line_count < total_lines - lines_to_keep:
-            lines_to_print = list(self.output_lines)[self.printed_line_count:total_lines - lines_to_keep]
-            if lines_to_print:
-                self.live.stop()
-                for line in lines_to_print:
-                    from rich.text import Text
-                    self.console.print(Text.from_markup(line))
-                self.printed_line_count = total_lines - lines_to_keep
-                self.live.start()
         
         recent_output = list(self.output_lines)[-available_lines:]
         output_text = "\n".join(recent_output)
@@ -154,15 +177,14 @@ class BaseThinkingLayout:
         self.layout["output"].update(text)
     
     def close(self) -> None:
-        """Stop the live display."""
+        """Stop the live display and print all output to scrollback."""
         with self.lock:
             if self.started and self.live:
                 self.live.stop()
                 self.started = False
                 
-                remaining_lines = list(self.output_lines)[self.printed_line_count:]
-                if remaining_lines:
+                if self.output_lines:
                     from rich.text import Text
-                    for line in remaining_lines:
+                    for line in self.output_lines:
                         self.console.print(Text.from_markup(line))
 

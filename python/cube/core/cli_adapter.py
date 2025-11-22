@@ -55,3 +55,34 @@ async def read_stream_with_buffer(
     if buffer.strip():
         yield buffer.strip()
 
+async def monitor_process_health(
+    process: 'asyncio.subprocess.Process',
+    name: str,
+    check_interval: float = 5.0
+) -> None:
+    """Monitor subprocess health and detect if it dies silently.
+    
+    Uses dual detection for maximum reliability:
+    1. process.returncode - Check if process has exited
+    2. os.kill(pid, 0) - Verify PID still exists
+    
+    Args:
+        process: Subprocess to monitor
+        name: Process name for error messages
+        check_interval: How often to check (seconds)
+    """
+    import os
+    
+    while True:
+        await asyncio.sleep(check_interval)
+        
+        if process.returncode is not None:
+            if process.returncode != 0:
+                raise RuntimeError(f"{name} exited with code {process.returncode}")
+            break
+        
+        try:
+            os.kill(process.pid, 0)
+        except OSError:
+            raise RuntimeError(f"{name} process died (PID {process.pid} gone)")
+

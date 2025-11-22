@@ -8,7 +8,7 @@ from typing import List
 from ..core.agent import run_agent
 from ..core.git import fetch_branches, get_commit_hash, branch_exists
 from ..core.session import save_session, load_session, SessionWatcher
-from ..core.output import print_info, print_success, console
+from ..core.output import print_info, print_success, print_warning, print_error, console
 from ..core.config import PROJECT_ROOT, get_sessions_dir
 from ..core.user_config import get_judge_config
 from ..models.types import JudgeInfo
@@ -81,6 +81,36 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
     if line_count < 10:
         raise RuntimeError(f"Judge {judge_info.number} completed suspiciously quickly ({line_count} lines). Check {log_file}")
     
+    from ..core.decision_files import find_decision_file
+    import json
+    
+    status = "Review complete"
+    decision_file = find_decision_file(judge_info.number, judge_info.task_id, 
+                                       "peer-review" if judge_info.review_type == "peer-review" else "decision")
+    
+    if decision_file and decision_file.exists():
+        try:
+            with open(decision_file) as f:
+                data = json.load(f)
+                decision = data.get("decision", "")
+                winner = data.get("winner", "")
+                
+                if decision == "APPROVED":
+                    status = "✓ APPROVED"
+                elif decision == "REQUEST_CHANGES":
+                    issues = len(data.get("remaining_issues", []))
+                    status = f"⚠ {issues} issue{'s' if issues != 1 else ''}"
+                elif winner:
+                    if winner in ["A", "writer_a", "Writer A"]:
+                        status = "Winner: A"
+                    elif winner in ["B", "writer_b", "Writer B"]:
+                        status = "Winner: B"
+                    else:
+                        status = f"Winner: {winner}"
+        except (json.JSONDecodeError, KeyError, FileNotFoundError):
+            pass
+    
+    layout.mark_complete(judge_info.number, status)
     console.print(f"[{judge_info.color}][Judge {judge_info.number}][/{judge_info.color}] ✅ Completed")
     return line_count
 
@@ -301,7 +331,6 @@ Use absolute path when writing the file. The project root is available in your w
         cli_name = config.cli_tools.get(judge.model, "cursor-agent")
         adapter = get_adapter(cli_name)
         if not adapter.check_installed():
-            from ..core.output import print_error
             print_error(f"{cli_name} not installed (needed for {judge.model})")
             console.print()
             console.print(adapter.get_install_instructions())
@@ -314,17 +343,38 @@ Use absolute path when writing the file. The project root is available in your w
     console.print("⏳ Waiting for all 3 judges to complete...")
     console.print()
     
-    await asyncio.gather(
+    results = await asyncio.gather(
         run_judge(judges[0], prompt, resume_mode),
         run_judge(judges[1], prompt, resume_mode),
-        run_judge(judges[2], prompt, resume_mode)
+        run_judge(judges[2], prompt, resume_mode),
+        return_exceptions=True
     )
     
     from ..core.triple_layout import get_triple_layout
     get_triple_layout().close()
     
+    errors = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            errors.append((judges[i].label, result))
+    
     console.print()
-    console.print("✅ All judges completed")
+    
+    if errors:
+        print_error("Some judges failed:")
+        for label, error in errors:
+            console.print(f"  {label}: {error}")
+        
+        total_judges = len(judges)
+        failed = len(errors)
+        if failed == total_judges:
+            raise RuntimeError("All judges failed")
+        else:
+            print_warning(f"{failed} judge(s) failed but {total_judges - failed} completed successfully")
+            console.print()
+    else:
+        console.print("✅ All judges completed successfully")
+    
     console.print()
     
     print_success("Judge panel complete!")
