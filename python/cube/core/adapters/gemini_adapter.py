@@ -32,9 +32,15 @@ class GeminiAdapter(CLIAdapter):
             "-m", model,
             "--output-format", "stream-json",
             "--approval-mode", "yolo",
-            "--no-sandbox",
-            "-p", prompt
+            "--no-sandbox"
         ]
+        
+        if resume and session_id:
+            cmd.extend(["--resume", session_id])
+        elif resume:
+            cmd.extend(["--resume", "latest"])
+        
+        cmd.extend(["-p", prompt])
         
         worktree.mkdir(parents=True, exist_ok=True)
         

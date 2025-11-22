@@ -6,7 +6,7 @@ version: "1.0.0"
 # CLI tool to use for each model
 # gemini CLI: npm install -g @google/gemini-cli
 # Then authenticate: gemini (choose Login with Google)
-# Note: Gemini doesn't support session resume - peer-review will be fresh conversation
+# Note: Gemini CLI now supports session resume via --resume latest (v0.17+)
 cli_tools:
   sonnet-4.5-thinking: cursor-agent
   gpt-5.1-codex-high: cursor-agent
