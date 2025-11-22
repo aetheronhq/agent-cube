@@ -146,16 +146,35 @@ async def launch_dual_writers(
     console.print("🚀 Launching writers in parallel...")
     console.print()
     
-    await asyncio.gather(
+    results = await asyncio.gather(
         run_writer(writers[0], prompt, resume_mode),
-        run_writer(writers[1], prompt, resume_mode)
+        run_writer(writers[1], prompt, resume_mode),
+        return_exceptions=True
     )
     
     from ..core.dual_layout import get_dual_layout
     get_dual_layout().close()
     
+    errors = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            errors.append((writers[i], result))
+    
     console.print()
-    console.print("✅ Both writers completed")
+    
+    if errors:
+        print_error("Some writers failed:")
+        for writer, error in errors:
+            console.print(f"  [{writer.color}]{writer.label}[/{writer.color}]: {error}")
+        
+        if len(errors) == 2:
+            raise RuntimeError("Both writers failed")
+        else:
+            print_warning("One writer failed but the other completed successfully")
+            console.print()
+    else:
+        console.print("✅ Both writers completed successfully")
+    
     console.print()
     
     # Update state file

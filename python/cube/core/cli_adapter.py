@@ -32,13 +32,27 @@ class CLIAdapter(ABC):
 
 async def read_stream_with_buffer(
     stdout: asyncio.StreamReader,
-    buffer_size: int = 8192
+    buffer_size: int = 8192,
+    inactivity_timeout: Optional[int] = None
 ) -> AsyncGenerator[str, None]:
-    """Helper to read subprocess stdout with buffering."""
+    """Helper to read subprocess stdout with buffering.
+    
+    Args:
+        stdout: StreamReader to read from
+        buffer_size: Bytes to read at once
+        inactivity_timeout: Seconds of no data before timeout (None = no timeout)
+    """
     buffer = ""
     while True:
         try:
-            chunk = await stdout.read(buffer_size)
+            if inactivity_timeout:
+                chunk = await asyncio.wait_for(
+                    stdout.read(buffer_size),
+                    timeout=inactivity_timeout
+                )
+            else:
+                chunk = await stdout.read(buffer_size)
+                
             if not chunk:
                 break
                 
@@ -49,6 +63,10 @@ async def read_stream_with_buffer(
                 line = line.strip()
                 if line:
                     yield line
+        except asyncio.TimeoutError:
+            raise RuntimeError(
+                f"Process inactive for {inactivity_timeout}s - appears hung or stalled"
+            )
         except Exception:
             break
     

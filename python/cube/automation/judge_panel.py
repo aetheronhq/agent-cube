@@ -314,17 +314,36 @@ Use absolute path when writing the file. The project root is available in your w
     console.print("⏳ Waiting for all 3 judges to complete...")
     console.print()
     
-    await asyncio.gather(
+    results = await asyncio.gather(
         run_judge(judges[0], prompt, resume_mode),
         run_judge(judges[1], prompt, resume_mode),
-        run_judge(judges[2], prompt, resume_mode)
+        run_judge(judges[2], prompt, resume_mode),
+        return_exceptions=True
     )
     
     from ..core.triple_layout import get_triple_layout
     get_triple_layout().close()
     
+    errors = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            errors.append((judges[i].label, result))
+    
     console.print()
-    console.print("✅ All judges completed")
+    
+    if errors:
+        print_error("Some judges failed:")
+        for label, error in errors:
+            console.print(f"  {label}: {error}")
+        
+        if len(errors) == 3:
+            raise RuntimeError("All judges failed")
+        else:
+            print_warning(f"{len(errors)} judge(s) failed but {3-len(errors)} completed successfully")
+            console.print()
+    else:
+        console.print("✅ All judges completed successfully")
+    
     console.print()
     
     print_success("Judge panel complete!")

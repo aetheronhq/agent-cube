@@ -64,6 +64,7 @@ class CursorAdapter(CLIAdapter):
         last_error = None
         line_count = 0
         first_line_timeout = 30
+        inactivity_timeout = 600
         
         if process.stdout:
             stream_iter = read_stream_with_buffer(process.stdout)
@@ -96,17 +97,29 @@ class CursorAdapter(CLIAdapter):
                 pass
             
             try:
-                async for line in stream_iter:
-                    line_count += 1
-                    
-                    if "not logged in" in line.lower() or "authentication" in line.lower():
-                        last_error = "Authentication required"
-                    elif "ConnectError" in line or "ECONNRESET" in line:
-                        last_error = "Network connection error"
-                    elif "error" in line.lower() and not last_error:
-                        last_error = line[:200]
-                    
-                    yield line
+                while True:
+                    try:
+                        line = await asyncio.wait_for(
+                            anext(stream_iter),
+                            timeout=inactivity_timeout
+                        )
+                        line_count += 1
+                        
+                        if "not logged in" in line.lower() or "authentication" in line.lower():
+                            last_error = "Authentication required"
+                        elif "ConnectError" in line or "ECONNRESET" in line:
+                            last_error = "Network connection error"
+                        elif "error" in line.lower() and not last_error:
+                            last_error = line[:200]
+                        
+                        yield line
+                    except asyncio.TimeoutError:
+                        process.kill()
+                        await process.wait()
+                        raise RuntimeError(
+                            f"cursor-agent inactive for {inactivity_timeout}s - process appears hung. "
+                            "This can happen if the agent is stuck or the task is too complex."
+                        )
             except StopAsyncIteration:
                 pass
         
