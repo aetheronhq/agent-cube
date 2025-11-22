@@ -81,7 +81,36 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
     if line_count < 10:
         raise RuntimeError(f"Judge {judge_info.number} completed suspiciously quickly ({line_count} lines). Check {log_file}")
     
-    layout.mark_complete(judge_info.number)
+    from ..core.decision_files import find_decision_file
+    import json
+    
+    status = "Review complete"
+    decision_file = find_decision_file(judge_info.number, judge_info.task_id, 
+                                       "peer-review" if judge_info.review_type == "peer-review" else "decision")
+    
+    if decision_file and decision_file.exists():
+        try:
+            with open(decision_file) as f:
+                data = json.load(f)
+                decision = data.get("decision", "")
+                winner = data.get("winner", "")
+                
+                if decision == "APPROVED":
+                    status = f"✓ APPROVED"
+                elif decision == "REQUEST_CHANGES":
+                    issues = len(data.get("remaining_issues", []))
+                    status = f"⚠ {issues} issue{'s' if issues != 1 else ''}"
+                elif winner:
+                    if winner in ["A", "writer_a", "Writer A"]:
+                        status = "Winner: A"
+                    elif winner in ["B", "writer_b", "Writer B"]:
+                        status = "Winner: B"
+                    else:
+                        status = f"Winner: {winner}"
+        except:
+            pass
+    
+    layout.mark_complete(judge_info.number, status)
     console.print(f"[{judge_info.color}][Judge {judge_info.number}][/{judge_info.color}] ✅ Completed")
     return line_count
 

@@ -9,7 +9,7 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.console import Console
 from rich.text import Text
-from typing import Dict
+from typing import Dict, Optional
 
 class BaseThinkingLayout:
     """Base class for thinking box layouts."""
@@ -33,6 +33,7 @@ class BaseThinkingLayout:
         self.last_update_time = 0
         self.min_update_interval = 0.1
         self.completed = {box_id: False for box_id in boxes}
+        self.completion_status = {box_id: None for box_id in boxes}
         self.last_activity = {box_id: 0 for box_id in boxes}
     
     def start(self):
@@ -85,11 +86,17 @@ class BaseThinkingLayout:
                 self.current_lines[box_id] = ""
                 self._update()
     
-    def mark_complete(self, box_id: str) -> None:
-        """Mark a box as complete."""
+    def mark_complete(self, box_id: str, status: Optional[str] = None) -> None:
+        """Mark a box as complete with optional status message.
+        
+        Args:
+            box_id: Box to mark complete
+            status: Optional status to display (e.g., "APPROVED", "Winner", "3 commits")
+        """
         with self.lock:
             if box_id in self.completed:
                 self.completed[box_id] = True
+                self.completion_status[box_id] = status
                 self._update()
     
     def add_output(self, line: str) -> None:
@@ -106,7 +113,13 @@ class BaseThinkingLayout:
         text = Text()
         
         if self.completed.get(box_id, False):
-            text.append("✅ Completed\n", style="green bold")
+            status = self.completion_status.get(box_id)
+            if status:
+                text.append("✅ ", style="green bold")
+                text.append(f"{status}\n", style="green")
+            else:
+                text.append("✅ Completed\n", style="green bold")
+            
             for i in range(self.lines_per_box - 1):
                 text.append("\n")
         else:

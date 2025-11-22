@@ -79,7 +79,27 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     if line_count < 10:
         raise RuntimeError(f"{writer_info.label} completed suspiciously quickly ({line_count} lines). Check {log_file} for errors.")
     
-    layout.mark_complete(box_id)
+    status = f"{line_count} events"
+    
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "diff", "--stat", "HEAD"],
+            cwd=writer_info.worktree,
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0 and result.stdout:
+            lines = result.stdout.strip().split('\n')
+            if lines:
+                files_changed = len([l for l in lines if '|' in l])
+                if files_changed > 0:
+                    status = f"{files_changed} file{'s' if files_changed != 1 else ''}"
+    except:
+        pass
+    
+    layout.mark_complete(box_id, status)
     console.print(f"[{writer_info.color}][{writer_info.label}][/{writer_info.color}] ✅ Completed")
 
 async def launch_dual_writers(
