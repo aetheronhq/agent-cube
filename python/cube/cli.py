@@ -185,26 +185,35 @@ def resume(
 
 @app.command(name="peer-review")
 def peer_review(
-    task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None,
-    peer_review_prompt_file: Annotated[Optional[str], typer.Argument(help="Path to the peer review prompt file")] = None,
+    task_id_or_prompt: Annotated[Optional[str], typer.Argument(help="Task ID or prompt message")] = None,
+    peer_review_prompt_file: Annotated[Optional[str], typer.Argument(help="Path to prompt file or prompt message")] = None,
     fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False
 ):
-    """Resume original 3 judges from initial panel for peer review."""
+    """Resume original judges from initial panel for peer review."""
     from .core.config import resolve_task_id, set_current_task_id
     
-    resolved_task_id = resolve_task_id(task_id)
+    resolved_task_id = resolve_task_id(task_id_or_prompt)
+    prompt_arg = peer_review_prompt_file
+    
+    if not resolved_task_id and task_id_or_prompt:
+        resolved_task_id = resolve_task_id(None)
+        if resolved_task_id:
+            prompt_arg = task_id_or_prompt
+    
     if not resolved_task_id:
         from .core.output import print_error
         print_error("No task ID provided and CUBE_TASK_ID not set")
+        print_error("Usage: cube peer-review <task-id> <prompt-file-or-message>")
+        print_error("   or: export CUBE_TASK_ID=my-task && cube peer-review <prompt-file-or-message>")
         raise typer.Exit(1)
     
-    if not peer_review_prompt_file:
+    if not prompt_arg:
         from .core.output import print_error
-        print_error("Peer review prompt file is required")
+        print_error("Peer review prompt file or message is required")
         raise typer.Exit(1)
     
     set_current_task_id(resolved_task_id)
-    peer_review_command(resolved_task_id, peer_review_prompt_file, fresh)
+    peer_review_command(resolved_task_id, prompt_arg, fresh)
 
 @app.command(name="status")
 def status(

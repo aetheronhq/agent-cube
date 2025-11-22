@@ -27,6 +27,7 @@ class JudgeInfo:
     task_id: str
     review_type: str
     session_id: Optional[str] = None
+    adapter_config: Optional[dict] = None
 
 @dataclass
 class SessionInfo:

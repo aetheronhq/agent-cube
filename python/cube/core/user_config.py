@@ -18,9 +18,15 @@ class WriterConfig:
 @dataclass
 class JudgeConfig:
     """Configuration for a judge persona."""
+    key: str
+    number: int
     model: str
     label: str
     color: str
+    # New fields for CLI reviewers
+    type: str = "llm"  # "llm" or "cli-review"
+    review_tool: Optional[Dict[str, str]] = None
+    orchestrator: Optional[Dict[str, str]] = None
 
 @dataclass
 class CubeConfig:
@@ -30,6 +36,8 @@ class CubeConfig:
     writer_alias_map: Dict[str, str]  # alias -> slug
     writer_order: list[str]
     judges: Dict[str, JudgeConfig]
+    judge_order: list[str]
+    judge_alias_map: Dict[str, str]
     cli_tools: Dict[str, str]
     auto_commit: bool
     auto_push: bool
@@ -178,13 +186,33 @@ def load_config() -> CubeConfig:
         for alias in aliases:
             writer_alias_map[alias.lower()] = canonical_slug
     
-    judges = {}
-    for key, j in data.get("judges", {}).items():
-        judges[key] = JudgeConfig(
-            model=j["model"],
-            label=j["label"],
-            color=j["color"]
+    judges: Dict[str, JudgeConfig] = {}
+    judge_order: list[str] = []
+    judge_alias_map: Dict[str, str] = {}
+    for idx, (key, j) in enumerate(data.get("judges", {}).items()):
+        judge_order.append(key)
+        number = idx + 1
+        judge_cfg = JudgeConfig(
+            key=key,
+            number=number,
+            model=j.get("model", "sonnet-4.5-thinking"),
+            label=j.get("label", f"Judge {number}"),
+            color=j.get("color", "green"),
+            type=j.get("type", "llm"),
+            review_tool=j.get("review_tool"),
+            orchestrator=j.get("orchestrator")
         )
+        judges[key] = judge_cfg
+        
+        aliases = {
+            key,
+            key.replace("_", "-"),
+            f"judge-{number}",
+            str(number),
+            judge_cfg.label.lower(),
+        }
+        for alias in aliases:
+            judge_alias_map[alias.lower()] = key
     
     cli_tools = data.get("cli_tools", {})
     behavior = data.get("behavior", {})
@@ -195,6 +223,8 @@ def load_config() -> CubeConfig:
         writer_alias_map=writer_alias_map,
         writer_order=writer_order,
         judges=judges,
+        judge_order=judge_order,
+        judge_alias_map=judge_alias_map,
         cli_tools=cli_tools,
         auto_commit=behavior.get("auto_commit", True),
         auto_push=behavior.get("auto_push", True),
@@ -250,8 +280,33 @@ def get_writer_aliases() -> list[str]:
     return sorted(set(config.writer_alias_map.keys()))
 
 def get_judge_config(judge_num: int) -> JudgeConfig:
-    """Get judge configuration."""
+    """Get judge configuration by number (1-based)."""
     config = load_config()
-    judge_key = f"judge_{judge_num}"
-    return config.judges.get(judge_key, list(config.judges.values())[0])
+    if 1 <= judge_num <= len(config.judge_order):
+        judge_key = config.judge_order[judge_num - 1]
+        return config.judges[judge_key]
+    raise KeyError(f"Unknown judge number: {judge_num}")
+
+def get_judge_configs() -> list[JudgeConfig]:
+    """Return all judge configs in configured order."""
+    config = load_config()
+    return [config.judges[key] for key in config.judge_order]
+
+def get_judge_numbers() -> list[int]:
+    """Return list of judge numbers."""
+    return [judge.number for judge in get_judge_configs()]
+
+def resolve_judge_alias(alias: str) -> JudgeConfig:
+    """Resolve alias (judge-1, 1, key, label) to judge config."""
+    config = load_config()
+    alias_lower = alias.lower()
+    key = config.judge_alias_map.get(alias_lower)
+    if not key:
+        raise KeyError(f"Unknown judge alias: {alias}")
+    return config.judges[key]
+
+def get_judge_aliases() -> list[str]:
+    """Return sorted list of judge aliases."""
+    config = load_config()
+    return sorted(set(config.judge_alias_map.keys()))
 
