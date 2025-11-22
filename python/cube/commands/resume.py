@@ -8,7 +8,7 @@ from ..core.agent import check_cursor_agent, run_agent
 from ..core.session import load_session
 from ..core.output import print_error, print_info, console
 from ..core.config import PROJECT_ROOT, MODELS, get_worktree_path, WRITER_LETTERS
-from ..core.user_config import get_judge_config, get_writer_config_by_slug, get_writer_slugs
+from ..core.user_config import get_judge_config, get_writer_config_by_slug, get_writer_slugs, resolve_writer_alias
 async def resume_async(
     target_label: str,
     task_id: str,
