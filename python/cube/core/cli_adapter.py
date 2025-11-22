@@ -62,7 +62,7 @@ async def monitor_process_health(
 ) -> None:
     """Monitor subprocess health and detect if it dies silently.
     
-    Uses two methods to detect process death:
+    Uses dual detection for maximum reliability:
     1. poll() - Check if process has exited
     2. os.kill(pid, 0) - Verify PID still exists
     
@@ -72,7 +72,6 @@ async def monitor_process_health(
         check_interval: How often to check (seconds)
     """
     import os
-    import signal
     
     while True:
         await asyncio.sleep(check_interval)
@@ -80,15 +79,11 @@ async def monitor_process_health(
         poll_result = process.poll()
         if poll_result is not None:
             if poll_result != 0:
-                raise RuntimeError(
-                    f"{name} exited unexpectedly with code {poll_result}"
-                )
+                raise RuntimeError(f"{name} exited with code {poll_result}")
             break
         
         try:
             os.kill(process.pid, 0)
         except OSError:
-            raise RuntimeError(
-                f"{name} process died (PID {process.pid} no longer exists)"
-            )
+            raise RuntimeError(f"{name} process died (PID {process.pid} gone)")
 

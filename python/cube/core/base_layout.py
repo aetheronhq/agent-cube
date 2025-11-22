@@ -1,5 +1,7 @@
 """Base layout class for thinking displays."""
 
+import os
+import time
 from collections import deque
 from threading import Lock
 from rich.layout import Layout
@@ -72,7 +74,6 @@ class BaseThinkingLayout:
             if box_id not in self.current_lines:
                 return
             
-            import time
             self.last_activity[box_id] = time.time()
             
             self.current_lines[box_id] += text
@@ -138,7 +139,6 @@ class BaseThinkingLayout:
         if not self.live or not self.layout:
             return
         
-        import time
         current_time = time.time()
         if current_time - self.last_update_time < self.min_update_interval:
             return
@@ -149,7 +149,6 @@ class BaseThinkingLayout:
             visible = list(self.buffers[box_id])[-self.lines_per_box:]
             self.layout[box_id].update(self._create_panel(title, visible, box_id))
         
-        import os
         try:
             term_height = os.get_terminal_size().lines
             thinking_boxes_height = len(self.boxes) * (self.lines_per_box + 2) + 2

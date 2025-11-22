@@ -14,21 +14,11 @@ def _find_git_root() -> Path:
     """Find git repository root by walking up from cwd."""
     current = Path.cwd()
     
-    # Debug: help diagnose directory issues
-    import sys
-    if os.getenv("CUBE_DEBUG"):
-        print(f"[DEBUG] cwd: {current}", file=sys.stderr)
-        print(f"[DEBUG] __file__: {__file__}", file=sys.stderr)
-    
     while current != current.parent:
         if (current / ".git").exists():
-            if os.getenv("CUBE_DEBUG"):
-                print(f"[DEBUG] Found .git at: {current}", file=sys.stderr)
             return current
         current = current.parent
     
-    if os.getenv("CUBE_DEBUG"):
-        print(f"[DEBUG] No .git found, using cwd: {Path.cwd()}", file=sys.stderr)
     return Path.cwd()
 
 def get_project_root() -> Path:
