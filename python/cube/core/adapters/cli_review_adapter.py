@@ -113,10 +113,14 @@ class CLIReviewAdapter(CLIAdapter):
         import re
         branches = {}
         for writer in ["A", "B"]:
-            pattern = f"Writer {writer}.*branch:.*[`'\"]?([a-zA-Z0-9/_.-]+)[`'\"]?"
+            # Matches: **Writer A Branch:** `writer-sonnet/task-id`
+            # Matches: Writer A's branch: writer-sonnet/task-id
+            pattern = f"Writer {writer}.*?branch:.*?([a-zA-Z0-9/_.-]+)"
             match = re.search(pattern, prompt, re.IGNORECASE)
             if match:
-                branches[f"Writer {writer}"] = match.group(1).strip()
+                raw_branch = match.group(1)
+                # Clean up any accidentally captured quotes/backticks
+                branches[f"Writer {writer}"] = raw_branch.strip("`'\" ")
         return branches
 
     def _build_synthesis_prompt(self, original_prompt: str, reviews: Dict[str, str]) -> str:
