@@ -97,20 +97,12 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                             layout.add_thinking(judge_info.key, thinking_text)
-                        elif " 💭 " in formatted:
-                            # Buffer assistant messages in thinking box if they're short fragments
-                            # But show milestones (complete sentences with emoji) in output
-                            content_part = formatted.split(" 💭 ", 1)[1] if " 💭 " in formatted else ""
-                            has_emoji = any(c in content_part for c in "🔍✅⚠️❌🤖")
-                            is_complete = content_part.endswith(('.', '!', '?'))
-                            
-                            if has_emoji or (is_complete and len(content_part) > 20):
-                                # Milestone or complete thought -> show in output
-                                layout.add_output(formatted)
-                            else:
-                                # Fragment -> buffer in thinking box
-                                layout.add_thinking(judge_info.key, content_part)
+                        elif " 💭 " in formatted and not any(c in formatted for c in "🔍✅⚠️❌🤖"):
+                            # Assistant delta (no emoji) -> buffer in thinking
+                            content_part = formatted.split(" 💭 ", 1)[1]
+                            layout.add_thinking(judge_info.key, content_part)
                         else:
+                            # Milestone or other -> main output
                             layout.add_output(formatted)
     finally:
         watcher.stop()
@@ -154,13 +146,22 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                     else:
                         status = f"Review complete → {decision}"
                 else:
+                    from ..core.user_config import get_writer_config
                     winner_text = ""
-                    if winner in ["A", "writer_a", "Writer A"]:
-                        winner_text = "Writer A wins"
-                    elif winner in ["B", "writer_b", "Writer B"]:
-                        winner_text = "Writer B wins"
-                    elif winner == "TIE":
+                    if winner == "TIE":
                         winner_text = "TIE"
+                    elif winner in ["A", "writer_a", "Writer A"]:
+                        try:
+                            wcfg = get_writer_config("writer_a")
+                            winner_text = f"{wcfg.label} wins"
+                        except:
+                            winner_text = "Writer A wins"
+                    elif winner in ["B", "writer_b", "Writer B"]:
+                        try:
+                            wcfg = get_writer_config("writer_b")
+                            winner_text = f"{wcfg.label} wins"
+                        except:
+                            winner_text = "Writer B wins"
                     else:
                         winner_text = f"Winner: {winner}"
                     
