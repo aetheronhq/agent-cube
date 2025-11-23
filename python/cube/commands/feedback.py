@@ -112,7 +112,7 @@ def feedback_command(
     console.print()
     
     try:
-        asyncio.run(send_feedback_async(writer_slug, task_id, feedback_path, session_id, worktree))
+    asyncio.run(send_feedback_async(writer_slug, task_id, feedback_path, session_id, worktree))
     except RuntimeError as e:
         print_error(str(e))
         raise typer.Exit(1)

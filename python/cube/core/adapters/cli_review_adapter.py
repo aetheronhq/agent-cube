@@ -43,7 +43,7 @@ class CLIReviewAdapter(CLIAdapter):
         orch_model = model
         
         if not self.writer_worktrees:
-            yield '{"type": "assistant", "message": {"content": [{"type": "text", "text": "ERROR: No writer worktrees configured for CLI review"}]}}'
+            yield '{"type": "assistant", "content": "ERROR: No writer worktrees configured for CLI review"}'
             return
 
         reviews = {}
@@ -51,7 +51,7 @@ class CLIReviewAdapter(CLIAdapter):
         # Run tool for each writer worktree
         for writer, wt_path in self.writer_worktrees.items():
             # Important milestone -> main output
-            yield f'{{"type": "assistant", "message": {{"content": [{{"type": "text", "text": "🔍 Running {self.tool_name} on {writer}..."}}]}}}}'
+            yield f'{{"type": "assistant", "content": "🔍 Running {self.tool_name} on {writer}..."}}'
             
             # Prepare command
             cmd_str = self.tool_cmd.replace("{{worktree}}", str(wt_path))
@@ -69,21 +69,21 @@ class CLIReviewAdapter(CLIAdapter):
                         yield f'{{"type": "thinking", "content": "[{self.tool_name}] {clean_line}"}}'
                     output_buffer.append(line)
             except RuntimeError as e:
-                yield f'{{"type": "assistant", "message": {{"content": [{{"type": "text", "text": "ERROR running {self.tool_name} on {writer}: {str(e)}"}}]}}}}'
+                yield f'{{"type": "assistant", "content": "❌ ERROR: {self.tool_name} failed on {writer}: {str(e)}"}}'
                 continue
             
             review_text = "\n".join(output_buffer)
             reviews[writer] = review_text
             
             if line_count == 0:
-                yield f'{{"type": "assistant", "message": {{"content": [{{"type": "text", "text": "⚠️  WARNING: {self.tool_name} produced no output for {writer}"}}]}}}}'
+                yield f'{{"type": "assistant", "content": "⚠️  WARNING: {self.tool_name} produced no output for {writer}"}}'
             else:
                 # Important milestone -> main output
-                yield f'{{"type": "assistant", "message": {{"content": [{{"type": "text", "text": "✅ {self.tool_name} complete: {line_count} lines from {writer}"}}]}}}}'
+                yield f'{{"type": "assistant", "content": "✅ {self.tool_name} complete: {line_count} lines from {writer}"}}'
 
         # 3. Run Synthesis Agent
         # Important milestone -> main output
-        yield f'{{"type": "assistant", "message": {{"content": [{{"type": "text", "text": "🤖 Synthesizing decision with {orch_model}..."}}]}}}}'
+        yield f'{{"type": "assistant", "content": "🤖 Synthesizing decision with {orch_model}..."}}'
         
         synthesis_prompt = self._build_synthesis_prompt(prompt, reviews)
         

@@ -95,7 +95,7 @@ def run_command(
     console.print()
     
     try:
-        asyncio.run(run_single_agent(model, prompt, worktree))
+    asyncio.run(run_single_agent(model, prompt, worktree))
     except RuntimeError as e:
         print_error(str(e))
         raise typer.Exit(1)

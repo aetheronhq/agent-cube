@@ -40,9 +40,12 @@ class CursorParser(ParserAdapter):
                 content_list = message_data.get("content", [])
                 if content_list and len(content_list) > 0:
                     text = content_list[0].get("text", "")
-                    if text and len(text) > 200:
+                    if text and len(text) >= 1:
                         msg.content = text
                         return msg
+                # Also check direct content field (from CLIReviewAdapter)
+                if msg.content:
+                    return msg
             
             if msg.type == "tool_call":
                 tool_call = data.get("tool_call", {})
