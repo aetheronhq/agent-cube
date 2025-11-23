@@ -69,7 +69,7 @@ def resume_command(
     
     writer_name = None
     writer_letter = None
-    judge_num = None
+    judge_key = None
     model = None
     target_label = target
     color = "green"
@@ -78,30 +78,31 @@ def resume_command(
     
     if target_lower.startswith("judge-"):
         try:
-            judge_num = int(target_lower.split("-")[1])
+            judge_key = target_lower.replace("-", "_")
             from ..core.user_config import get_judge_configs
-            valid_judge_nums = [j.number for j in get_judge_configs()]
+            valid_judge_keys = [j.key for j in get_judge_configs()]
             
-            if judge_num not in valid_judge_nums:
-                print_error(f"Invalid judge number: {judge_num}")
-                print_error(f"Configured judges: {', '.join(f'judge-{n}' for n in valid_judge_nums)}")
+            if judge_key not in valid_judge_keys:
+                print_error(f"Invalid judge: {target}")
+                print_error(f"Configured judges: {', '.join(k.replace('_', '-') for k in valid_judge_keys)}")
                 raise typer.Exit(1)
             
-            jconfig = get_judge_config(judge_num)
+            jconfig = get_judge_config(judge_key)
             model = jconfig.model
         except typer.Exit:
             raise
-        except:
-            writer_aliases = get_writer_aliases()
+        except Exception as e:
             print_error(f"Invalid target: {target}")
-            print_error(f"Valid targets: {', '.join(writer_aliases.keys())} or judge-N")
+            print_error(f"Error: {e}")
             raise typer.Exit(1)
     else:
         try:
             writer_cfg = resolve_writer_alias(target)
             writer_name = writer_cfg.name
         except KeyError:
-            print_error(f"Invalid target: {target} (must be writer-sonnet, writer-codex, or judge-1/2/3)")
+            from ..core.user_config import get_writer_aliases, get_judge_aliases
+            valid = ", ".join(list(get_writer_aliases())[:5] + list(get_judge_aliases())[:5])
+            print_error(f"Invalid target: {target}. Examples: {valid}")
             raise typer.Exit(1)
     
     if writer_name:
@@ -110,10 +111,10 @@ def resume_command(
     else:
         writer_cfg = None
     
-    if judge_num:
-        session_id = load_session(f"JUDGE_{judge_num}", f"{task_id}_panel")
+    if judge_key:
+        session_id = load_session(f"JUDGE_{judge_key}", f"{task_id}_panel")
         if not session_id:
-            session_id = load_session(f"JUDGE_{judge_num}", f"{task_id}_peer-review")
+            session_id = load_session(f"JUDGE_{judge_key}", f"{task_id}_peer-review")
         
         if not session_id:
             print_error(f"Session ID not found for {target}")
@@ -121,7 +122,7 @@ def resume_command(
             raise typer.Exit(1)
         
         worktree = PROJECT_ROOT
-        target_label = f"judge-{judge_num}"
+        target_label = judge_key.replace("_", "-")
         color = "yellow"
     else:
         target_label = writer_cfg.label

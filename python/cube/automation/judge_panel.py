@@ -131,24 +131,61 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                 data = json.load(f)
                 decision = data.get("decision", "")
                 winner = data.get("winner", "")
+                scores = data.get("scores", {})
+                remaining_issues = data.get("remaining_issues", [])
+                blocker_issues = data.get("blocker_issues", [])
                 
-                if decision == "APPROVED":
-                    status = "✓ APPROVED"
-                elif decision == "REQUEST_CHANGES":
-                    issues = len(data.get("remaining_issues", []))
-                    status = f"⚠ {issues} issue{'s' if issues != 1 else ''}"
-                elif winner:
-                    if winner in ["A", "writer_a", "Writer A"]:
-                        status = "Winner: A"
-                    elif winner in ["B", "writer_b", "Writer B"]:
-                        status = "Winner: B"
+                score_a = None
+                score_b = None
+                if scores:
+                    writer_a_scores = scores.get("writer_a", {})
+                    writer_b_scores = scores.get("writer_b", {})
+                    score_a = writer_a_scores.get("total_weighted") or writer_a_scores.get("total")
+                    score_b = writer_b_scores.get("total_weighted") or writer_b_scores.get("total")
+                
+                if judge_info.review_type == "peer-review":
+                    if decision == "APPROVED":
+                        status = "✓ APPROVED → Ready to merge"
+                    elif decision == "REQUEST_CHANGES":
+                        issue_count = len(remaining_issues)
+                        status = f"⚠ REQUEST_CHANGES → {issue_count} issue{'s' if issue_count != 1 else ''}"
+                    elif decision == "REJECTED":
+                        status = "✗ REJECTED → Major issues"
                     else:
-                        status = f"Winner: {winner}"
+                        status = f"Review complete → {decision}"
+                else:
+                    winner_text = ""
+                    if winner in ["A", "writer_a", "Writer A"]:
+                        winner_text = "Writer A wins"
+                    elif winner in ["B", "writer_b", "Writer B"]:
+                        winner_text = "Writer B wins"
+                    elif winner == "TIE":
+                        winner_text = "TIE"
+                    else:
+                        winner_text = f"Winner: {winner}"
+                    
+                    score_text = ""
+                    if score_a is not None and score_b is not None:
+                        score_text = f" ({score_a:.0f}/{score_b:.0f})"
+                    
+                    if decision == "APPROVED":
+                        if blocker_issues:
+                            blocker_count = len(blocker_issues)
+                            status = f"✓ APPROVED → {winner_text}{score_text} → {blocker_count} blocker{'s' if blocker_count != 1 else ''}"
+                        else:
+                            status = f"✓ APPROVED → {winner_text}{score_text}"
+                    elif decision == "REQUEST_CHANGES":
+                        status = f"⚠ REQUEST_CHANGES → {winner_text}{score_text}"
+                    elif decision == "REJECTED":
+                        status = f"✗ REJECTED → {winner_text}{score_text}"
+                    else:
+                        status = f"{winner_text}{score_text}"
+                        
         except (json.JSONDecodeError, KeyError, FileNotFoundError):
             pass
     
     layout.mark_complete(judge_info.key, status)
-    console.print(f"[{judge_info.color}][{judge_info.label}][/{judge_info.color}] ✅ Completed")
+    console.print(f"[{judge_info.color}][{judge_info.label}][/{judge_info.color}] ✅ {status}")
     return line_count
 
 async def launch_judge_panel(
@@ -167,11 +204,11 @@ async def launch_judge_panel(
     from ..core.config import WORKTREE_BASE
     project_name = Path(PROJECT_ROOT).name
     
-    judge_assignments = f"""# YOUR JUDGE NUMBER
+    judge_assignments = f"""# YOUR JUDGE KEY
 
-You are **Judge {{{{judge_number}}}}** in this panel.
+You are **Judge {{judge_key}}** in this panel.
 
-When creating your decision file, use judge number {{{{judge_number}}}}.
+When creating your decision file, use judge key {{judge_key}}.
 
 ---
 
@@ -193,12 +230,13 @@ Use read_file or git commands to review the updated code.
 
 **You MUST create this JSON file at the end of your review:**
 
-**File:** `.prompts/decisions/judge-{{your-number}}-{task_id}-peer-review.json`
+**File:** `.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`
+(Replace underscores with hyphens in your judge key for the filename)
 
 **REQUIRED FORMAT (TOP-LEVEL FIELDS MANDATORY):**
 ```json
 {{
-  "judge": {{your-judge-number}},
+  "judge": "{{judge_key}}",
   "task_id": "{task_id}",
   "review_type": "peer-review",
   "timestamp": "{{current-iso-timestamp}}",
@@ -231,17 +269,21 @@ Use read_file or git commands to review the updated code.
 
 """
     else:
+        from ..core.user_config import get_writer_config
+        writer_a = get_writer_config("writer_a")
+        writer_b = get_writer_config("writer_b")
+        
         review_instructions = f"""# Code Review Locations
 
-## Writer A (Sonnet) Implementation
+## Writer A ({writer_a.label}) Implementation
 
-**Branch:** `writer-sonnet/{task_id}`  
-**Location:** `{WORKTREE_BASE}/{project_name}/writer-sonnet-{task_id}/`
+**Branch:** `writer-{writer_a.name}/{task_id}`  
+**Location:** `{WORKTREE_BASE}/{project_name}/writer-{writer_a.name}-{task_id}/`
 
-## Writer B (Codex) Implementation
+## Writer B ({writer_b.label}) Implementation
 
-**Branch:** `writer-codex/{task_id}`  
-**Location:** `{WORKTREE_BASE}/{project_name}/writer-codex-{task_id}/`
+**Branch:** `writer-{writer_b.name}/{task_id}`  
+**Location:** `{WORKTREE_BASE}/{project_name}/writer-{writer_b.name}-{task_id}/`
 
 Use read_file or git commands to view their code.
 
@@ -251,18 +293,20 @@ Use read_file or git commands to view their code.
 
 **You MUST create this JSON file at the end of your review:**
 
-**File:** `.prompts/decisions/judge-{{your-number}}-{task_id}-decision.json`
+**File:** `.prompts/decisions/{{judge_key}}-{task_id}-decision.json`
+(Replace underscores with hyphens in your judge key for the filename)
 
 **CRITICAL for Gemini users:**
 You're running from `~/.cube`. You MUST write your decision to:
-- `{PROJECT_ROOT}/.prompts/decisions/judge-{{your-number}}-{task_id}-decision.json`
+- `{PROJECT_ROOT}/.prompts/decisions/{{judge_key}}-{task_id}-decision.json`
+(Replace underscores with hyphens in your judge key for the filename)
 
 Use absolute path when writing the file. The project root is available in your workspace context.
 
 **Format:**
 ```json
 {{
-  "judge": {{your-judge-number}},
+  "judge": "{{judge_key}}",
   "task_id": "{task_id}",
   "timestamp": "{{current-iso-timestamp}}",
   "decision": "APPROVED" | "REQUEST_CHANGES" | "REJECTED",

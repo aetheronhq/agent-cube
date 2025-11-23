@@ -349,7 +349,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
             console.print()
             from ..core.user_config import get_judge_configs
             judge_configs = get_judge_configs()
-            judge_nums = [j.number for j in judge_configs]
+            judge_nums = [j.key for j in judge_configs]
             total_judges = len(judge_nums)
             
             decisions_count = final_result.get("decisions_found", 0)
@@ -360,10 +360,11 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
                 console.print()
                 console.print("Options:")
                 console.print(f"  1. Get missing judge(s) to file decisions:")
-                for judge_num in judge_nums:
-                    peer_file = PROJECT_ROOT / ".prompts" / "decisions" / f"judge-{judge_num}-{task_id}-peer-review.json"
+                for judge_key in judge_nums:
+                    judge_label = judge_key.replace("_", "-")
+                    peer_file = PROJECT_ROOT / ".prompts" / "decisions" / f"{judge_label}-{task_id}-peer-review.json"
                     if not peer_file.exists():
-                        console.print(f"     cube resume judge-{judge_num} {task_id} \"Write peer review decision\"")
+                        console.print(f"     cube resume {judge_label} {task_id} \"Write peer review decision\"")
                 console.print()
                 console.print(f"  2. Continue with {decisions_count}/{total_judges} decisions:")
                 console.print(f"     cube auto task.md --resume-from 8")
@@ -532,11 +533,11 @@ def run_decide_peer_review(task_id: str) -> dict:
     
     has_request_changes = False
     judge_configs = get_judge_configs()
-    judge_nums = [j.number for j in judge_configs]
+    judge_nums = [j.key for j in judge_configs]
     total_judges = len(judge_nums)
     
-    for judge_num in judge_nums:
-        peer_file = find_decision_file(judge_num, task_id, "peer-review")
+    for judge_key in judge_nums:
+        peer_file = find_decision_file(judge_key, task_id, "peer-review")
         
         if peer_file and peer_file.exists():
             decisions_found += 1
@@ -545,9 +546,10 @@ def run_decide_peer_review(task_id: str) -> dict:
                 decision = data.get("decision", "UNKNOWN")
                 remaining = data.get("remaining_issues", [])
                 
-                judge_decisions[f"judge_{judge_num}_decision"] = decision
+                judge_decisions[f"{judge_key}_decision"] = decision
                 
-                console.print(f"Judge {judge_num}: {decision}")
+                judge_label = judge_key.replace("_", "-")
+                console.print(f"Judge {judge_label}: {decision}")
                 if remaining:
                     console.print(f"  Issues: {len(remaining)}")
                     all_issues.extend(remaining)
@@ -558,15 +560,16 @@ def run_decide_peer_review(task_id: str) -> dict:
                     has_request_changes = True
                     if not remaining:
                         console.print(f"  [yellow]⚠️  No issues listed (malformed decision)[/yellow]")
-                        all_issues.append(f"Judge {judge_num} requested changes but didn't specify issues")
+                        all_issues.append(f"Judge {judge_label} requested changes but didn't specify issues")
     
     console.print()
     
     if decisions_found == 0:
         print_warning("No peer review decisions found!")
         console.print("Expected files:")
-        for judge_num in judge_nums:
-            console.print(f"  .prompts/decisions/judge-{judge_num}-{task_id}-peer-review.json")
+        for judge_key in judge_nums:
+            judge_label = judge_key.replace("_", "-")
+            console.print(f"  .prompts/decisions/{judge_label}-{task_id}-peer-review.json")
         console.print()
         return {"approved": False, "remaining_issues": [], "decisions_found": 0, "approvals": 0}
     
@@ -591,8 +594,9 @@ def run_decide_peer_review(task_id: str) -> dict:
 async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
     """Phase 6: Run synthesis if needed."""
     from pathlib import Path as PathLib
+    from ..core.user_config import get_writer_by_letter
     
-    winner = "sonnet" if result["winner"] == "A" else "codex"
+    winner_cfg = get_writer_by_letter(result["winner"])
     winner_name = result["winner"]
     
     synthesis_path = prompts_dir / f"synthesis-{task_id}.md"
@@ -686,7 +690,9 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
 
 async def run_peer_review(task_id: str, result: dict, prompts_dir: Path):
     """Phase 7: Run peer review."""
-    winner = "sonnet" if result["winner"] == "A" else "codex"
+    from ..core.user_config import get_writer_by_letter
+    
+    winner_cfg = get_writer_by_letter(result["winner"])
     winner_name = result["winner"]
     
     peer_review_path = prompts_dir / f"peer-review-{task_id}.md"
@@ -746,7 +752,9 @@ Include the worktree location and git commands for reviewing."""
 
 async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):
     """Address minor issues from peer review."""
-    winner = "sonnet" if result["winner"] == "A" else "codex"
+    from ..core.user_config import get_writer_by_letter
+    
+    winner_cfg = get_writer_by_letter(result["winner"])
     
     minor_fixes_path = prompts_dir / f"minor-fixes-{task_id}.md"
     
@@ -906,9 +914,13 @@ Both writers need changes based on judge reviews.
         if not session_b:
             raise RuntimeError("No session found for Writer B. Cannot send feedback.")
         
+        from ..core.user_config import get_writer_config
+        writer_a = get_writer_config("writer_a")
+        writer_b = get_writer_config("writer_b")
+        
         project_name = Path(PROJECT_ROOT).name
-        worktree_a = WORKTREE_BASE / project_name / f"writer-sonnet-{task_id}"
-        worktree_b = WORKTREE_BASE / project_name / f"writer-codex-{task_id}"
+        worktree_a = WORKTREE_BASE / project_name / f"writer-{writer_a.name}-{task_id}"
+        worktree_b = WORKTREE_BASE / project_name / f"writer-{writer_b.name}-{task_id}"
         
         await send_dual_feedback(
             task_id, feedback_a_path, feedback_b_path,
@@ -918,9 +930,10 @@ Both writers need changes based on judge reviews.
 async def create_pr(task_id: str, winner: str):
     """Create PR automatically."""
     import subprocess
+    from ..core.user_config import get_writer_by_letter
     
-    winner_name = "sonnet" if winner == "A" else "codex"
-    branch = f"writer-{winner_name}/{task_id}"
+    winner_cfg = get_writer_by_letter(winner)
+    branch = f"writer-{winner_cfg.name}/{task_id}"
     
     console.print(f"[green]✅ Creating PR from: {branch}[/green]")
     console.print()

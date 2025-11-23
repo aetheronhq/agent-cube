@@ -167,7 +167,7 @@ def feedback(
 
 @app.command(name="resume")
 def resume(
-    target: Annotated[str, typer.Argument(help="Target to resume (writer-sonnet|writer-codex|judge-1/2/3)")],
+    target: Annotated[str, typer.Argument(help="Target to resume (writer alias or judge key)")],
     task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None,
     message: Annotated[Optional[str], typer.Argument(help="Message to send (optional, defaults to 'continue')")] = None
 ):
