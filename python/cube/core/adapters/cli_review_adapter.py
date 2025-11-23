@@ -55,14 +55,18 @@ class CLIReviewAdapter(CLIAdapter):
         
         # 2. Run tool for each writer
         for writer, branch in branches.items():
-            yield f'{{"type": "thinking", "content": "Running tool on {writer} ({branch})..."}}'
+            yield f'{{"type": "thinking", "content": "Running {self.tool_name} on {writer} ({branch})..."}}'
             
             if not await self._checkout_branch(worktree, branch):
                 yield f'{{"type": "error", "content": "Failed to checkout {branch}"}}'
                 continue
-                
+            
+            yield f'{{"type": "thinking", "content": "Checked out {branch}, executing tool..."}}'
+            
             output_buffer = []
+            line_count = 0
             async for line in self._run_tool_stream(worktree):
+                line_count += 1
                 # Stream tool output as thinking to show progress
                 # Escape JSON chars for the yield string
                 clean_line = line.strip().replace('"', '\\"').replace('\\', '\\\\')
@@ -70,8 +74,9 @@ class CLIReviewAdapter(CLIAdapter):
                     yield f'{{"type": "thinking", "content": "[{self.tool_name}] {clean_line}"}}'
                 output_buffer.append(line)
             
-            reviews[writer] = "\n".join(output_buffer)
-            yield f'{{"type": "thinking", "content": "Completed review for {writer}"}}'
+            review_text = "\n".join(output_buffer)
+            reviews[writer] = review_text
+            yield f'{{"type": "thinking", "content": "Tool produced {line_count} lines ({len(review_text)} chars) for {writer}"}}'
 
         # 3. Run Synthesis Agent
         yield f'{{"type": "thinking", "content": "Synthesizing decision with {orch_model}..."}}'
@@ -147,9 +152,11 @@ You are a technical judge synthesizing results from a CLI review tool.
 {reviews.get('Writer B', 'No output')}
 
 ## Your Job
-1. Analyze the issues found.
-2. Determine which implementation is better.
-3. Output a JSON decision file following the standard format.
+1. Analyze the issues found in the reviews above.
+2. Determine which implementation is better based ONLY on the review output.
+3. Output a JSON decision file.
+
+**CRITICAL: Do NOT use any tools (read_file, shell, etc.). Make your decision SOLELY based on the review output provided above. If reviews are empty, output a TIE decision.**
 
 ## JSON Format
 {{
