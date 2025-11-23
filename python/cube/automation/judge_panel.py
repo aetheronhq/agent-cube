@@ -95,18 +95,15 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                     formatted = format_stream_message(msg, judge_info.label, judge_info.color)
                     if formatted:
                         if formatted.startswith("[thinking]"):
+                            # Thinking message -> thinking box
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                             layout.add_thinking(judge_info.key, thinking_text)
-                        elif msg.subtype == "delta":
-                            # Any delta (thinking or assistant) -> buffer in thinking box
-                            # Extract content without prefix for thinking box
-                            if " 💭 " in formatted:
-                                content_part = formatted.split(" 💭 ", 1)[1]
-                                layout.add_thinking(judge_info.key, content_part)
-                            else:
-                                layout.add_thinking(judge_info.key, msg.content or "")
+                        elif msg.type == "assistant":
+                            # Assistant message -> thinking box (buffers fragments)
+                            content_part = formatted.split(" 💭 ", 1)[1] if " 💭 " in formatted else formatted
+                            layout.add_thinking(judge_info.key, content_part)
                         else:
-                            # Complete messages -> main output
+                            # Tool calls, errors, etc -> main output (buffers fragments)
                             layout.add_output(formatted)
     finally:
         watcher.stop()

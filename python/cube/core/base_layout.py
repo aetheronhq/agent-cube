@@ -25,6 +25,7 @@ class BaseThinkingLayout:
         self.buffers = {box_id: deque(maxlen=lines_per_box) for box_id in boxes}
         self.current_lines = {box_id: "" for box_id in boxes}
         self.output_lines = deque(maxlen=1000)
+        self.output_buffer = ""  # Buffer for output (same punctuation logic as thinking)
         self.started = False
         self.live = None
         self.layout = None
@@ -99,14 +100,19 @@ class BaseThinkingLayout:
                 self.completion_status[box_id] = status
                 self._update()
     
-    def add_output(self, line: str) -> None:
-        """Add output line."""
+    def add_output(self, text: str) -> None:
+        """Add output text (buffers until punctuation, same as thinking)."""
         with self.lock:
             if not self.started:
                 self.start()
             
-            self.output_lines.append(line)
-            self._update()
+            self.output_buffer += text
+            
+            # Flush when complete sentence (same logic as thinking boxes)
+            if text.endswith(('.', '!', '?', '\n')) and self.output_buffer.strip():
+                self.output_lines.append(self.output_buffer.strip())
+                self.output_buffer = ""
+                self._update()
     
     def _create_panel(self, title: str, lines: list, box_id: str) -> Panel:
         """Create a panel."""
