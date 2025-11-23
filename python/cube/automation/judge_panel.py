@@ -105,6 +105,9 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                         else:
                             # Tool calls, errors, etc -> main output (buffers fragments)
                             layout.add_output(formatted)
+            
+            # Flush any remaining buffered content
+            layout.flush_buffers()
     finally:
         watcher.stop()
     

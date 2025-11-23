@@ -114,6 +114,25 @@ class BaseThinkingLayout:
                 self.output_buffer = ""
                 self._update()
     
+    def flush_buffers(self) -> None:
+        """Flush any remaining buffered content."""
+        with self.lock:
+            # Flush output buffer
+            if self.output_buffer.strip():
+                self.output_lines.append(self.output_buffer.strip())
+                self.output_buffer = ""
+            
+            # Flush thinking buffers
+            for box_id, current_text in self.current_lines.items():
+                if current_text.strip():
+                    line = current_text.strip()
+                    if len(line) > 94:
+                        line = line[:91] + "..."
+                    self.buffers[box_id].append(line)
+                    self.current_lines[box_id] = ""
+            
+            self._update()
+    
     def _create_panel(self, title: str, lines: list, box_id: str) -> Panel:
         """Create a panel."""
         text = Text()
