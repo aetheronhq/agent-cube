@@ -50,7 +50,8 @@ class CLIReviewAdapter(CLIAdapter):
         
         # Run tool for each writer worktree
         for writer, wt_path in self.writer_worktrees.items():
-            yield f'{{"type": "thinking", "content": "Running {self.tool_name} on {writer}..."}}'
+            # Important milestone -> main output
+            yield f'{{"type": "assistant", "message": {{"content": [{{"type": "text", "text": "🔍 Running {self.tool_name} on {writer}..."}}]}}}}'
             
             # Prepare command
             cmd_str = self.tool_cmd.replace("{{worktree}}", str(wt_path))
@@ -75,12 +76,14 @@ class CLIReviewAdapter(CLIAdapter):
             reviews[writer] = review_text
             
             if line_count == 0:
-                yield f'{{"type": "assistant", "message": {{"content": [{{"type": "text", "text": "WARNING: {self.tool_name} produced no output for {writer}"}}]}}}}'
+                yield f'{{"type": "assistant", "message": {{"content": [{{"type": "text", "text": "⚠️  WARNING: {self.tool_name} produced no output for {writer}"}}]}}}}'
             else:
-                yield f'{{"type": "thinking", "content": "{self.tool_name} review complete: {line_count} lines for {writer}"}}'
+                # Important milestone -> main output
+                yield f'{{"type": "assistant", "message": {{"content": [{{"type": "text", "text": "✅ {self.tool_name} complete: {line_count} lines from {writer}"}}]}}}}'
 
         # 3. Run Synthesis Agent
-        yield f'{{"type": "thinking", "content": "Synthesizing decision with {orch_model}..."}}'
+        # Important milestone -> main output
+        yield f'{{"type": "assistant", "message": {{"content": [{{"type": "text", "text": "🤖 Synthesizing decision with {orch_model}..."}}]}}}}'
         
         synthesis_prompt = self._build_synthesis_prompt(prompt, reviews)
         
