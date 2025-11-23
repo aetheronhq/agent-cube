@@ -27,9 +27,14 @@ class TripleJudgeLayout:
         cls.get_instance().mark_complete(judge_key, status)
     
     @classmethod
-    def add_output(cls, line: str):
+    def add_output(cls, line: str, buffered: bool = False):
         """Add output line."""
-        cls.get_instance().add_output(line)
+        cls.get_instance().add_output(line, buffered)
+    
+    @classmethod
+    def flush_buffers(cls):
+        """Flush any remaining buffers."""
+        cls.get_instance().flush_buffers()
     
     @classmethod
     def start(cls):
