@@ -31,15 +31,20 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
         
     adapter = get_adapter(cli_name, judge_info.adapter_config)
     
-    # For CLI review adapters, set writer branches programmatically
+    # For CLI review adapters, set writer worktree paths programmatically
     if cli_name == "cli-review":
         from ..core.user_config import get_writer_config
+        from ..core.config import get_worktree_path, get_project_root
+        from pathlib import Path
+        
         writers = [get_writer_config("writer_a"), get_writer_config("writer_b")]
-        branches = {
-            "Writer A": f"writer-{writers[0].name}/{judge_info.task_id}",
-            "Writer B": f"writer-{writers[1].name}/{judge_info.task_id}"
+        project_name = Path(get_project_root()).name
+        
+        worktrees = {
+            "Writer A": get_worktree_path(project_name, writers[0].name, judge_info.task_id),
+            "Writer B": get_worktree_path(project_name, writers[1].name, judge_info.task_id)
         }
-        adapter.set_branches(branches)
+        adapter.set_writer_worktrees(worktrees)
     
     parser = get_parser(cli_name)
     layout = get_triple_layout()

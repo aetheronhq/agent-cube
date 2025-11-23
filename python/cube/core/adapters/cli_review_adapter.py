@@ -18,15 +18,15 @@ class CLIReviewAdapter(CLIAdapter):
             raise ValueError("CLIReviewAdapter requires 'cmd' config")
             
         self.tool_name = config.get("name") or self.tool_cmd.split()[0]
-        self.branches = None
+        self.writer_worktrees = {}  # Set via set_writer_worktrees() before run()
     
-    def set_branches(self, branches: Dict[str, str]) -> None:
-        """Set writer branches programmatically.
+    def set_writer_worktrees(self, worktrees: Dict[str, Path]) -> None:
+        """Set writer worktree paths programmatically.
         
         Args:
-            branches: Dict of {"Writer A": "writer-sonnet/task-id", "Writer B": "writer-codex/task-id"}
+            worktrees: Dict of {"Writer A": Path("/path/to/worktree-a"), ...}
         """
-        self.branches = branches
+        self.writer_worktrees = worktrees
 
     async def run(
         self,
@@ -42,33 +42,20 @@ class CLIReviewAdapter(CLIAdapter):
         # Use the passed model as the orchestrator
         orch_model = model
         
-        # 1. Get branches (programmatic if set, otherwise extract from prompt)
-        if self.branches:
-            branches = self.branches
-        else:
-            branches = self._extract_branches(prompt)
-            if not branches:
-                yield '{"type": "error", "content": "Could not identify writer branches from prompt"}'
-                return
+        if not self.writer_worktrees:
+            yield '{"type": "assistant", "message": {"content": [{"type": "text", "text": "ERROR: No writer worktrees configured for CLI review"}]}}'
+            return
 
         reviews = {}
         
-        # 2. Run tool for each writer
-        for writer, branch in branches.items():
-            yield f'{{"type": "thinking", "content": "Running {self.tool_name} on {writer} ({branch})..."}}'
-            
-            if not await self._checkout_branch(worktree, branch):
-                yield f'{{"type": "error", "content": "Failed to checkout {branch}"}}'
-                continue
-            
-            yield f'{{"type": "thinking", "content": "Checked out {branch}, executing tool..."}}'
+        # Run tool for each writer worktree
+        for writer, wt_path in self.writer_worktrees.items():
+            yield f'{{"type": "thinking", "content": "Running {self.tool_name} on {writer}..."}}'
             
             output_buffer = []
             line_count = 0
-            async for line in self._run_tool_stream(worktree):
+            async for line in self._run_tool_stream(wt_path):
                 line_count += 1
-                # Stream tool output as thinking to show progress
-                # Escape JSON chars for the yield string
                 clean_line = line.strip().replace('"', '\\"').replace('\\', '\\\\')
                 if clean_line:
                     yield f'{{"type": "thinking", "content": "[{self.tool_name}] {clean_line}"}}'
@@ -76,7 +63,11 @@ class CLIReviewAdapter(CLIAdapter):
             
             review_text = "\n".join(output_buffer)
             reviews[writer] = review_text
-            yield f'{{"type": "thinking", "content": "Tool produced {line_count} lines ({len(review_text)} chars) for {writer}"}}'
+            
+            if line_count == 0:
+                yield f'{{"type": "assistant", "message": {{"content": [{{"type": "text", "text": "WARNING: {self.tool_name} produced no output for {writer}"}}]}}}}'
+            else:
+                yield f'{{"type": "thinking", "content": "{self.tool_name} review complete: {line_count} lines for {writer}"}}'
 
         # 3. Run Synthesis Agent
         yield f'{{"type": "thinking", "content": "Synthesizing decision with {orch_model}..."}}'
@@ -92,9 +83,9 @@ class CLIReviewAdapter(CLIAdapter):
         ):
             yield line
 
-    async def _run_tool_stream(self, cwd: Path) -> AsyncGenerator[str, None]:
+    async def _run_tool_stream(self, worktree_path: Path) -> AsyncGenerator[str, None]:
         """Execute the configured CLI command and stream output."""
-        cmd_str = self.tool_cmd.replace("{{worktree}}", str(cwd))
+        cmd_str = self.tool_cmd.replace("{{worktree}}", str(worktree_path))
         import shlex
         cmd_args = shlex.split(cmd_str)
         
@@ -102,7 +93,7 @@ class CLIReviewAdapter(CLIAdapter):
             *cmd_args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
-            cwd=cwd,
+            cwd=worktree_path,
             env=os.environ.copy()
         )
         
@@ -111,31 +102,6 @@ class CLIReviewAdapter(CLIAdapter):
                 yield line
         
         await process.wait()
-
-    async def _checkout_branch(self, worktree: Path, branch: str) -> bool:
-        """Checkout a git branch."""
-        process = await asyncio.create_subprocess_exec(
-            "git", "checkout", branch,
-            cwd=worktree,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL
-        )
-        return await process.wait() == 0
-
-    def _extract_branches(self, prompt: str) -> Dict[str, str]:
-        """Extract branch names from prompt."""
-        import re
-        branches = {}
-        for writer in ["A", "B"]:
-            # Matches: **Writer A Branch:** `writer-sonnet/task-id`
-            # Matches: Writer A's branch: writer-sonnet/task-id
-            pattern = f"Writer {writer}.*?branch:.*?([a-zA-Z0-9/_.-]+)"
-            match = re.search(pattern, prompt, re.IGNORECASE)
-            if match:
-                raw_branch = match.group(1)
-                # Clean up any accidentally captured quotes/backticks
-                branches[f"Writer {writer}"] = raw_branch.strip("`'\" ")
-        return branches
 
     def _build_synthesis_prompt(self, original_prompt: str, reviews: Dict[str, str]) -> str:
         """Construct the synthesis prompt."""
