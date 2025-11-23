@@ -30,6 +30,17 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
         cli_name = config.cli_tools.get(judge_info.model, "cursor-agent")
         
     adapter = get_adapter(cli_name, judge_info.adapter_config)
+    
+    # For CLI review adapters, set writer branches programmatically
+    if cli_name == "cli-review":
+        from ..core.user_config import get_writer_config
+        writers = [get_writer_config("writer_a"), get_writer_config("writer_b")]
+        branches = {
+            "Writer A": f"writer-{writers[0].name}/{judge_info.task_id}",
+            "Writer B": f"writer-{writers[1].name}/{judge_info.task_id}"
+        }
+        adapter.set_branches(branches)
+    
     parser = get_parser(cli_name)
     layout = get_triple_layout()
     layout.start()
