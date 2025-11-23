@@ -66,6 +66,9 @@ class CLIReviewAdapter(CLIAdapter):
                     line_count += 1
                     clean_line = line.strip().replace('"', '\\"').replace('\\', '\\\\')
                     if clean_line:
+                        # Add period if missing to force display flush
+                        if not clean_line.endswith(('.', '!', '?')):
+                            clean_line += '.'
                         yield f'{{"type": "thinking", "content": "[{self.tool_name}] {clean_line}"}}'
                     output_buffer.append(line)
             except RuntimeError as e:
