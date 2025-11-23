@@ -33,17 +33,17 @@ writers:
 judges:
   judge_1:
     model: "sonnet-4.5-thinking"
-    label: "Judge 1"
+    label: "Judge Sonnet"
     color: "green"
     
   judge_2:
     model: "gpt-5.1-codex-high"
-    label: "Judge 2"
+    label: "Judge Codex"
     color: "yellow"
     
   judge_3:
     model: "gemini-2.5-pro"
-    label: "Judge 3"
+    label: "Judge Gemini"
     color: "magenta"
 
 # Paths
