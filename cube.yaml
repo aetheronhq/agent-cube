@@ -18,3 +18,4 @@ judges:
     model: "composer-1"
     label: "CodeRabbit"
     color: "blue"
+    peer_review_only: true  # Skip in panel (avoid rate limits), run in peer-review

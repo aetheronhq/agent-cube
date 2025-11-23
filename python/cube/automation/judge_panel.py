@@ -351,6 +351,11 @@ Use absolute path when writing the file. The project root is available in your w
     
     judge_configs = get_judge_configs()
     
+    # Filter judges based on review type and peer_review_only flag
+    if review_type == "panel":
+        # Skip peer-review-only judges in panel
+        judge_configs = [j for j in judge_configs if not j.peer_review_only]
+    
     judges: List[JudgeInfo] = []
     for jconfig in judge_configs:
         session_id = None

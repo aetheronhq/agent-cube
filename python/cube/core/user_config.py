@@ -25,6 +25,7 @@ class JudgeConfig:
     # New fields for CLI reviewers
     type: str = "llm"  # "llm" or "cli-review"
     cmd: Optional[str] = None
+    peer_review_only: bool = False  # Skip in panel, only run in peer-review
 
 @dataclass
 class CubeConfig:
@@ -195,7 +196,8 @@ def load_config() -> CubeConfig:
             label=j.get("label", key),
             color=j.get("color", "green"),
             type=j.get("type", "llm"),
-            cmd=j.get("cmd")
+            cmd=j.get("cmd"),
+            peer_review_only=j.get("peer_review_only", False)
         )
         judges[key] = judge_cfg
         
@@ -272,22 +274,48 @@ def get_writer_aliases() -> list[str]:
     config = load_config()
     return sorted(set(config.writer_alias_map.keys()))
 
-def get_judge_config(judge_num: int) -> JudgeConfig:
-    """Get judge configuration by number (1-based)."""
+def get_writer_by_letter(letter: str) -> WriterConfig:
+    """Get writer config by letter (A/B/...)."""
     config = load_config()
-    if 1 <= judge_num <= len(config.judge_order):
-        judge_key = config.judge_order[judge_num - 1]
+    letter_upper = letter.upper()
+    for key in config.writer_order:
+        writer = config.writers[key]
+        if writer.letter == letter_upper:
+            return writer
+    raise KeyError(f"No writer found with letter: {letter}")
+
+def get_writer_by_key_or_letter(key_or_letter: str) -> WriterConfig:
+    """Get writer config by key (writer_a) or letter (A)."""
+    config = load_config()
+    
+    # Try as key first
+    if key_or_letter in config.writers:
+        return config.writers[key_or_letter]
+    
+    # Try as letter
+    letter_upper = key_or_letter.upper()
+    for key in config.writer_order:
+        writer = config.writers[key]
+        if writer.letter == letter_upper:
+            return writer
+    
+    raise KeyError(f"No writer found with key or letter: {key_or_letter}")
+
+def get_judge_config(judge_key: str) -> JudgeConfig:
+    """Get judge configuration by key."""
+    config = load_config()
+    if judge_key in config.judges:
         return config.judges[judge_key]
-    raise KeyError(f"Unknown judge number: {judge_num}")
+    raise KeyError(f"Unknown judge key: {judge_key}")
 
 def get_judge_configs() -> list[JudgeConfig]:
     """Return all judge configs in configured order."""
     config = load_config()
     return [config.judges[key] for key in config.judge_order]
 
-def get_judge_numbers() -> list[int]:
-    """Return list of judge numbers."""
-    return [judge.number for judge in get_judge_configs()]
+def get_judge_numbers() -> list[str]:
+    """Return list of judge keys."""
+    return [judge.key for judge in get_judge_configs()]
 
 def resolve_judge_alias(alias: str) -> JudgeConfig:
     """Resolve alias (judge-1, 1, key, label) to judge config."""
