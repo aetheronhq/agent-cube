@@ -27,7 +27,7 @@ def get_adapter(cli_name: str, config: Optional[Dict[str, Any]] = None) -> CLIAd
     # Handle adapters that require config
     if cli_name == "cli-review":
         if not config:
-            raise ValueError("CLIReviewAdapter requires config")
+            raise ValueError("CLIReviewAdapter requires config with a 'cmd' entry")
         return adapter_class(config)
     
     return adapter_class()
