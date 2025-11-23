@@ -97,10 +97,19 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                             layout.add_thinking(judge_info.key, thinking_text)
-                        elif formatted.startswith(f"[{judge_info.color}]{judge_info.label}") and " 💭 " in formatted:
-                            # Buffer assistant deltas in thinking box too (avoids spam)
-                            assistant_text = formatted.split(" 💭 ", 1)[1] if " 💭 " in formatted else formatted
-                            layout.add_thinking(judge_info.key, assistant_text)
+                        elif " 💭 " in formatted:
+                            # Buffer assistant messages in thinking box if they're short fragments
+                            # But show milestones (complete sentences with emoji) in output
+                            content_part = formatted.split(" 💭 ", 1)[1] if " 💭 " in formatted else ""
+                            has_emoji = any(c in content_part for c in "🔍✅⚠️❌🤖")
+                            is_complete = content_part.endswith(('.', '!', '?'))
+                            
+                            if has_emoji or (is_complete and len(content_part) > 20):
+                                # Milestone or complete thought -> show in output
+                                layout.add_output(formatted)
+                            else:
+                                # Fragment -> buffer in thinking box
+                                layout.add_thinking(judge_info.key, content_part)
                         else:
                             layout.add_output(formatted)
     finally:
