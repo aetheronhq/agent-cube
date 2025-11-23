@@ -97,12 +97,16 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                             layout.add_thinking(judge_info.key, thinking_text)
-                        elif " 💭 " in formatted and not any(c in formatted for c in "🔍✅⚠️❌🤖"):
-                            # Assistant delta (no emoji) -> buffer in thinking
-                            content_part = formatted.split(" 💭 ", 1)[1]
-                            layout.add_thinking(judge_info.key, content_part)
+                        elif msg.subtype == "delta":
+                            # Any delta (thinking or assistant) -> buffer in thinking box
+                            # Extract content without prefix for thinking box
+                            if " 💭 " in formatted:
+                                content_part = formatted.split(" 💭 ", 1)[1]
+                                layout.add_thinking(judge_info.key, content_part)
+                            else:
+                                layout.add_thinking(judge_info.key, msg.content or "")
                         else:
-                            # Milestone or other -> main output
+                            # Complete messages -> main output
                             layout.add_output(formatted)
     finally:
         watcher.stop()
