@@ -123,11 +123,15 @@ class BaseThinkingLayout:
             for _ in range(self.lines_per_box - 1):
                 text.append("\n")
         else:
-            for line in lines:
+            # Show last N lines only (auto-scroll to bottom)
+            display_lines = lines[-self.lines_per_box:] if len(lines) > self.lines_per_box else lines
+            for line in display_lines:
                 text.append(line + "\n", style="dim")
-        
-        while len(text.plain.split('\n')) < self.lines_per_box:
-            text.append("\n")
+            
+            # Pad to fill box height
+            current_height = len(display_lines)
+            for _ in range(self.lines_per_box - current_height):
+                text.append("\n")
         
         icon = "💭" if "Writer" in title or "Prompter" in title else "⚖️ "
         
