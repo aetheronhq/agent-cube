@@ -25,6 +25,7 @@ class BaseThinkingLayout:
         self.buffers = {box_id: deque(maxlen=lines_per_box) for box_id in boxes}
         self.current_lines = {box_id: "" for box_id in boxes}
         self.output_lines = deque(maxlen=1000)
+        self.output_buffer = ""  # Buffer for assistant deltas in main output
         self.started = False
         self.live = None
         self.layout = None
@@ -99,18 +100,36 @@ class BaseThinkingLayout:
                 self.completion_status[box_id] = status
                 self._update()
     
-    def add_output(self, line: str) -> None:
-        """Add output line (shows immediately - no buffering)."""
+    def add_output(self, line: str, buffered: bool = False) -> None:
+        """Add output line.
+        
+        Args:
+            line: Formatted output line
+            buffered: If True, buffer until punctuation (for assistant deltas)
+                     If False, show immediately (for tool calls, errors)
+        """
         with self.lock:
             if not self.started:
                 self.start()
             
-            self.output_lines.append(line)
-            self._update()
+            if buffered:
+                self.output_buffer += line
+                if line.endswith(('.', '!', '?', '\n')) and self.output_buffer.strip():
+                    self.output_lines.append(self.output_buffer.strip())
+                    self.output_buffer = ""
+                    self._update()
+            else:
+                self.output_lines.append(line)
+                self._update()
     
     def flush_buffers(self) -> None:
-        """Flush any remaining buffered content in thinking boxes."""
+        """Flush any remaining buffered content."""
         with self.lock:
+            # Flush output buffer
+            if self.output_buffer.strip():
+                self.output_lines.append(self.output_buffer.strip())
+                self.output_buffer = ""
+            
             # Flush thinking buffers
             for box_id, current_text in self.current_lines.items():
                 if current_text.strip():
