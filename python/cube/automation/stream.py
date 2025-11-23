@@ -222,7 +222,7 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
             return f"[{color}]{prefix}[/{color}]    ❌ Exit: {msg.exit_code}"
         
         if msg.tool_name == "shell" and msg.exit_code == 0:
-            return f"[{color}]{prefix}[/{color}]    ✅ Done"
+            return None
         
         if msg.tool_name == "write" and msg.tool_args:
             lines = msg.tool_args.get("lines", 0)
@@ -236,7 +236,7 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
             return f"[{color}]{prefix}[/{color}]    ✅ {lines} lines"
         
         if msg.tool_name in ["grep", "ls", "todos", "delete"]:
-            return f"[{color}]{prefix}[/{color}]    ✅ Done"
+            return None
     
     if msg.type == "result":
         duration = format_duration(msg.duration_ms or 0)
