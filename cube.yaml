@@ -8,11 +8,11 @@ writers:
     color: "magenta"
 
 judges:
-  judge_3:
+  judge_2:
     model: "gemini-3-pro"
-    label: "Gemini 3 Pro"
+    label: "Judge Gemini"
     color: "magenta"
-  judge_4:
+  judge_3:
     type: "cli-review"
     cmd: "coderabbit review --plain --type all --cwd {{worktree}}"
     orchestrator: "composer-1"

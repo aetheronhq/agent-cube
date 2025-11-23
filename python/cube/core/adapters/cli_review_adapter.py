@@ -18,9 +18,16 @@ class CLIReviewAdapter(CLIAdapter):
         if not self.tool_cmd:
             raise ValueError("CLIReviewAdapter requires 'cmd' config")
             
-        self.tool_name = self.tool_cmd.split()[0]
-            
-        self.tool_name = self.tool_cmd.split()[0]
+        self.tool_name = config.get("name") or self.tool_cmd.split()[0]
+        self.branches = None
+    
+    def set_branches(self, branches: Dict[str, str]) -> None:
+        """Set writer branches programmatically.
+        
+        Args:
+            branches: Dict of {"Writer A": "writer-sonnet/task-id", "Writer B": "writer-codex/task-id"}
+        """
+        self.branches = branches
 
     async def run(
         self,
@@ -36,11 +43,14 @@ class CLIReviewAdapter(CLIAdapter):
         # Use the passed model as the orchestrator
         orch_model = model
         
-        # 1. Extract branches from prompt
-        branches = self._extract_branches(prompt)
-        if not branches:
-            yield '{"type": "error", "content": "Could not identify writer branches from prompt"}'
-            return
+        # 1. Get branches (programmatic if set, otherwise extract from prompt)
+        if self.branches:
+            branches = self.branches
+        else:
+            branches = self._extract_branches(prompt)
+            if not branches:
+                yield '{"type": "error", "content": "Could not identify writer branches from prompt"}'
+                return
 
         reviews = {}
         
