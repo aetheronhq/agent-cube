@@ -46,17 +46,17 @@ class CLIReviewAdapter(CLIAdapter):
             yield '{"type": "assistant", "content": "ERROR: No writer worktrees configured for CLI review"}'
             return
 
-        # Run tool in parallel for both writers
-        yield f'{{"type": "assistant", "content": "🔍 Running {self.tool_name} on both writers in parallel..."}}'
+        reviews = {}
         
-        async def run_for_writer(writer: str, wt_path: Path) -> tuple[str, str, int, list]:
-            """Run tool for one writer and return (writer, output, line_count, thinking_lines)."""
+        # Run tool for each writer (sequential for now - shows output in real-time)
+        for writer, wt_path in self.writer_worktrees.items():
+            yield f'{{"type": "assistant", "content": "🔍 Running {self.tool_name} on {writer}..."}}'
+            
             cmd_str = self.tool_cmd.replace("{{worktree}}", str(wt_path))
             import shlex
             cmd_args = shlex.split(cmd_str)
             
             output_buffer = []
-            thinking_lines = []
             line_count = 0
             
             try:
@@ -66,35 +66,19 @@ class CLIReviewAdapter(CLIAdapter):
                     if clean_line:
                         if not clean_line.endswith(('.', '!', '?')):
                             clean_line += '.'
-                        thinking_lines.append(f'{{"type": "thinking", "content": "[{self.tool_name}/{writer}] {clean_line}"}}')
+                        yield f'{{"type": "thinking", "content": "[{self.tool_name}] {clean_line}"}}'
                     output_buffer.append(line)
             except RuntimeError as e:
-                thinking_lines.append(f'{{"type": "assistant", "content": "❌ ERROR: {self.tool_name} failed on {writer}: {str(e)}"}}')
-                return writer, "", 0, thinking_lines
+                yield f'{{"type": "assistant", "content": "❌ ERROR: {self.tool_name} failed on {writer}: {str(e)}"}}'
+                continue
             
-            return writer, "\n".join(output_buffer), line_count, thinking_lines
-        
-        # Start both tasks in parallel
-        tasks = [run_for_writer(w, p) for w, p in self.writer_worktrees.items()]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Yield all thinking messages from both workers
-        reviews = {}
-        for result in results:
-            if isinstance(result, Exception):
-                yield f'{{"type": "assistant", "content": "❌ ERROR: {str(result)}"}}'
+            review_text = "\n".join(output_buffer)
+            reviews[writer] = review_text
+            
+            if line_count == 0:
+                yield f'{{"type": "assistant", "content": "⚠️  {self.tool_name} produced no output for {writer}"}}'
             else:
-                writer, review_text, line_count, thinking_lines = result
-                reviews[writer] = review_text
-                
-                # Yield collected thinking messages
-                for thinking_line in thinking_lines:
-                    yield thinking_line
-                
-                if line_count == 0:
-                    yield f'{{"type": "assistant", "content": "⚠️  {self.tool_name} produced no output for {writer}"}}'
-                else:
-                    yield f'{{"type": "assistant", "content": "✅ {self.tool_name} complete: {line_count} lines from {writer}"}}'
+                yield f'{{"type": "assistant", "content": "✅ {self.tool_name} complete: {line_count} lines from {writer}"}}'
 
         # 3. Run Synthesis Agent
         # Important milestone -> main output
