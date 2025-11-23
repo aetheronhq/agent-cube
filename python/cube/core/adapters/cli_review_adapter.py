@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import AsyncGenerator, Optional, Dict, Any
 
-from ..cli_adapter import CLIAdapter, read_stream_with_buffer
+from ..cli_adapter import CLIAdapter, run_subprocess_streaming
 
 class CLIReviewAdapter(CLIAdapter):
     """Adapter for running generic CLI review tools + LLM synthesis."""
@@ -52,14 +52,24 @@ class CLIReviewAdapter(CLIAdapter):
         for writer, wt_path in self.writer_worktrees.items():
             yield f'{{"type": "thinking", "content": "Running {self.tool_name} on {writer}..."}}'
             
+            # Prepare command
+            cmd_str = self.tool_cmd.replace("{{worktree}}", str(wt_path))
+            import shlex
+            cmd_args = shlex.split(cmd_str)
+            
             output_buffer = []
             line_count = 0
-            async for line in self._run_tool_stream(wt_path):
-                line_count += 1
-                clean_line = line.strip().replace('"', '\\"').replace('\\', '\\\\')
-                if clean_line:
-                    yield f'{{"type": "thinking", "content": "[{self.tool_name}] {clean_line}"}}'
-                output_buffer.append(line)
+            
+            try:
+                async for line in run_subprocess_streaming(cmd_args, wt_path, self.tool_name):
+                    line_count += 1
+                    clean_line = line.strip().replace('"', '\\"').replace('\\', '\\\\')
+                    if clean_line:
+                        yield f'{{"type": "thinking", "content": "[{self.tool_name}] {clean_line}"}}'
+                    output_buffer.append(line)
+            except RuntimeError as e:
+                yield f'{{"type": "assistant", "message": {{"content": [{{"type": "text", "text": "ERROR running {self.tool_name} on {writer}: {str(e)}"}}]}}}}'
+                continue
             
             review_text = "\n".join(output_buffer)
             reviews[writer] = review_text
@@ -82,26 +92,6 @@ class CLIReviewAdapter(CLIAdapter):
             resume=False
         ):
             yield line
-
-    async def _run_tool_stream(self, worktree_path: Path) -> AsyncGenerator[str, None]:
-        """Execute the configured CLI command and stream output."""
-        cmd_str = self.tool_cmd.replace("{{worktree}}", str(worktree_path))
-        import shlex
-        cmd_args = shlex.split(cmd_str)
-        
-        process = await asyncio.create_subprocess_exec(
-            *cmd_args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            cwd=worktree_path,
-            env=os.environ.copy()
-        )
-        
-        if process.stdout:
-            async for line in read_stream_with_buffer(process.stdout):
-                yield line
-        
-        await process.wait()
 
     def _build_synthesis_prompt(self, original_prompt: str, reviews: Dict[str, str]) -> str:
         """Construct the synthesis prompt."""

@@ -86,3 +86,55 @@ async def monitor_process_health(
         except OSError:
             raise RuntimeError(f"{name} process died (PID {process.pid} gone)")
 
+async def run_subprocess_streaming(
+    cmd: list[str],
+    cwd: Path,
+    tool_name: str,
+    env: Optional[dict] = None
+) -> AsyncGenerator[str, None]:
+    """Run a subprocess with health monitoring and stream output.
+    
+    Generic function for all CLI tools (cursor, gemini, coderabbit, etc.)
+    
+    Args:
+        cmd: Command and arguments as list
+        cwd: Working directory
+        tool_name: Name for error messages
+        env: Environment variables (defaults to os.environ.copy())
+    
+    Yields:
+        Lines of output from the subprocess
+        
+    Raises:
+        RuntimeError: If process exits non-zero or dies
+    """
+    import os
+    
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        cwd=cwd,
+        env=env or os.environ.copy(),
+        limit=1024 * 1024 * 10
+    )
+    
+    health_monitor = asyncio.create_task(
+        monitor_process_health(process, tool_name, check_interval=5.0)
+    )
+    
+    try:
+        if process.stdout:
+            async for line in read_stream_with_buffer(process.stdout):
+                yield line
+    finally:
+        health_monitor.cancel()
+        try:
+            await health_monitor
+        except (asyncio.CancelledError, RuntimeError):
+            pass
+    
+    exit_code = await process.wait()
+    if exit_code != 0:
+        raise RuntimeError(f"{tool_name} exited with code {exit_code}")
+
