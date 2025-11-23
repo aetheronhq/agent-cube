@@ -37,8 +37,8 @@ def panel_command(
         prompt_path = temp_path
     
     try:
-    asyncio.run(launch_judge_panel(task_id, prompt_path, "panel", resume))
-    update_phase(task_id, 4, panel_complete=True)
+        asyncio.run(launch_judge_panel(task_id, prompt_path, "panel", resume))
+        update_phase(task_id, 4, panel_complete=True)
     except RuntimeError as e:
         print_error(str(e))
         raise typer.Exit(1)
