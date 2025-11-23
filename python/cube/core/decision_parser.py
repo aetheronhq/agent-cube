@@ -166,9 +166,10 @@ def aggregate_decisions(decisions: List[JudgeDecision]) -> Dict[str, Any]:
     request_changes = sum(1 for d in decisions if d.decision == "REQUEST_CHANGES")
     rejections = sum(1 for d in decisions if d.decision == "REJECTED")
     
-    a_wins = sum(1 for d in decisions if d.winner == "writer_a")
-    b_wins = sum(1 for d in decisions if d.winner == "writer_b")
-    ties = sum(1 for d in decisions if d.winner == "TIE")
+    # Normalize winner field (supports "A", "writer_a", "Writer A", etc.)
+    a_wins = sum(1 for d in decisions if d.winner and d.winner.upper() in ["A", "WRITER_A", "WRITER A"])
+    b_wins = sum(1 for d in decisions if d.winner and d.winner.upper() in ["B", "WRITER_B", "WRITER B"])
+    ties = sum(1 for d in decisions if d.winner and d.winner.upper() == "TIE")
     
     avg_score_a = sum(d.scores_a for d in decisions) / len(decisions)
     avg_score_b = sum(d.scores_b for d in decisions) / len(decisions)
