@@ -25,6 +25,7 @@ class BaseThinkingLayout:
         self.buffers = {box_id: deque(maxlen=lines_per_box) for box_id in boxes}
         self.current_lines = {box_id: "" for box_id in boxes}
         self.output_lines = deque(maxlen=1000)
+        self.assistant_buffers = {}  # Buffer per agent key for assistant messages
         self.started = False
         self.live = None
         self.layout = None
@@ -99,6 +100,31 @@ class BaseThinkingLayout:
                 self.completion_status[box_id] = status
                 self._update()
     
+    def add_assistant_message(self, key: str, content: str, label: str, color: str) -> None:
+        """Add assistant message to main output (buffers per agent until punctuation).
+        
+        Args:
+            key: Agent key (for buffering)
+            content: Message content
+            label: Display label
+            color: Rich color
+        """
+        with self.lock:
+            if not self.started:
+                self.start()
+            
+            if key not in self.assistant_buffers:
+                self.assistant_buffers[key] = ""
+            
+            self.assistant_buffers[key] += content
+            
+            # Flush when complete sentence
+            if content.endswith(('.', '!', '?', '\n')) and self.assistant_buffers[key].strip():
+                full_message = f"[{color}]{label}[/{color}] 💭 {self.assistant_buffers[key]}"
+                self.output_lines.append(full_message)
+                self.assistant_buffers[key] = ""
+                self._update()
+    
     def add_output(self, line: str, buffered: bool = False) -> None:
         """Add output line (shows immediately)."""
         with self.lock:
@@ -109,8 +135,14 @@ class BaseThinkingLayout:
             self._update()
     
     def flush_buffers(self) -> None:
-        """Flush any remaining buffered content in thinking boxes."""
+        """Flush any remaining buffered content."""
         with self.lock:
+            # Flush assistant buffers (without label/color - can't reconstruct)
+            for key in list(self.assistant_buffers.keys()):
+                if self.assistant_buffers[key].strip():
+                    self.output_lines.append(f"💭 {self.assistant_buffers[key]}")
+                    self.assistant_buffers[key] = ""
+            
             # Flush thinking buffers
             for box_id, current_text in self.current_lines.items():
                 if current_text.strip():

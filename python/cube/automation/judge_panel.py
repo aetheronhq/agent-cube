@@ -98,9 +98,11 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                             # Thinking message -> thinking box (buffered)
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                             layout.add_thinking(judge_info.key, thinking_text)
+                        elif msg.type == "assistant" and msg.content:
+                            # Assistant message -> buffered per agent, no emoji logic
+                            layout.add_assistant_message(judge_info.key, msg.content, judge_info.label, judge_info.color)
                         else:
-                            # Everything else -> main output (immediate, no buffering)
-                            # Buffering was breaking tool call display
+                            # Tool calls, errors, etc -> immediate
                             layout.add_output(formatted)
             
             # Flush any remaining buffered content

@@ -22,6 +22,11 @@ class TripleJudgeLayout:
         cls.get_instance().add_thinking(judge_key, text)
     
     @classmethod
+    def add_assistant_message(cls, key: str, content: str, label: str, color: str):
+        """Add assistant message (buffered per agent)."""
+        cls.get_instance().add_assistant_message(key, content, label, color)
+    
+    @classmethod
     def mark_complete(cls, judge_key: str, status: str = None):
         """Mark a judge as complete with optional status."""
         cls.get_instance().mark_complete(judge_key, status)

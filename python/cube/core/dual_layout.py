@@ -21,6 +21,11 @@ class DualWriterLayout:
         cls.get_instance().add_thinking(box_id, text)
     
     @classmethod
+    def add_assistant_message(cls, key: str, content: str, label: str, color: str):
+        """Add assistant message (buffered per agent)."""
+        cls.get_instance().add_assistant_message(key, content, label, color)
+    
+    @classmethod
     def mark_complete(cls, box_id: str, status: str = None):
         """Mark a writer as complete with optional status."""
         cls.get_instance().mark_complete(box_id, status)
