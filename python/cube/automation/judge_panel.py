@@ -19,6 +19,7 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
     from ..core.user_config import load_config as load_user_config
     from ..core.parsers.registry import get_parser
     from ..core.triple_layout import get_triple_layout
+    from ..core.adapters.registry import get_adapter
     
     config = load_user_config()
     
@@ -57,7 +58,7 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
             
             judge_specific_prompt = prompt.replace("{judge_number}", str(judge_info.number))
             
-            stream = run_agent(
+            stream = adapter.run(
                 run_dir,
                 judge_info.model,
                 judge_specific_prompt,
