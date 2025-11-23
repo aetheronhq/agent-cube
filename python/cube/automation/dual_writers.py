@@ -115,8 +115,10 @@ async def launch_dual_writers(
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
     
     # Initialize dynamic layout
-    layout = get_dual_layout()
+    from ..core.dual_layout import get_dual_layout
     from ..core.user_config import get_writer_config
+    
+    layout = get_dual_layout()
     writer_a = get_writer_config("writer_a")
     writer_b = get_writer_config("writer_b")
     boxes = {"writer_a": writer_a.label, "writer_b": writer_b.label}

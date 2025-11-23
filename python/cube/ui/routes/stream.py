@@ -12,8 +12,7 @@ from typing import Any, AsyncGenerator, Deque, Dict, Iterable, Set
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from cube.core.dual_layout import DualWriterLayout
-from cube.core.triple_layout import TripleJudgeLayout
+from cube.core.dynamic_layout import DynamicLayout
 
 from ..sse_layout import SSELayout
 
@@ -121,11 +120,11 @@ class TaskStreamState:
     def ensure_writers_layout(self) -> None:
         if "writers" in self._layouts:
             return
-        DualWriterLayout.reset()
+        DynamicLayout.reset()
         # ----------------------------------------------------------------------
         # CRITICAL INTEGRATION PATTERN: "Layout hijacking"
         #
-        # DualWriterLayout and TripleJudgeLayout expose class-level singleton
+        # DynamicLayout exposes class-level singleton
         # instances that automation commands interact with directly. By swapping
         # the `_instance` for our SSELayout adapter we transparently intercept
         # every `add_thinking` / `add_output` call made by automation without
@@ -144,7 +143,7 @@ class TaskStreamState:
         # the CLI experience.
         # ----------------------------------------------------------------------
         layout = SSELayout(self.task_id, WRITER_BOXES, self.queue)
-        DualWriterLayout._instance = layout  # type: ignore[attr-defined]
+        DynamicLayout._instance = layout  # type: ignore[attr-defined]
         self._layouts["writers"] = layout
 
     def release_writers_layout(self) -> None:
@@ -152,15 +151,15 @@ class TaskStreamState:
             return
         # reset() reinstates the original BaseThinkingLayout-backed singleton
         # so future CLI usage behaves exactly as before streaming began.
-        DualWriterLayout.reset()
+        DynamicLayout.reset()
         self._layouts.pop("writers", None)
 
     def ensure_judges_layout(self) -> None:
         if "judges" in self._layouts:
             return
-        TripleJudgeLayout.reset()
+        DynamicLayout.reset()
         layout = SSELayout(self.task_id, JUDGE_BOXES, self.queue)
-        TripleJudgeLayout._instance = layout  # type: ignore[attr-defined]
+        DynamicLayout._instance = layout  # type: ignore[attr-defined]
         self._layouts["judges"] = layout
 
     def release_judges_layout(self) -> None:
@@ -168,7 +167,7 @@ class TaskStreamState:
             return
         # Mirror the writers flow: restore the default singleton to avoid
         # leaking the SSE adapter once no subscribers are connected.
-        TripleJudgeLayout.reset()
+        DynamicLayout.reset()
         self._layouts.pop("judges", None)
 
     def publish_status(self, status: str, **payload: Any) -> None:
