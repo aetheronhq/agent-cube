@@ -12,21 +12,19 @@ class TripleJudgeLayout:
         if cls._instance is None:
             from ..core.user_config import get_judge_configs
             judges = get_judge_configs()
-            boxes = {f"judge_{j.number}": j.label for j in judges}
+            boxes = {j.key: j.label for j in judges}
             cls._instance = BaseThinkingLayout(boxes, lines_per_box=2)
         return cls._instance
     
     @classmethod
-    def add_thinking(cls, judge_num: int, text: str):
+    def add_thinking(cls, judge_key: str, text: str):
         """Add thinking from a specific judge."""
-        box_id = f"judge_{judge_num}"
-        cls.get_instance().add_thinking(box_id, text)
+        cls.get_instance().add_thinking(judge_key, text)
     
     @classmethod
-    def mark_complete(cls, judge_num: int, status: str = None):
+    def mark_complete(cls, judge_key: str, status: str = None):
         """Mark a judge as complete with optional status."""
-        box_id = f"judge_{judge_num}"
-        cls.get_instance().mark_complete(box_id, status)
+        cls.get_instance().mark_complete(judge_key, status)
     
     @classmethod
     def add_output(cls, line: str):

@@ -49,10 +49,10 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
     logs_dir = Path.home() / ".cube" / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     
-    log_file = logs_dir / f"judge-{judge_info.number}-{judge_info.task_id}-{judge_info.review_type}-{int(datetime.now().timestamp())}.json"
+    log_file = logs_dir / f"{judge_info.key}-{judge_info.task_id}-{judge_info.review_type}-{int(datetime.now().timestamp())}.json"
     
-    session_file = get_sessions_dir() / f"JUDGE_{judge_info.number}_{judge_info.task_id}_{judge_info.review_type}_SESSION_ID.txt"
-    metadata = f"Judge {judge_info.number} - {judge_info.task_id} - {judge_info.review_type} - {datetime.now()}"
+    session_file = get_sessions_dir() / f"{judge_info.key.upper()}_{judge_info.task_id}_{judge_info.review_type}_SESSION_ID.txt"
+    metadata = f"{judge_info.label} ({judge_info.key}) - {judge_info.task_id} - {judge_info.review_type} - {datetime.now()}"
     
     watcher = SessionWatcher(log_file, session_file, metadata)
     watcher.start()
@@ -62,12 +62,12 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
         with open(log_file, 'w') as f:
             session_id = judge_info.session_id if resume else None
             
-            console.print(f"[dim]Judge {judge_info.number}: Starting with model {judge_info.model} (CLI: {cli_name})...[/dim]")
+            console.print(f"[dim]{judge_info.label}: Starting with model {judge_info.model} (CLI: {cli_name})...[/dim]")
             
             from ..core.config import WORKTREE_BASE
             run_dir = WORKTREE_BASE.parent if cli_name == "gemini" else PROJECT_ROOT
             
-            judge_specific_prompt = prompt.replace("{judge_number}", str(judge_info.number))
+            judge_specific_prompt = prompt.replace("{judge_key}", judge_info.key)
             
             stream = adapter.run(
                 run_dir,
@@ -87,24 +87,24 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                     if msg.session_id and not judge_info.session_id:
                         judge_info.session_id = msg.session_id
                     
-                    formatted = format_stream_message(msg, f"Judge {judge_info.number}", judge_info.color)
+                    formatted = format_stream_message(msg, judge_info.label, judge_info.color)
                     if formatted:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(judge_info.number, thinking_text)
+                            layout.add_thinking(judge_info.key, thinking_text)
                         else:
                             layout.add_output(formatted)
     finally:
         watcher.stop()
     
     if line_count < 10:
-        raise RuntimeError(f"Judge {judge_info.number} completed suspiciously quickly ({line_count} lines). Check {log_file}")
+        raise RuntimeError(f"{judge_info.label} completed suspiciously quickly ({line_count} lines). Check {log_file}")
     
     from ..core.decision_files import find_decision_file
     import json
     
     status = "Review complete"
-    decision_file = find_decision_file(judge_info.number, judge_info.task_id, 
+    decision_file = find_decision_file(judge_info.key, judge_info.task_id, 
                                        "peer-review" if judge_info.review_type == "peer-review" else "decision")
     
     if decision_file and decision_file.exists():
@@ -129,8 +129,8 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
         except (json.JSONDecodeError, KeyError, FileNotFoundError):
             pass
     
-    layout.mark_complete(judge_info.number, status)
-    console.print(f"[{judge_info.color}][Judge {judge_info.number}][/{judge_info.color}] ✅ Completed")
+    layout.mark_complete(judge_info.key, status)
+    console.print(f"[{judge_info.color}][{judge_info.label}][/{judge_info.color}] ✅ Completed")
     return line_count
 
 async def launch_judge_panel(
@@ -286,21 +286,19 @@ Use absolute path when writing the file. The project root is available in your w
     
     judges: List[JudgeInfo] = []
     for jconfig in judge_configs:
-        judge_num = jconfig.number
-        
         session_id = None
         if resume_mode:
             if review_type == "peer-review":
-                session_id = load_session(f"JUDGE_{judge_num}", f"{task_id}_panel")
+                session_id = load_session(jconfig.key.upper(), f"{task_id}_panel")
             else:
-                session_id = load_session(f"JUDGE_{judge_num}", f"{task_id}_{review_type}")
+                session_id = load_session(jconfig.key.upper(), f"{task_id}_{review_type}")
             
             if not session_id:
-                raise RuntimeError(f"No session found for Judge {judge_num}")
+                raise RuntimeError(f"No session found for {jconfig.label}")
         
         judges.append(
             JudgeInfo(
-                number=judge_num,
+                key=jconfig.key,
                 model=jconfig.model,
                 color=jconfig.color,
                 label=jconfig.label,

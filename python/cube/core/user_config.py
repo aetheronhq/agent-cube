@@ -19,7 +19,6 @@ class WriterConfig:
 class JudgeConfig:
     """Configuration for a judge persona."""
     key: str
-    number: int
     model: str
     label: str
     color: str
@@ -190,12 +189,10 @@ def load_config() -> CubeConfig:
     judge_alias_map: Dict[str, str] = {}
     for idx, (key, j) in enumerate(data.get("judges", {}).items()):
         judge_order.append(key)
-        number = idx + 1
         judge_cfg = JudgeConfig(
             key=key,
-            number=number,
             model=j.get("model", "sonnet-4.5-thinking"),
-            label=j.get("label", f"Judge {number}"),
+            label=j.get("label", key),
             color=j.get("color", "green"),
             type=j.get("type", "llm"),
             cmd=j.get("cmd")
@@ -205,8 +202,6 @@ def load_config() -> CubeConfig:
         aliases = {
             key,
             key.replace("_", "-"),
-            f"judge-{number}",
-            str(number),
             judge_cfg.label.lower(),
         }
         for alias in aliases:

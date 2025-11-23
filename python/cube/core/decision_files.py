@@ -4,18 +4,18 @@ from pathlib import Path
 from typing import Optional
 from .config import PROJECT_ROOT, WORKTREE_BASE
 
-def find_decision_file(judge_num: int, task_id: str, decision_type: str = "decision") -> Optional[Path]:
+def find_decision_file(judge_key: str, task_id: str, decision_type: str = "decision") -> Optional[Path]:
     """Find a decision file, checking fallback locations and auto-copying.
     
     Args:
-        judge_num: Judge number (1, 2, or 3)
+        judge_key: Judge key (e.g., "judge_1", "judge_3", "foobar")
         task_id: Task ID
         decision_type: 'decision' for panel, 'peer-review' for peer review
     
     Returns:
         Path to decision file in primary location (after copying if needed), or None
     """
-    filename = f"judge-{judge_num}-{task_id}-{decision_type}.json"
+    filename = f"{judge_key}-{task_id}-{decision_type}.json".replace("_", "-")
     primary_path = PROJECT_ROOT / ".prompts" / "decisions" / filename
     
     if primary_path.exists():
