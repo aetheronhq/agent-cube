@@ -79,7 +79,7 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
             from ..core.config import WORKTREE_BASE
             run_dir = WORKTREE_BASE.parent if cli_name == "gemini" else PROJECT_ROOT
             
-            judge_specific_prompt = prompt.replace("{judge_key}", judge_info.key)
+            judge_specific_prompt = prompt.replace("{{judge_key}}", judge_info.key).replace("{judge_key}", judge_info.key)
             
             stream = adapter.run(
                 run_dir,
