@@ -20,13 +20,19 @@ class CursorParser(ParserAdapter):
                 session_id=data.get("session_id")
             )
             
+            # Handle direct content field (from CLIReviewAdapter and other internal tools)
+            if "content" in data:
+                msg.content = data["content"]
+            
             if msg.type == "system" and msg.subtype == "init":
                 return msg
             
             if msg.type == "thinking":
-                text = data.get("text", "")
+                # Try "text" field first (standard cursor format), then use pre-set content
+                text = data.get("text")
                 if text:
                     msg.content = text
+                if msg.content:
                     return msg
             
             if msg.type == "assistant":
