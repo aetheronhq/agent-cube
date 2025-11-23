@@ -46,39 +46,61 @@ class CLIReviewAdapter(CLIAdapter):
             yield '{"type": "assistant", "content": "ERROR: No writer worktrees configured for CLI review"}'
             return
 
-        reviews = {}
+        # Run tool in parallel for both writers with real-time streaming
+        yield f'{{"type": "assistant", "content": "🔍 Running {self.tool_name} on both writers in parallel..."}}'
         
-        # Run tool for each writer (sequential for now - shows output in real-time)
-        for writer, wt_path in self.writer_worktrees.items():
-            yield f'{{"type": "assistant", "content": "🔍 Running {self.tool_name} on {writer}..."}}'
-            
+        reviews = {}
+        output_buffers = {"Writer A": [], "Writer B": []}
+        line_counts = {"Writer A": 0, "Writer B": 0}
+        
+        async def stream_tool_output(writer: str, wt_path: Path, queue: asyncio.Queue):
+            """Run tool and push output to shared queue."""
             cmd_str = self.tool_cmd.replace("{{worktree}}", str(wt_path))
             import shlex
             cmd_args = shlex.split(cmd_str)
             
-            output_buffer = []
-            line_count = 0
-            
             try:
                 async for line in run_subprocess_streaming(cmd_args, wt_path, self.tool_name):
-                    line_count += 1
                     clean_line = line.strip().replace('"', '\\"').replace('\\', '\\\\')
                     if clean_line:
                         if not clean_line.endswith(('.', '!', '?')):
                             clean_line += '.'
-                        yield f'{{"type": "thinking", "content": "[{self.tool_name}] {clean_line}"}}'
-                    output_buffer.append(line)
+                        await queue.put((writer, "thinking", clean_line))
+                    output_buffers[writer].append(line)
+                    line_counts[writer] += 1
             except RuntimeError as e:
-                yield f'{{"type": "assistant", "content": "❌ ERROR: {self.tool_name} failed on {writer}: {str(e)}"}}'
-                continue
+                await queue.put((writer, "error", str(e)))
+            finally:
+                await queue.put((writer, "done", None))
+        
+        # Create queue and start both tasks
+        queue = asyncio.Queue()
+        tasks = [stream_tool_output(w, p, queue) for w, p in self.writer_worktrees.items()]
+        worker_tasks = [asyncio.create_task(t) for t in tasks]
+        
+        # Stream output as it arrives
+        completed = set()
+        while len(completed) < len(self.writer_worktrees):
+            writer, msg_type, content = await queue.get()
             
-            review_text = "\n".join(output_buffer)
-            reviews[writer] = review_text
-            
-            if line_count == 0:
-                yield f'{{"type": "assistant", "content": "⚠️  {self.tool_name} produced no output for {writer}"}}'
-            else:
-                yield f'{{"type": "assistant", "content": "✅ {self.tool_name} complete: {line_count} lines from {writer}"}}'
+            if msg_type == "thinking":
+                yield f'{{"type": "thinking", "content": "[{self.tool_name}/{writer}] {content}"}}'
+            elif msg_type == "error":
+                yield f'{{"type": "assistant", "content": "❌ ERROR: {self.tool_name} failed on {writer}: {content}"}}'
+                completed.add(writer)
+            elif msg_type == "done":
+                completed.add(writer)
+                if line_counts[writer] == 0:
+                    yield f'{{"type": "assistant", "content": "⚠️  {self.tool_name} produced no output for {writer}"}}'
+                else:
+                    yield f'{{"type": "assistant", "content": "✅ {self.tool_name} complete: {line_counts[writer]} lines from {writer}"}}'
+        
+        # Wait for tasks to finish
+        await asyncio.gather(*worker_tasks, return_exceptions=True)
+        
+        # Build reviews dict
+        for writer in self.writer_worktrees.keys():
+            reviews[writer] = "\n".join(output_buffers[writer])
 
         # 3. Run Synthesis Agent
         # Important milestone -> main output
