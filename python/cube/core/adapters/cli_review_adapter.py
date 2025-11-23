@@ -13,7 +13,6 @@ class CLIReviewAdapter(CLIAdapter):
     def __init__(self, config: Dict[str, Any]):
         """Initialize with tool configuration."""
         self.tool_cmd = config.get("cmd")
-        self.orch_model = config.get("orchestrator", "claude-3-5-sonnet")
         
         if not self.tool_cmd:
             raise ValueError("CLIReviewAdapter requires 'cmd' config")

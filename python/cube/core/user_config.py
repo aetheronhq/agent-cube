@@ -26,7 +26,6 @@ class JudgeConfig:
     # New fields for CLI reviewers
     type: str = "llm"  # "llm" or "cli-review"
     cmd: Optional[str] = None
-    orchestrator: Optional[str] = None
 
 @dataclass
 class CubeConfig:
@@ -199,8 +198,7 @@ def load_config() -> CubeConfig:
             label=j.get("label", f"Judge {number}"),
             color=j.get("color", "green"),
             type=j.get("type", "llm"),
-            cmd=j.get("cmd"),
-            orchestrator=j.get("orchestrator")
+            cmd=j.get("cmd")
         )
         judges[key] = judge_cfg
         

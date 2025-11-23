@@ -1,9 +1,0 @@
-#!/bin/bash
-# Fake CodeRabbit CLI
-
-echo "Starting CodeRabbit review..."
-echo "Reviewing branch: $PWD"
-echo "## Summary"
-echo "Found 2 issues."
-echo "[ERROR] src/main.py:42 - SQL Injection vulnerability detected."
-echo "Review complete."
