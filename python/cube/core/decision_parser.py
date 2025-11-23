@@ -10,7 +10,7 @@ from .config import PROJECT_ROOT
 @dataclass
 class JudgeDecision:
     """Parsed decision from a judge."""
-    judge: int
+    judge: str
     task_id: str
     decision: str
     winner: str
@@ -20,19 +20,19 @@ class JudgeDecision:
     recommendation: str
     timestamp: str
 
-def get_decision_file_path(judge_num: int, task_id: str) -> Path:
+def get_decision_file_path(judge_key: str, task_id: str) -> Path:
     """Get the path to a judge's decision JSON file."""
     from .decision_files import find_decision_file
     
-    found = find_decision_file(judge_num, task_id, "decision")
+    found = find_decision_file(judge_key, task_id, "decision")
     if found:
         return found
     
-    return PROJECT_ROOT / ".prompts" / "decisions" / f"judge-{judge_num}-{task_id}-decision.json"
+    return PROJECT_ROOT / ".prompts" / "decisions" / f"{judge_key.replace('_', '-')}-{task_id}-decision.json"
 
-def parse_judge_decision(judge_num: int, task_id: str) -> Optional[JudgeDecision]:
+def parse_judge_decision(judge_key: str, task_id: str) -> Optional[JudgeDecision]:
     """Parse a single judge's decision JSON file with flexible format support."""
-    decision_file = get_decision_file_path(judge_num, task_id)
+    decision_file = get_decision_file_path(judge_key, task_id)
     
     if not decision_file.exists():
         return None
@@ -41,14 +41,14 @@ def parse_judge_decision(judge_num: int, task_id: str) -> Optional[JudgeDecision
         with open(decision_file) as f:
             data = json.load(f)
         
-        # Extract judge number (flexible field names)
+        # Extract judge key (flexible field names)
         judge_id = data.get("judge")
         if judge_id is None:
-            judge_id_str = data.get("judge_id", f"judge-{judge_num}")
-            if isinstance(judge_id_str, str) and "judge-" in judge_id_str:
-                judge_id = int(judge_id_str.replace("judge-", ""))
-            else:
-                judge_id = judge_num
+            judge_id = data.get("judge_id", judge_key)
+        
+        # Ensure judge_id is a string
+        if not isinstance(judge_id, str):
+            judge_id = str(judge_id)
         
         # Extract decision (try top-level, then nested)
         decision = data.get("decision")
@@ -64,13 +64,13 @@ def parse_judge_decision(judge_num: int, task_id: str) -> Optional[JudgeDecision
         if not winner and "comparison" in data:
             winner = data["comparison"].get("better_implementation", "TIE")
         
-        # Normalize winner format (writer_a/writer_b → A/B)
+        # Normalize winner format to writer keys
         if isinstance(winner, str):
             winner_lower = winner.lower()
             if "writer_a" in winner_lower or winner_lower == "a":
-                winner = "A"
+                winner = "writer_a"
             elif "writer_b" in winner_lower or winner_lower == "b":
-                winner = "B"
+                winner = "writer_b"
             else:
                 winner = "TIE"
         
@@ -136,7 +136,7 @@ def parse_judge_decision(judge_num: int, task_id: str) -> Optional[JudgeDecision
             timestamp=data.get("timestamp", "")
         )
     except (json.JSONDecodeError, Exception) as e:
-        raise RuntimeError(f"Invalid decision file for Judge {judge_num}: {e}\nFile: {decision_file}")
+        raise RuntimeError(f"Invalid decision file for Judge {judge_key}: {e}\nFile: {decision_file}")
 
 def parse_all_decisions(task_id: str) -> List[JudgeDecision]:
     """Parse all judge decisions for a task."""
@@ -146,7 +146,7 @@ def parse_all_decisions(task_id: str) -> List[JudgeDecision]:
     judge_configs = get_judge_configs()
     
     for jconfig in judge_configs:
-        decision = parse_judge_decision(jconfig.number, task_id)
+        decision = parse_judge_decision(jconfig.key, task_id)
         if decision:
             decisions.append(decision)
     
@@ -166,8 +166,8 @@ def aggregate_decisions(decisions: List[JudgeDecision]) -> Dict[str, Any]:
     request_changes = sum(1 for d in decisions if d.decision == "REQUEST_CHANGES")
     rejections = sum(1 for d in decisions if d.decision == "REJECTED")
     
-    a_wins = sum(1 for d in decisions if d.winner == "A")
-    b_wins = sum(1 for d in decisions if d.winner == "B")
+    a_wins = sum(1 for d in decisions if d.winner == "writer_a")
+    b_wins = sum(1 for d in decisions if d.winner == "writer_b")
     ties = sum(1 for d in decisions if d.winner == "TIE")
     
     avg_score_a = sum(d.scores_a for d in decisions) / len(decisions)
@@ -177,22 +177,21 @@ def aggregate_decisions(decisions: List[JudgeDecision]) -> Dict[str, Any]:
     for d in decisions:
         all_blockers.extend(d.blocker_issues)
     
-    winner = "B" if b_wins > a_wins else ("A" if a_wins > b_wins else "TIE")
+    winner = "writer_b" if b_wins > a_wins else ("writer_a" if a_wins > b_wins else "TIE")
     
     has_clear_winner = (a_wins >= 2 or b_wins >= 2)
     
     if winner == "TIE":
-        next_action = "FEEDBACK"
-    elif approvals >= 2 and not all_blockers:
-        next_action = "MERGE"
+        next_action = "FEEDBACK"  # Both writers need changes
     elif has_clear_winner and all_blockers:
-        next_action = "SYNTHESIS"
+        next_action = "SYNTHESIS"  # Winner needs changes
     elif has_clear_winner and not all_blockers:
-        next_action = "MERGE"
-    elif not has_clear_winner:
-        next_action = "FEEDBACK"
+        next_action = "MERGE"  # Winner is ready
+    elif approvals >= 2 and not all_blockers:
+        next_action = "MERGE"  # Majority approved
     else:
-        next_action = "SYNTHESIS"
+        # Fallback: not has_clear_winner or other edge cases
+        next_action = "FEEDBACK"
     
     return {
         "consensus": approvals >= 2,
