@@ -136,7 +136,13 @@ You are a technical judge synthesizing results from a CLI review tool.
 2. Determine which implementation is better based ONLY on the review output.
 3. Output a JSON decision file.
 
-**CRITICAL: Do NOT use any tools (read_file, shell, etc.). Make your decision SOLELY based on the review output provided above. If reviews are empty, output a TIE decision.**
+**CRITICAL: Do NOT use any tools (read_file, shell, etc.). Make your decision SOLELY based on the review output provided above.**
+
+**If reviews contain errors or are empty:**
+- Use decision: "REQUEST_CHANGES"  
+- Use winner: "TIE"
+- Set blocker_issues to explain the tool failure
+- Do NOT approve when reviews failed
 
 ## JSON Format
 {{
