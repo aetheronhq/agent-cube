@@ -3,7 +3,7 @@
 import asyncio
 from pathlib import Path
 from ..core.agent import run_agent
-from ..core.dual_layout import get_dual_layout, DualWriterLayout
+from ..core.dual_layout import get_dual_layout
 from ..core.user_config import load_config, get_writer_config
 from ..core.parsers.registry import get_parser
 from ..core.config import WRITER_LETTERS
@@ -21,8 +21,15 @@ async def send_dual_feedback(
 ) -> None:
     """Send feedback to both writers in parallel with dual layout."""
     
-    DualWriterLayout.reset()
     layout = get_dual_layout()
+    layout.reset()
+    
+    # Initialize for feedback
+    from ..core.user_config import get_writer_config
+    writer_a = get_writer_config("writer_a")
+    writer_b = get_writer_config("writer_b")
+    boxes = {"prompter_a": f"Prompter A ({writer_a.label})", "prompter_b": f"Prompter B ({writer_b.label})"}
+    layout.initialize(boxes, lines_per_box=2)
     layout.start()
     
     config = load_config()
@@ -37,11 +44,11 @@ async def send_dual_feedback(
         async for line in stream:
             msg = parser.parse(line)
             if msg:
-                formatted = format_stream_message(msg, "Writer A", "green")
+                formatted = format_stream_message(msg, "Prompter A", "green")
                 if formatted:
                     if formatted.startswith("[thinking]"):
                         thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking("A", thinking_text)
+                        layout.add_thinking("prompter_a", thinking_text)
                     else:
                         layout.add_output(formatted)
     
@@ -54,11 +61,11 @@ async def send_dual_feedback(
         async for line in stream:
             msg = parser.parse(line)
             if msg:
-                formatted = format_stream_message(msg, "Writer B", "blue")
+                formatted = format_stream_message(msg, "Prompter B", "blue")
                 if formatted:
                     if formatted.startswith("[thinking]"):
                         thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking("B", thinking_text)
+                        layout.add_thinking("prompter_b", thinking_text)
                     else:
                         layout.add_output(formatted)
     

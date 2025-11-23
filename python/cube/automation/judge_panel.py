@@ -47,7 +47,14 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
         adapter.set_writer_worktrees(worktrees)
     
     parser = get_parser(cli_name)
+    
+    # Initialize dynamic layout if not already done
     layout = get_triple_layout()
+    if not layout._instance:
+        from ..core.user_config import get_judge_configs
+        judges = get_judge_configs()
+        boxes = {j.key: j.label for j in judges}
+        layout.initialize(boxes, lines_per_box=2)
     layout.start()
     
     from pathlib import Path

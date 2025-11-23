@@ -26,6 +26,8 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     config = load_user_config()
     cli_name = config.cli_tools.get(writer_info.model, "cursor-agent")
     parser = get_parser(cli_name)
+    
+    # Get layout (initialize done in launch_dual_writers)
     layout = get_dual_layout()
     layout.start()
     
@@ -111,6 +113,14 @@ async def launch_dual_writers(
     
     if not prompt_file.exists():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
+    
+    # Initialize dynamic layout
+    layout = get_dual_layout()
+    from ..core.user_config import get_writer_config
+    writer_a = get_writer_config("writer_a")
+    writer_b = get_writer_config("writer_b")
+    boxes = {"writer_a": writer_a.label, "writer_b": writer_b.label}
+    layout.initialize(boxes, lines_per_box=3)
     
     # Create minimal state file for UI tracking
     if not resume_mode:
