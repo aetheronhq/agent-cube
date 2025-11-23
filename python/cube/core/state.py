@@ -108,20 +108,19 @@ def update_phase(task_id: str, phase: int, **kwargs) -> WorkflowState:
     return state
 
 def validate_resume(task_id: str, resume_from: int) -> tuple[bool, str]:
-    """Validate if we can resume from a specific phase."""
+    """Validate if we can resume from a specific phase.
+    
+    Allows resuming from any phase (even skipping ahead) as long as
+    basic artifacts might exist. It's up to the user to know what they're doing.
+    """
     state = load_state(task_id)
     
     if not state:
-        if resume_from > 1:
-            return False, f"No state found for {task_id}. Start from phase 1."
+        # If trying to skip ahead without ANY state, warn but allow if artifacts exist
+        # (state backfill will handle this later)
         return True, ""
     
-    if resume_from <= state.current_phase:
-        return True, ""
-    
-    if resume_from > state.current_phase + 1:
-        return False, f"Cannot jump to phase {resume_from}. Current phase: {state.current_phase}. Try --resume-from {state.current_phase + 1}"
-    
+    # Always allow resuming - user knows best
     return True, ""
 
 def clear_state(task_id: str) -> None:

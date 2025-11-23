@@ -1,23 +1,34 @@
 """CLI adapter registry and factory."""
 
-from typing import Dict, Type
+from typing import Dict, Type, Any, Optional
 from ..cli_adapter import CLIAdapter
-from .coderabbit_adapter import CodeRabbitAdapter
 from .cursor_adapter import CursorAdapter
 from .gemini_adapter import GeminiAdapter
+from .cli_review_adapter import CLIReviewAdapter
 
 _ADAPTERS: Dict[str, Type[CLIAdapter]] = {
     "cursor-agent": CursorAdapter,
     "gemini": GeminiAdapter,
-    "coderabbit": CodeRabbitAdapter,
+    "cli-review": CLIReviewAdapter,
 }
 
-def get_adapter(cli_name: str) -> CLIAdapter:
-    """Get CLI adapter instance by name."""
+def get_adapter(cli_name: str, config: Optional[Dict[str, Any]] = None) -> CLIAdapter:
+    """Get CLI adapter instance by name.
+    
+    Args:
+        cli_name: Name of the adapter/tool
+        config: Optional configuration dict for adapters that need it (like CLIReviewAdapter)
+    """
     adapter_class = _ADAPTERS.get(cli_name)
     
     if not adapter_class:
         raise ValueError(f"Unknown CLI tool: {cli_name}. Available: {list(_ADAPTERS.keys())}")
+    
+    # Handle adapters that require config
+    if cli_name == "cli-review":
+        if not config:
+            raise ValueError("CLIReviewAdapter requires config")
+        return adapter_class(config)
     
     return adapter_class()
 
@@ -28,4 +39,3 @@ def register_adapter(name: str, adapter_class: Type[CLIAdapter]) -> None:
 def list_adapters() -> list[str]:
     """List all registered CLI adapters."""
     return list(_ADAPTERS.keys())
-

@@ -18,8 +18,12 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     """
     from ..core.decision_files import find_decision_file
     
+    from ..core.user_config import get_judge_configs
+    judge_configs = get_judge_configs()
+    judge_nums = [j.number for j in judge_configs]
+    
     if review_type == "auto":
-        has_peer = any(find_decision_file(j, task_id, "peer-review") for j in [1, 2, 3])
+        has_peer = any(find_decision_file(j, task_id, "peer-review") for j in judge_nums)
         actual_type = "peer-review" if has_peer else "panel"
         console.print(f"[dim]Auto-detected: {actual_type} review[/dim]")
     else:
@@ -49,13 +53,13 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
         print_error("No decision files found")
         console.print()
         console.print("Expected decision files:")
-        for judge_num in [1, 2, 3]:
+        for judge_num in judge_nums:
             decision_file = get_decision_file_path(judge_num, task_id)
             console.print(f"  {decision_file}")
         console.print()
         
         console.print("Missing decisions from:")
-        for judge_num in [1, 2, 3]:
+        for judge_num in judge_nums:
             decision_file = get_decision_file_path(judge_num, task_id)
             if not decision_file.exists():
                 session_id = load_session(f"JUDGE_{judge_num}", f"{task_id}_panel")
@@ -73,9 +77,10 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
         
         raise typer.Exit(1)
     
-    if len(decisions) < 3:
-        missing = [j for j in [1, 2, 3] if not any(d.judge == j for d in decisions)]
-        print_warning(f"Only {len(decisions)}/3 decisions found. Missing: Judge {', '.join(map(str, missing))}")
+    total_judges = len(judge_nums)
+    if len(decisions) < total_judges:
+        missing = [j for j in judge_nums if not any(d.judge == j for d in decisions)]
+        print_warning(f"Only {len(decisions)}/{total_judges} decisions found. Missing: Judge {', '.join(map(str, missing))}")
         console.print()
     
     for d in decisions:

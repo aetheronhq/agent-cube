@@ -79,13 +79,22 @@ def resume_command(
     if target_lower.startswith("judge-"):
         try:
             judge_num = int(target_lower.split("-")[1])
-            if judge_num not in [1, 2, 3]:
-                raise ValueError()
+            from ..core.user_config import get_judge_configs
+            valid_judge_nums = [j.number for j in get_judge_configs()]
+            
+            if judge_num not in valid_judge_nums:
+                print_error(f"Invalid judge number: {judge_num}")
+                print_error(f"Configured judges: {', '.join(f'judge-{n}' for n in valid_judge_nums)}")
+                raise typer.Exit(1)
             
             jconfig = get_judge_config(judge_num)
             model = jconfig.model
+        except typer.Exit:
+            raise
         except:
-            print_error(f"Invalid target: {target} (must be writer-sonnet, writer-codex, or judge-1/2/3)")
+            writer_aliases = get_writer_aliases()
+            print_error(f"Invalid target: {target}")
+            print_error(f"Valid targets: {', '.join(writer_aliases.keys())} or judge-N")
             raise typer.Exit(1)
     else:
         try:

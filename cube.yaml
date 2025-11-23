@@ -2,13 +2,19 @@
 
 writers:
   writer_a:
-    name: "gemini"
-    model: "gemini-3-pro-preview"
+    name: "codex"
+    model: "gpt-5.1-codex-high"
     label: "Writer A"
     color: "magenta"
 
 judges:
   judge_3:
     model: "gemini-3-pro"
-    label: "Gemini 3 Pro (Cursor)"
+    label: "Gemini 3 Pro"
     color: "magenta"
+  judge_4:
+    type: "cli-review"
+    cmd: "coderabbit review --plain --type all --cwd {{worktree}}"
+    orchestrator: "composer-1"
+    label: "CodeRabbit"
+    color: "blue"

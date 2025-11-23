@@ -125,9 +125,9 @@ class BaseThinkingLayout:
         else:
             for line in lines:
                 text.append(line + "\n", style="dim")
-            
-            while len(text.plain.split('\n')) < self.lines_per_box:
-                text.append("\n")
+        
+        while len(text.plain.split('\n')) < self.lines_per_box:
+            text.append("\n")
         
         icon = "💭" if "Writer" in title or "Prompter" in title else "⚖️ "
         

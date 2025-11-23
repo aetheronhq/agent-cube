@@ -140,10 +140,13 @@ def parse_judge_decision(judge_num: int, task_id: str) -> Optional[JudgeDecision
 
 def parse_all_decisions(task_id: str) -> List[JudgeDecision]:
     """Parse all judge decisions for a task."""
-    decisions = []
+    from .user_config import get_judge_configs
     
-    for judge_num in [1, 2, 3]:
-        decision = parse_judge_decision(judge_num, task_id)
+    decisions = []
+    judge_configs = get_judge_configs()
+    
+    for jconfig in judge_configs:
+        decision = parse_judge_decision(jconfig.number, task_id)
         if decision:
             decisions.append(decision)
     

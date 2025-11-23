@@ -157,13 +157,9 @@ MODELS, WRITER_COLORS, WRITER_LABELS, WRITER_LETTERS = _get_writer_metadata()
 def _get_judge_models_from_config() -> dict:
     """Load judge models from cube.yaml config."""
     try:
-        from .user_config import load_config
-        config = load_config()
-        return {
-            1: config.judges.judge_1.model,
-            2: config.judges.judge_2.model,
-            3: config.judges.judge_3.model,
-        }
+        from .user_config import get_judge_configs
+        configs = get_judge_configs()
+        return {judge.number: judge.model for judge in configs}
     except:
         # Fallback to defaults if config fails
         return {

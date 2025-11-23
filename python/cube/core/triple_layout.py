@@ -3,18 +3,16 @@
 from .base_layout import BaseThinkingLayout
 
 class TripleJudgeLayout:
-    """Fixed layout with 3 judge thinking boxes + output region."""
+    """Dynamic layout for judge thinking boxes + output region."""
     
     _instance = None
     
     @classmethod
     def get_instance(cls):
         if cls._instance is None:
-            boxes = {
-                "judge_1": "Judge 1",
-                "judge_2": "Judge 2",
-                "judge_3": "Judge 3"
-            }
+            from ..core.user_config import get_judge_configs
+            judges = get_judge_configs()
+            boxes = {f"judge_{j.number}": j.label for j in judges}
             cls._instance = BaseThinkingLayout(boxes, lines_per_box=2)
         return cls._instance
     

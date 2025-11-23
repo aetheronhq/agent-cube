@@ -21,7 +21,14 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
     from ..core.triple_layout import get_triple_layout
     
     config = load_user_config()
-    cli_name = config.cli_tools.get(judge_info.model, "cursor-agent")
+    
+    # Determine CLI tool based on judge type or model mapping
+    if judge_info.adapter_config and judge_info.adapter_config.get("type") == "cli-review":
+        cli_name = "cli-review"
+    else:
+        cli_name = config.cli_tools.get(judge_info.model, "cursor-agent")
+        
+    adapter = get_adapter(cli_name, judge_info.adapter_config)
     parser = get_parser(cli_name)
     layout = get_triple_layout()
     layout.start()
@@ -261,9 +268,13 @@ Use absolute path when writing the file. The project root is available in your w
     
     prompt = judge_assignments + review_instructions + base_prompt
     
+    from ..core.user_config import load_config as load_user_config, get_judge_configs
+    
+    judge_configs = get_judge_configs()
+    
     judges: List[JudgeInfo] = []
-    for judge_num in [1, 2, 3]:
-        jconfig = get_judge_config(judge_num)
+    for jconfig in judge_configs:
+        judge_num = jconfig.number
         
         session_id = None
         if resume_mode:
@@ -275,16 +286,22 @@ Use absolute path when writing the file. The project root is available in your w
             if not session_id:
                 raise RuntimeError(f"No session found for Judge {judge_num}")
         
-        judge = JudgeInfo(
-            number=judge_num,
-            model=jconfig.model,
-            color=jconfig.color,
-            label=jconfig.label,
-            task_id=task_id,
-            review_type=review_type,
-            session_id=session_id
+        judges.append(
+            JudgeInfo(
+                number=judge_num,
+                model=jconfig.model,
+                color=jconfig.color,
+                label=jconfig.label,
+                task_id=task_id,
+                review_type=review_type,
+                session_id=session_id,
+                adapter_config={
+                    "type": jconfig.type,
+                    "cmd": jconfig.cmd,
+                    "orchestrator": jconfig.orchestrator
+                } if jconfig.type == "cli-review" else None
+            )
         )
-        judges.append(judge)
     
     if resume_mode:
         print_info(f"Resuming Judge Panel for Task: {task_id}")
@@ -306,27 +323,31 @@ Use absolute path when writing the file. The project root is available in your w
     print_info("Fetching latest changes from writer branches...")
     fetch_branches()
     
-    for writer_name in ["sonnet", "codex"]:
-        branch = f"writer-{writer_name}/{task_id}"
+    config = load_user_config()
+    
+    for writer_key in config.writer_order:
+        writer_cfg = config.writers[writer_key]
+        branch = f"writer-{writer_cfg.name}/{task_id}"
         if branch_exists(branch):
             commit = get_commit_hash(branch)
             console.print(f"  📍 {branch}: {commit}")
     console.print()
     
     console.print("━" * 60)
-    console.print("[bold yellow]⚖️  JUDGES: Review both writer implementations[/bold yellow]")
+    console.print("[bold yellow]⚖️  JUDGES: Review all writer implementations[/bold yellow]")
     console.print()
-    console.print(f"Writer A: [green]~/.cube/worktrees/{project_name}/writer-sonnet-{task_id}/[/green]")
-    console.print(f"Writer B: [blue]~/.cube/worktrees/{project_name}/writer-codex-{task_id}/[/blue]")
+    for writer_key in config.writer_order:
+        writer_cfg = config.writers[writer_key]
+        console.print(
+            f"{writer_cfg.label}: [green]~/.cube/worktrees/{project_name}/writer-{writer_cfg.name}-{task_id}/[/green]"
+        )
     console.print()
     console.print("Use your native tools (read_file, git commands, etc.)")
     console.print("━" * 60)
     console.print()
     
-    from ..core.user_config import load_config as load_user_config
     from ..core.adapters.registry import get_adapter
     
-    config = load_user_config()
     for judge in judges:
         cli_name = config.cli_tools.get(judge.model, "cursor-agent")
         adapter = get_adapter(cli_name)
@@ -336,17 +357,14 @@ Use absolute path when writing the file. The project root is available in your w
             console.print(adapter.get_install_instructions())
             raise RuntimeError(f"{cli_name} not installed")
     
-    console.print(f"🚀 Starting {judges[0].label} with {judges[0].model}...")
-    console.print(f"🚀 Starting {judges[1].label} with {judges[1].model}...")
-    console.print(f"🚀 Starting {judges[2].label} with {judges[2].model}...")
+    for judge in judges:
+        console.print(f"🚀 Starting {judge.label} with {judge.model}...")
     console.print()
-    console.print("⏳ Waiting for all 3 judges to complete...")
+    console.print(f"⏳ Waiting for all {len(judges)} judges to complete...")
     console.print()
     
     results = await asyncio.gather(
-        run_judge(judges[0], prompt, resume_mode),
-        run_judge(judges[1], prompt, resume_mode),
-        run_judge(judges[2], prompt, resume_mode),
+        *(run_judge(judge, prompt, resume_mode) for judge in judges),
         return_exceptions=True
     )
     

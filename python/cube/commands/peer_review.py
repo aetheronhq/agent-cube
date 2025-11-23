@@ -15,7 +15,7 @@ def peer_review_command(
     peer_review_prompt_file: str,
     fresh: bool = False
 ) -> None:
-    """Resume original 3 judges from initial panel for peer review."""
+    """Resume original judges from initial panel for peer review."""
     
     if not check_cursor_agent():
         print_error("cursor-agent CLI is not installed")
@@ -36,21 +36,27 @@ def peer_review_command(
         else:
             print_info("Resuming original judge panel for peer review")
             from ..core.session import session_exists
+            from ..core.user_config import get_judge_configs
             
-            for judge_num in [1, 2, 3]:
-                if not session_exists(f"JUDGE_{judge_num}", f"{task_id}_panel"):
-                    print_error(f"Could not find panel session IDs for task: {task_id}")
-                    print()
-                    print("Make sure you've run the panel first:")
-                    print(f"  cube panel {task_id} <panel-prompt.md>")
-                    print()
-                    print("Session files expected:")
-                    print(f"  .agent-sessions/JUDGE_1_{task_id}_panel_SESSION_ID.txt")
-                    print(f"  .agent-sessions/JUDGE_2_{task_id}_panel_SESSION_ID.txt")
-                    print(f"  .agent-sessions/JUDGE_3_{task_id}_panel_SESSION_ID.txt")
-                    print()
-                    print("Or use --fresh to launch new judges instead")
-                    raise typer.Exit(1)
+            judge_configs = get_judge_configs()
+            missing_sessions = []
+            
+            for jconfig in judge_configs:
+                if not session_exists(f"JUDGE_{jconfig.number}", f"{task_id}_panel"):
+                    missing_sessions.append(jconfig.number)
+            
+            if missing_sessions:
+                print_error(f"Could not find panel session IDs for task: {task_id}")
+                print()
+                print("Make sure you've run the panel first:")
+                print(f"  cube panel {task_id} <panel-prompt.md>")
+                print()
+                print("Session files expected:")
+                for num in missing_sessions:
+                    print(f"  .agent-sessions/JUDGE_{num}_{task_id}_panel_SESSION_ID.txt")
+                print()
+                print("Or use --fresh to launch new judges instead")
+                raise typer.Exit(1)
             
             asyncio.run(launch_judge_panel(task_id, prompt_path, "peer-review", resume_mode=True))
         
