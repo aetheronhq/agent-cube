@@ -51,7 +51,12 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
         with open(log_file, 'w') as f:
             session_id = judge_info.session_id if resume else None
             
-            console.print(f"[dim]Judge {judge_info.number}: Starting with model {judge_info.model} (CLI: {cli_name})...[/dim]")
+            if cli_name == "cli-review" and judge_info.adapter_config:
+                tool = judge_info.adapter_config.get("cmd", "unknown").split()[0]
+                orch = judge_info.adapter_config.get("orchestrator") or judge_info.model
+                console.print(f"[dim]Judge {judge_info.number}: Running {tool} review (Synthesizer: {orch})...[/dim]")
+            else:
+                console.print(f"[dim]Judge {judge_info.number}: Starting with model {judge_info.model} (CLI: {cli_name})...[/dim]")
             
             from ..core.config import WORKTREE_BASE
             run_dir = WORKTREE_BASE.parent if cli_name == "gemini" else PROJECT_ROOT
@@ -299,7 +304,8 @@ Use absolute path when writing the file. The project root is available in your w
                 adapter_config={
                     "type": jconfig.type,
                     "cmd": jconfig.cmd,
-                    "orchestrator": jconfig.orchestrator
+                    "orchestrator": jconfig.orchestrator,
+                    "name": jconfig.label
                 } if jconfig.type == "cli-review" else None
             )
         )

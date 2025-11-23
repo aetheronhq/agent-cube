@@ -18,7 +18,8 @@ class CLIReviewAdapter(CLIAdapter):
         if not self.tool_cmd:
             raise ValueError("CLIReviewAdapter requires 'cmd' config")
             
-        self.tool_name = self.tool_cmd.split()[0]
+        # Use provided name or derive from command
+        self.tool_name = config.get("name") or self.tool_cmd.split()[0]
             
         self.tool_name = self.tool_cmd.split()[0]
 
