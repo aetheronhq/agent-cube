@@ -41,9 +41,9 @@ class DynamicLayout:
         cls.get_instance().add_assistant_message(key, content, label, color)
     
     @classmethod
-    def add_tool_event(cls, line: str):
-        """Add tool call/error to main output (immediate, no buffering)."""
-        cls.get_instance().add_output(line)
+    def add_output(cls, line: str, buffered: bool = False):
+        """Add to main output (immediate)."""
+        cls.get_instance().add_output(line, buffered)
     
     @classmethod
     def mark_complete(cls, key: str, status: str = None):
