@@ -312,7 +312,8 @@ Use absolute path when writing the file. The project root is available in your w
                 session_id=session_id,
                 adapter_config={
                     "type": jconfig.type,
-                    "cmd": jconfig.cmd
+                    "cmd": jconfig.cmd,
+                    "name": jconfig.label
                 } if jconfig.type == "cli-review" else None
             )
         )
