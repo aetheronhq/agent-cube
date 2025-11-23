@@ -594,9 +594,9 @@ def run_decide_peer_review(task_id: str) -> dict:
 async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
     """Phase 6: Run synthesis if needed."""
     from pathlib import Path as PathLib
-    from ..core.user_config import get_writer_by_letter
+    from ..core.user_config import get_writer_by_key_or_letter
     
-    winner_cfg = get_writer_by_letter(result["winner"])
+    winner_cfg = get_writer_by_key_or_letter(result["winner"])
     winner_name = result["winner"]
     
     synthesis_path = prompts_dir / f"synthesis-{task_id}.md"
@@ -606,28 +606,29 @@ async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
         
         logs_dir = PathLib.home() / ".cube" / "logs"
         
+        from ..core.user_config import get_judge_configs
+        judge_configs = get_judge_configs()
+        judge_decision_files = '\n'.join([f"- `.prompts/decisions/{j.key.replace('_', '-')}-{task_id}-decision.json`" for j in judge_configs])
+        judge_log_files = '\n'.join([f"- `~/.cube/logs/{j.key.replace('_', '-')}-{task_id}-panel-*.json`" for j in judge_configs])
+        
         prompt = f"""Generate a synthesis prompt for the WINNING writer.
 
 ## Context
 
 Task: {task_id}
-Winner: Writer {winner_name} ({winner})
-Winner's branch: writer-{winner}/{task_id}
-Winner's location: ~/.cube/worktrees/PROJECT/writer-{winner}-{task_id}/
+Winner: Writer {winner_name} ({winner_cfg.label})
+Winner's branch: writer-{winner_cfg.name}/{task_id}
+Winner's location: ~/.cube/worktrees/PROJECT/writer-{winner_cfg.name}-{task_id}/
 
 ## Available Information
 
 **Judge Decisions (JSON with detailed feedback):**
-- `.prompts/decisions/judge-1-{task_id}-decision.json`
-- `.prompts/decisions/judge-2-{task_id}-decision.json`
-- `.prompts/decisions/judge-3-{task_id}-decision.json`
+{judge_decision_files}
 
 Read these for full context on what judges liked/disliked.
 
 **Judge Logs (reasoning and analysis):**
-- `~/.cube/logs/judge-1-{task_id}-panel-*.json`
-- `~/.cube/logs/judge-2-{task_id}-panel-*.json`
-- `~/.cube/logs/judge-3-{task_id}-panel-*.json`
+{judge_log_files}
 
 Optional: Read for deeper understanding of judge concerns.
 
@@ -680,19 +681,19 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
     from ..core.config import WORKTREE_BASE
     from pathlib import Path
     
-    session_id = load_session(f"WRITER_{'A' if winner == 'sonnet' else 'B'}", task_id)
+    session_id = load_session(f"WRITER_{winner_cfg.letter}", task_id)
     if not session_id:
         raise RuntimeError(f"No session found for Writer {winner_name}. Cannot send synthesis.")
     
     project_name = Path(PROJECT_ROOT).name
-    worktree = WORKTREE_BASE / project_name / f"writer-{winner}-{task_id}"
-    await send_feedback_async(winner, task_id, synthesis_path, session_id, worktree)
+    worktree = WORKTREE_BASE / project_name / f"writer-{winner_cfg.name}-{task_id}"
+    await send_feedback_async(winner_cfg.name, task_id, synthesis_path, session_id, worktree)
 
 async def run_peer_review(task_id: str, result: dict, prompts_dir: Path):
     """Phase 7: Run peer review."""
-    from ..core.user_config import get_writer_by_letter
+    from ..core.user_config import get_writer_by_key_or_letter
     
-    winner_cfg = get_writer_by_letter(result["winner"])
+    winner_cfg = get_writer_by_key_or_letter(result["winner"])
     winner_name = result["winner"]
     
     peer_review_path = prompts_dir / f"peer-review-{task_id}.md"
@@ -705,13 +706,13 @@ async def run_peer_review(task_id: str, result: dict, prompts_dir: Path):
 ## Context
 
 Task: {task_id}
-Winner: Writer {winner_name} ({winner})
-Branch: writer-{winner}/{task_id}
+Winner: {winner_cfg.label} (key: {winner_cfg.key})
+Branch: writer-{winner_cfg.name}/{task_id}
 
 ## Your Task
 
 Create a peer review prompt that tells the 3 judges to:
-1. Review ONLY Writer {winner_name}'s updated implementation
+1. Review ONLY {winner_cfg.label}'s updated implementation
 2. Verify synthesis changes were made correctly
 3. Confirm all blocker issues are resolved
 4. Write decision JSON: `.prompts/decisions/judge-{{{{N}}}}-{task_id}-peer-review.json`
@@ -752,9 +753,9 @@ Include the worktree location and git commands for reviewing."""
 
 async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):
     """Address minor issues from peer review."""
-    from ..core.user_config import get_writer_by_letter
+    from ..core.user_config import get_writer_by_key_or_letter
     
-    winner_cfg = get_writer_by_letter(result["winner"])
+    winner_cfg = get_writer_by_key_or_letter(result["winner"])
     
     minor_fixes_path = prompts_dir / f"minor-fixes-{task_id}.md"
     
@@ -829,19 +830,23 @@ Create a targeted feedback prompt for Writer {writer} that:
 
 Save to: `.prompts/feedback-{writer_letter}-{task_id}.md`"""
     
-    prompt_a = f"""Generate a feedback prompt for Writer A (Sonnet).
-
-Task: {task_id}
-Both writers need changes based on judge reviews.
-
-{prompt_base.format(task_id=task_id, writer='A', writer_slug='sonnet', writer_letter='a')}"""
+    from ..core.user_config import get_writer_config
+    writer_a = get_writer_config("writer_a")
+    writer_b = get_writer_config("writer_b")
     
-    prompt_b = f"""Generate a feedback prompt for Writer B (Codex).
+    prompt_a = f"""Generate a feedback prompt for {writer_a.label}.
 
 Task: {task_id}
 Both writers need changes based on judge reviews.
 
-{prompt_base.format(task_id=task_id, writer='B', writer_slug='codex', writer_letter='b')}"""
+{prompt_base.format(task_id=task_id, writer=writer_a.letter, writer_slug=writer_a.name, writer_letter=writer_a.letter.lower())}"""
+    
+    prompt_b = f"""Generate a feedback prompt for {writer_b.label}.
+
+Task: {task_id}
+Both writers need changes based on judge reviews.
+
+{prompt_base.format(task_id=task_id, writer=writer_b.letter, writer_slug=writer_b.name, writer_letter=writer_b.letter.lower())}"""
     
     console.print("Generating feedback for both writers in parallel...")
     console.print()
@@ -930,9 +935,9 @@ Both writers need changes based on judge reviews.
 async def create_pr(task_id: str, winner: str):
     """Create PR automatically."""
     import subprocess
-    from ..core.user_config import get_writer_by_letter
+    from ..core.user_config import get_writer_by_key_or_letter
     
-    winner_cfg = get_writer_by_letter(winner)
+    winner_cfg = get_writer_by_key_or_letter(winner)
     branch = f"writer-{winner_cfg.name}/{task_id}"
     
     console.print(f"[green]✅ Creating PR from: {branch}[/green]")

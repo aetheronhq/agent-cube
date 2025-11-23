@@ -159,13 +159,13 @@ def _get_judge_models_from_config() -> dict:
     try:
         from .user_config import get_judge_configs
         configs = get_judge_configs()
-        return {judge.number: judge.model for judge in configs}
+        return {judge.key: judge.model for judge in configs}
     except:
         # Fallback to defaults if config fails
         return {
-            1: "sonnet-4.5-thinking",
-            2: "gpt-5-codex-high",
-            3: "gemini-2.5-pro",
+            "judge_1": "sonnet-4.5-thinking",
+            "judge_2": "gpt-5-codex-high",
+            "judge_3": "gemini-2.5-pro",
         }
 
 JUDGE_MODELS: dict = _get_judge_models_from_config()

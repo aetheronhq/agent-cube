@@ -95,15 +95,12 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
                     formatted = format_stream_message(msg, judge_info.label, judge_info.color)
                     if formatted:
                         if formatted.startswith("[thinking]"):
-                            # Thinking message -> thinking box
+                            # Thinking message -> thinking box (buffered)
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                             layout.add_thinking(judge_info.key, thinking_text)
-                        elif msg.type == "assistant":
-                            # Assistant message -> thinking box (buffers fragments)
-                            content_part = formatted.split(" 💭 ", 1)[1] if " 💭 " in formatted else formatted
-                            layout.add_thinking(judge_info.key, content_part)
                         else:
-                            # Tool calls, errors, etc -> main output (buffers fragments)
+                            # Everything else -> main output (immediate, no buffering)
+                            # Buffering was breaking tool call display
                             layout.add_output(formatted)
             
             # Flush any remaining buffered content

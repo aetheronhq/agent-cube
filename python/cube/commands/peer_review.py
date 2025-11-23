@@ -42,8 +42,8 @@ def peer_review_command(
             missing_sessions = []
             
             for jconfig in judge_configs:
-                if not session_exists(f"JUDGE_{jconfig.number}", f"{task_id}_panel"):
-                    missing_sessions.append(jconfig.number)
+                if not session_exists(f"JUDGE_{jconfig.key}", f"{task_id}_panel"):
+                    missing_sessions.append(jconfig.key)
             
             if missing_sessions:
                 print_error(f"Could not find panel session IDs for task: {task_id}")

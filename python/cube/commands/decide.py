@@ -20,7 +20,7 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     
     from ..core.user_config import get_judge_configs
     judge_configs = get_judge_configs()
-    judge_nums = [j.number for j in judge_configs]
+    judge_nums = [j.key for j in judge_configs]
     
     if review_type == "auto":
         has_peer = any(find_decision_file(j, task_id, "peer-review") for j in judge_nums)
@@ -53,27 +53,29 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
         print_error("No decision files found")
         console.print()
         console.print("Expected decision files:")
-        for judge_num in judge_nums:
-            decision_file = get_decision_file_path(judge_num, task_id)
+        for judge_key in judge_nums:
+            decision_file = get_decision_file_path(judge_key, task_id)
             console.print(f"  {decision_file}")
         console.print()
         
         console.print("Missing decisions from:")
-        for judge_num in judge_nums:
-            decision_file = get_decision_file_path(judge_num, task_id)
+        for judge_key in judge_nums:
+            decision_file = get_decision_file_path(judge_key, task_id)
             if not decision_file.exists():
-                session_id = load_session(f"JUDGE_{judge_num}", f"{task_id}_panel")
+                session_id = load_session(f"JUDGE_{judge_key}", f"{task_id}_panel")
                 if session_id:
-                    console.print(f"  [yellow]Judge {judge_num}[/yellow] (session: {session_id})")
-                    console.print(f"    Resume: [cyan]cube resume judge-{judge_num} {task_id} \"Write decision file\"[/cyan]")
+                    judge_label = judge_key.replace("_", "-")
+                    console.print(f"  [yellow]Judge {judge_label}[/yellow] (session: {session_id})")
+                    console.print(f"    Resume: [cyan]cube resume {judge_label} {task_id} \"Write decision file\"[/cyan]")
                     
                     from ..core.user_config import get_judge_config
-                    jconfig = get_judge_config(judge_num)
+                    jconfig = get_judge_config(judge_key)
                     if "gemini" in jconfig.model.lower():
                         console.print(f"    [dim]Note: Gemini may need help finding PROJECT_ROOT[/dim]")
-                        console.print(f"    [dim]Tell it: Write to {PROJECT_ROOT}/.prompts/decisions/judge-{judge_num}-{task_id}-decision.json[/dim]")
+                        console.print(f"    [dim]Tell it: Write to {PROJECT_ROOT}/.prompts/decisions/{judge_key.replace('_', '-')}-{task_id}-decision.json[/dim]")
                 else:
-                    console.print(f"  [red]Judge {judge_num}[/red] (no session)")
+                    judge_label = judge_key.replace("_", "-")
+                    console.print(f"  [red]Judge {judge_label}[/red] (no session)")
         
         raise typer.Exit(1)
     
@@ -116,21 +118,21 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     console.print()
     
     if result["next_action"] == "MERGE":
-        winner = result["winner"].lower()
-        winner_name = "sonnet" if winner == "a" else "codex"
+        from ..core.user_config import get_writer_by_key_or_letter
+        winner_cfg = get_writer_by_key_or_letter(result["winner"])
         console.print("[green]✅ Ready for PR![/green]")
         console.print()
         console.print("Create pull request:")
-        console.print(f"  git checkout writer-{winner_name}/{task_id}")
-        console.print(f"  git push -u origin writer-{winner_name}/{task_id}")
+        console.print(f"  git checkout writer-{winner_cfg.name}/{task_id}")
+        console.print(f"  git push -u origin writer-{winner_cfg.name}/{task_id}")
         console.print(f"  gh pr create --base main --title 'feat: {task_id}' --fill")
     
     elif result["next_action"] == "SYNTHESIS":
-        winner = result["winner"].lower()
-        winner_name = "sonnet" if winner == "a" else "codex"
+        from ..core.user_config import get_writer_by_key_or_letter
+        winner_cfg = get_writer_by_key_or_letter(result["winner"])
         console.print("Synthesis needed (winner has blockers):")
         console.print(f"  1. Create: .prompts/synthesis-{task_id}.md")
-        console.print(f"  2. Run: cube feedback {winner_name} {task_id} .prompts/synthesis-{task_id}.md")
+        console.print(f"  2. Run: cube feedback {winner_cfg.name} {task_id} .prompts/synthesis-{task_id}.md")
         console.print(f"  3. After fixes: cube peer-review {task_id} .prompts/peer-review-{task_id}.md")
     
     elif result["next_action"] == "FEEDBACK":
