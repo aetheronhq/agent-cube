@@ -71,7 +71,7 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
                     from ..core.user_config import get_judge_config
                     jconfig = get_judge_config(judge_key)
                     if "gemini" in jconfig.model.lower():
-                        console.print(f"    [dim]Note: Gemini may need help finding PROJECT_ROOT[/dim]")
+                        console.print("    [dim]Note: Gemini may need help finding PROJECT_ROOT[/dim]")
                         console.print(f"    [dim]Tell it: Write to {PROJECT_ROOT}/.prompts/decisions/{judge_key.replace('_', '-')}-{task_id}-decision.json[/dim]")
                 else:
                     judge_label = judge_key.replace("_", "-")

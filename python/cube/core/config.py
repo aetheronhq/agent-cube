@@ -160,7 +160,7 @@ def _get_judge_models_from_config() -> dict:
         from .user_config import get_judge_configs
         configs = get_judge_configs()
         return {judge.key: judge.model for judge in configs}
-    except:
+    except Exception:
         # Fallback to defaults if config fails
         return {
             "judge_1": "sonnet-4.5-thinking",

@@ -116,7 +116,6 @@ async def launch_dual_writers(
     
     # Initialize dynamic layout
     from ..core.dual_layout import get_dual_layout
-    from ..core.user_config import get_writer_config
     
     layout = get_dual_layout()
     writer_a = get_writer_config("writer_a")

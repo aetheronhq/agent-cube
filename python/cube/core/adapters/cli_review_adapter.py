@@ -1,6 +1,7 @@
 """Generic adapter for CLI-based review tools (CodeRabbit, Snyk, etc.)."""
 
 import asyncio
+import json
 import os
 from pathlib import Path
 from typing import AsyncGenerator, Optional, Dict, Any
@@ -43,15 +44,16 @@ class CLIReviewAdapter(CLIAdapter):
         orch_model = model
         
         if not self.writer_worktrees:
-            yield '{"type": "assistant", "content": "ERROR: No writer worktrees configured for CLI review"}'
+            yield json.dumps({"type": "assistant", "content": "ERROR: No writer worktrees configured for CLI review"})
             return
 
         # Run tool in parallel for both writers with real-time streaming
-        yield f'{{"type": "assistant", "content": "🔍 Running {self.tool_name} on both writers in parallel..."}}'
+        yield json.dumps({"type": "assistant", "content": f"🔍 Running {self.tool_name} on both writers in parallel..."})
         
         reviews = {}
-        output_buffers = {"Writer A": [], "Writer B": []}
-        line_counts = {"Writer A": 0, "Writer B": 0}
+        output_buffers = {writer: [] for writer in self.writer_worktrees}
+        line_counts = {writer: 0 for writer in self.writer_worktrees}
+        errors = set()
         
         async def stream_tool_output(writer: str, wt_path: Path, queue: asyncio.Queue):
             """Run tool and push output to shared queue."""
@@ -61,7 +63,7 @@ class CLIReviewAdapter(CLIAdapter):
             
             try:
                 async for line in run_subprocess_streaming(cmd_args, wt_path, self.tool_name):
-                    clean_line = line.strip().replace('"', '\\"').replace('\\', '\\\\')
+                    clean_line = line.strip()
                     if clean_line:
                         if not clean_line.endswith(('.', '!', '?')):
                             clean_line += '.'
@@ -69,6 +71,7 @@ class CLIReviewAdapter(CLIAdapter):
                     output_buffers[writer].append(line)
                     line_counts[writer] += 1
             except RuntimeError as e:
+                output_buffers[writer].append(f"[TOOL ERROR] {str(e)}")
                 await queue.put((writer, "error", str(e)))
             finally:
                 await queue.put((writer, "done", None))
@@ -84,27 +87,29 @@ class CLIReviewAdapter(CLIAdapter):
             writer, msg_type, content = await queue.get()
             
             if msg_type == "thinking":
-                yield f'{{"type": "thinking", "content": "[{self.tool_name}/{writer}] {content}"}}'
+                yield json.dumps({"type": "thinking", "content": f"[{self.tool_name}/{writer}] {content}"})
             elif msg_type == "error":
-                yield f'{{"type": "assistant", "content": "❌ ERROR: {self.tool_name} failed on {writer}: {content}"}}'
-                completed.add(writer)
+                errors.add(writer)
+                yield json.dumps({"type": "assistant", "content": f"❌ ERROR: {self.tool_name} failed on {writer}: {content}"})
             elif msg_type == "done":
                 completed.add(writer)
                 if line_counts[writer] == 0:
-                    yield f'{{"type": "assistant", "content": "⚠️  {self.tool_name} produced no output for {writer}"}}'
+                    status = f"⚠️  {self.tool_name} produced no output for {writer}"
+                elif writer in errors:
+                    status = f"❌ {self.tool_name} completed with errors for {writer} ({line_counts[writer]} lines captured before failure)"
                 else:
-                    yield f'{{"type": "assistant", "content": "✅ {self.tool_name} complete: {line_counts[writer]} lines from {writer}"}}'
+                    status = f"✅ {self.tool_name} complete: {line_counts[writer]} lines from {writer}"
+                yield json.dumps({"type": "assistant", "content": status})
         
         # Wait for tasks to finish
         await asyncio.gather(*worker_tasks, return_exceptions=True)
         
         # Build reviews dict
-        for writer in self.writer_worktrees.keys():
-            reviews[writer] = "\n".join(output_buffers[writer])
+        for writer, lines in output_buffers.items():
+            reviews[writer] = "\n".join(lines)
 
         # 3. Run Synthesis Agent
-        # Important milestone -> main output
-        yield f'{{"type": "assistant", "content": "🤖 Synthesizing decision with {orch_model}..."}}'
+        yield json.dumps({"type": "assistant", "content": f"🤖 Synthesizing decision with {orch_model}..."})
         
         synthesis_prompt = self._build_synthesis_prompt(prompt, reviews)
         

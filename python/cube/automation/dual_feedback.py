@@ -25,7 +25,6 @@ async def send_dual_feedback(
     layout.reset()
     
     # Initialize for feedback
-    from ..core.user_config import get_writer_config
     writer_a = get_writer_config("writer_a")
     writer_b = get_writer_config("writer_b")
     boxes = {"prompter_a": f"Prompter A ({writer_a.label})", "prompter_b": f"Prompter B ({writer_b.label})"}
