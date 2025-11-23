@@ -17,6 +17,10 @@ class CLIReviewAdapter(CLIAdapter):
         
         if not self.tool_cmd:
             raise ValueError("CLIReviewAdapter requires 'cmd' config")
+            
+        self.tool_name = self.tool_cmd.split()[0]
+            
+        self.tool_name = self.tool_cmd.split()[0]
 
     async def run(
         self,
@@ -28,6 +32,9 @@ class CLIReviewAdapter(CLIAdapter):
     ) -> AsyncGenerator[str, None]:
         """Run the review tool and synthesize results."""
         from ..agent import run_agent  # Import here to avoid circular dependency
+        
+        # Use the passed model as the orchestrator
+        orch_model = model
         
         # 1. Extract branches from prompt
         branches = self._extract_branches(prompt)
@@ -58,13 +65,13 @@ class CLIReviewAdapter(CLIAdapter):
             yield f'{{"type": "thinking", "content": "Completed review for {writer}"}}'
 
         # 3. Run Synthesis Agent
-        yield f'{{"type": "thinking", "content": "Synthesizing decision with {self.orch_model}..."}}'
+        yield f'{{"type": "thinking", "content": "Synthesizing decision with {orch_model}..."}}'
         
         synthesis_prompt = self._build_synthesis_prompt(prompt, reviews)
         
         async for line in run_agent(
             worktree=worktree,
-            model=self.orch_model,
+            model=orch_model,
             prompt=synthesis_prompt,
             session_id=None,
             resume=False
