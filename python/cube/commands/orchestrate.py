@@ -763,7 +763,7 @@ async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir:
 
 ## Context
 
-Winner: Writer {result['winner']} ({winner})
+Winner: Writer {result['winner']} ({winner_cfg.label})
 
 ## Minor Issues from Peer Review
 
