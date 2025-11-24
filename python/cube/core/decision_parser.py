@@ -50,15 +50,19 @@ def parse_judge_decision(judge_key: str, task_id: str) -> Optional[JudgeDecision
         if not isinstance(judge_id, str):
             judge_id = str(judge_id)
         
-        # Extract decision (try top-level, then nested)
+        # Extract decision (try top-level, then nested, then infer)
         decision = data.get("decision")
         if not decision and "panel_recommendation" in data:
             decision = data["panel_recommendation"].get("final_decision", "APPROVED")
+        if not decision and (data.get("vote") or data.get("winner")):
+            decision = "APPROVED"  # If they voted, assume approved
+        if not decision:
+            decision = "UNKNOWN"
         if not decision:
             decision = "UNKNOWN"
         
-        # Extract winner (try top-level, then nested, normalize format)
-        winner = data.get("winner")
+        # Extract winner (try winner, vote, or nested fields)
+        winner = data.get("winner") or data.get("vote")
         if not winner and "panel_recommendation" in data:
             winner = data["panel_recommendation"].get("selected_writer", "TIE")
         if not winner and "comparison" in data:
@@ -83,8 +87,10 @@ def parse_judge_decision(judge_key: str, task_id: str) -> Optional[JudgeDecision
             scores_a = data["reviews"].get("writer_a", {}).get("scores", {})
             scores_b = data["reviews"].get("writer_b", {}).get("scores", {})
         
-        # Extract total score (try multiple field names)
+        # Extract total score (try multiple field names and locations)
         total_a = scores_a.get("total_weighted") or scores_a.get("total")
+        if total_a is None and "total_score" in data:
+            total_a = data["total_score"].get("writer_a")
         if total_a is None:
             # Calculate from individual scores
             total_a = sum([
@@ -96,6 +102,8 @@ def parse_judge_decision(judge_key: str, task_id: str) -> Optional[JudgeDecision
             ]) / 5.0
         
         total_b = scores_b.get("total_weighted") or scores_b.get("total")
+        if total_b is None and "total_score" in data:
+            total_b = data["total_score"].get("writer_b")
         if total_b is None:
             # Calculate from individual scores
             total_b = sum([
