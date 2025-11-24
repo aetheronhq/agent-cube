@@ -81,18 +81,43 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     
     total_judges = len(judge_nums)
     if len(decisions) < total_judges:
-        missing = [j for j in judge_nums if not any(d.judge == j for d in decisions)]
-        print_warning(f"Only {len(decisions)}/{total_judges} decisions found. Missing: Judge {', '.join(map(str, missing))}")
-        console.print()
+        # Normalize judge keys for comparison (handle "1" vs "judge_1" etc)
+        found_judges = set()
+        for d in decisions:
+            found_judges.add(str(d.judge))
+            # Also add with judge_ prefix if it's a number
+            if str(d.judge).isdigit():
+                found_judges.add(f"judge_{d.judge}")
+        
+        missing = [j for j in judge_nums if j not in found_judges]
+        if missing:
+            missing_labels = []
+            for j in missing:
+                try:
+                    from ..core.user_config import get_judge_config
+                    jconfig = get_judge_config(j)
+                    missing_labels.append(jconfig.label)
+                except:
+                    missing_labels.append(j)
+            print_warning(f"Only {len(decisions)}/{total_judges} decisions found. Missing: {', '.join(missing_labels)}")
+            console.print()
     
     for d in decisions:
-        # Get judge label
+        # Get judge label (handle key, number, or already a label)
+        judge_label = str(d.judge)
         try:
             from ..core.user_config import get_judge_config
-            jconfig = get_judge_config(d.judge)
+            # Try as-is first
+            jconfig = get_judge_config(judge_label)
             judge_label = jconfig.label
         except:
-            judge_label = d.judge
+            # Try adding judge_ prefix if it's just a number
+            try:
+                if judge_label.isdigit():
+                    jconfig = get_judge_config(f"judge_{judge_label}")
+                    judge_label = jconfig.label
+            except:
+                pass
         
         color = "green" if d.decision == "APPROVED" else ("yellow" if d.decision == "REQUEST_CHANGES" else "red")
         console.print(f"[{color}]{judge_label}:[/{color}] {d.decision} → Winner: {d.winner} (A: {d.scores_a}, B: {d.scores_b})")

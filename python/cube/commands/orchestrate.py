@@ -800,7 +800,7 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
 
 async def generate_dual_feedback(task_id: str, result: dict, prompts_dir: Path):
     """Generate feedback prompts for both writers in parallel with dual layout."""
-    from ..core.dual_layout import get_dual_layout, DualWriterLayout
+    from ..core.dual_layout import get_dual_layout
     
     feedback_a_path = prompts_dir / f"feedback-a-{task_id}.md"
     feedback_b_path = prompts_dir / f"feedback-b-{task_id}.md"
