@@ -83,8 +83,9 @@ class BaseThinkingLayout:
             # Flush immediately on sentence-ending punctuation
             if text.endswith(('.', '!', '?', '\n')) and self.current_lines[box_id].strip():
                 line = self.current_lines[box_id].strip()
-                if len(line) > 94:
-                    line = line[:91] + "..."
+                # Truncate to 90 chars to prevent wrapping in narrow terminals
+                if len(line) > 90:
+                    line = line[:87] + "..."
                 self.buffers[box_id].append(line)
                 self.current_lines[box_id] = ""
                 self._update()
@@ -137,7 +138,12 @@ class BaseThinkingLayout:
             )
             
             if should_flush and self.assistant_buffers[key].strip():
-                full_message = f"[{color}]{label}[/{color}] 💭 {self.assistant_buffers[key].strip()}"
+                # Truncate to prevent line wrapping (account for prefix length ~25 chars)
+                buffered = self.assistant_buffers[key].strip()
+                if len(buffered) > 75:
+                    buffered = buffered[:72] + "..."
+                    
+                full_message = f"[{color}]{label}[/{color}] 💭 {buffered}"
                 self.output_lines.append(full_message)
                 self.assistant_buffers[key] = ""
                 self._update()
