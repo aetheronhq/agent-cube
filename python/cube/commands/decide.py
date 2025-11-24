@@ -86,8 +86,16 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
         console.print()
     
     for d in decisions:
+        # Get judge label
+        try:
+            from ..core.user_config import get_judge_config
+            jconfig = get_judge_config(d.judge)
+            judge_label = jconfig.label
+        except:
+            judge_label = d.judge
+        
         color = "green" if d.decision == "APPROVED" else ("yellow" if d.decision == "REQUEST_CHANGES" else "red")
-        console.print(f"[{color}]Judge {d.judge}:[/{color}] {d.decision} → Winner: {d.winner} (A: {d.scores_a}, B: {d.scores_b})")
+        console.print(f"[{color}]{judge_label}:[/{color}] {d.decision} → Winner: {d.winner} (A: {d.scores_a}, B: {d.scores_b})")
     
     console.print()
     console.print("━" * 60)
