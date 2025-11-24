@@ -8,7 +8,7 @@ writers:
     color: "magenta"
 
 judges:
-  judge_3:
+  judge_4:
     type: "cli-review"
     cmd: "coderabbit review --plain --type all --cwd {{worktree}}"
     model: "composer-1"

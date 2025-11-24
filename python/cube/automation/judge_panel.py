@@ -13,12 +13,11 @@ from ..core.config import PROJECT_ROOT, get_sessions_dir
 from ..core.user_config import get_judge_config
 from ..models.types import JudgeInfo
 
-async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
+async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout) -> int:
     """Run a single judge agent and return line count."""
     from .stream import format_stream_message
     from ..core.user_config import load_config as load_user_config
     from ..core.parsers.registry import get_parser
-    from ..core.triple_layout import get_triple_layout
     from ..core.adapters.registry import get_adapter
     
     config = load_user_config()
@@ -27,7 +26,7 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
     if judge_info.adapter_config and judge_info.adapter_config.get("type") == "cli-review":
         cli_name = "cli-review"
     else:
-        cli_name = config.cli_tools.get(judge_info.model, "cursor-agent")
+    cli_name = config.cli_tools.get(judge_info.model, "cursor-agent")
         
     adapter = get_adapter(cli_name, judge_info.adapter_config)
     
@@ -47,15 +46,6 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool) -> int:
         adapter.set_writer_worktrees(worktrees)
     
     parser = get_parser(cli_name)
-    
-    # Initialize dynamic layout if not already done
-    layout = get_triple_layout()
-    if not layout._instance:
-        from ..core.user_config import get_judge_configs
-        judges = get_judge_configs()
-        boxes = {j.key: j.label for j in judges}
-        layout.initialize(boxes, lines_per_box=2)
-    layout.start()
     
     from pathlib import Path
     logs_dir = Path.home() / ".cube" / "logs"
@@ -205,10 +195,25 @@ async def launch_judge_panel(
     review_type: str = "initial",
     resume_mode: bool = False
 ) -> None:
-    """Launch 3-judge panel in parallel."""
+    """Launch judge panel in parallel."""
     
     if not prompt_file.exists():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
+    
+    # Create fresh layout for judges (separate from writers phase)
+    from ..core.dynamic_layout import DynamicLayout
+    from ..core.user_config import get_judge_configs
+    
+    all_judges = get_judge_configs()
+    
+    # Filter judges based on review type
+    if review_type == "panel":
+        judge_configs = [j for j in all_judges if not j.peer_review_only]
+    else:
+        judge_configs = all_judges
+    
+    boxes = {j.key: j.label for j in judge_configs}
+    panel_layout = DynamicLayout(boxes, lines_per_box=2)
     
     base_prompt = prompt_file.read_text()
     
@@ -377,11 +382,11 @@ Use absolute path when writing the file. The project root is available in your w
         judges.append(
             JudgeInfo(
                 key=jconfig.key,
-                model=jconfig.model,
-                color=jconfig.color,
-                label=jconfig.label,
-                task_id=task_id,
-                review_type=review_type,
+            model=jconfig.model,
+            color=jconfig.color,
+            label=jconfig.label,
+            task_id=task_id,
+            review_type=review_type,
                 session_id=session_id,
                 adapter_config={
                     "type": jconfig.type,
@@ -452,7 +457,7 @@ Use absolute path when writing the file. The project root is available in your w
     console.print()
     
     results = await asyncio.gather(
-        *(run_judge(judge, prompt, resume_mode) for judge in judges),
+        *(run_judge(judge, prompt, resume_mode, panel_layout) for judge in judges),
         return_exceptions=True
     )
     

@@ -800,7 +800,6 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
 
 async def generate_dual_feedback(task_id: str, result: dict, prompts_dir: Path):
     """Generate feedback prompts for both writers in parallel with dual layout."""
-    from ..core.dual_layout import get_dual_layout
     
     feedback_a_path = prompts_dir / f"feedback-a-{task_id}.md"
     feedback_b_path = prompts_dir / f"feedback-b-{task_id}.md"
@@ -852,7 +851,14 @@ Both writers need changes based on judge reviews.
     console.print()
     
     DualWriterLayout.reset()
-    layout = get_dual_layout()
+    # Create fresh layout for feedback prompters
+    from ..core.dynamic_layout import DynamicLayout
+    from ..core.user_config import get_writer_config
+    
+    writer_a = get_writer_config("writer_a")
+    writer_b = get_writer_config("writer_b")
+    boxes = {"prompter_a": f"Prompter A ({writer_a.label})", "prompter_b": f"Prompter B ({writer_b.label})"}
+    layout = DynamicLayout(boxes, lines_per_box=2)
     layout.start()
     
     parser = get_parser("cursor-agent")

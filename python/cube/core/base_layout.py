@@ -26,6 +26,7 @@ class BaseThinkingLayout:
         self.current_lines = {box_id: "" for box_id in boxes}
         self.output_lines = deque(maxlen=1000)
         self.assistant_buffers = {}  # Buffer per agent key for assistant messages
+        self.assistant_metadata = {}  # Track label/color for each agent key
         self.started = False
         self.live = None
         self.layout = None
@@ -67,7 +68,7 @@ class BaseThinkingLayout:
             self.started = True
     
     def add_thinking(self, box_id: str, text: str) -> None:
-        """Add thinking text to a specific box."""
+        """Add thinking text to a specific box (buffers until punctuation + space)."""
         with self.lock:
             if not self.started:
                 self.start()
@@ -79,7 +80,16 @@ class BaseThinkingLayout:
             
             self.current_lines[box_id] += text
             
-            if text.endswith(('.', '!', '?', '\n')) and self.current_lines[box_id].strip():
+            # Flush on punctuation + space or newline (prevents mid-word breaks)
+            should_flush = (
+                text.endswith('\n') or
+                text.endswith('. ') or
+                text.endswith('! ') or
+                text.endswith('? ') or
+                (text.endswith('.') and len(self.current_lines[box_id]) > 150)  # Long buffer safety
+            )
+            
+            if should_flush and self.current_lines[box_id].strip():
                 line = self.current_lines[box_id].strip()
                 if len(line) > 94:
                     line = line[:91] + "..."
@@ -120,10 +130,21 @@ class BaseThinkingLayout:
             if key not in self.assistant_buffers:
                 self.assistant_buffers[key] = ""
             
+            # Store metadata for proper flushing later
+            self.assistant_metadata[key] = {"label": label, "color": color}
+            
             self.assistant_buffers[key] += content
             
-            # Flush when complete sentence
-            if content.endswith(('.', '!', '?', '\n')) and self.assistant_buffers[key].strip():
+            # Flush when complete sentence (punctuation + space or newline)
+            should_flush = (
+                content.endswith('\n') or
+                content.endswith('. ') or
+                content.endswith('! ') or
+                content.endswith('? ') or
+                (content.endswith('.') and len(self.assistant_buffers[key]) > 200)  # Long buffer safety
+            )
+            
+            if should_flush and self.assistant_buffers[key].strip():
                 full_message = f"[{color}]{label}[/{color}] 💭 {self.assistant_buffers[key].strip()}"
                 self.output_lines.append(full_message)
                 self.assistant_buffers[key] = ""
@@ -139,15 +160,19 @@ class BaseThinkingLayout:
             self._update()
     
     def flush_buffers(self) -> None:
-        """Flush any remaining buffered content."""
+        """Flush any remaining buffered content (with proper labels)."""
         with self.lock:
-            # Flush assistant buffers (without label/color - can't reconstruct)
+            # Flush assistant buffers with proper label/color
             for key in list(self.assistant_buffers.keys()):
                 if self.assistant_buffers[key].strip():
-                    self.output_lines.append(f"💭 {self.assistant_buffers[key]}")
+                    metadata = self.assistant_metadata.get(key, {"label": key, "color": "white"})
+                    label = metadata.get("label", key)
+                    color = metadata.get("color", "white")
+                    full_message = f"[{color}]{label}[/{color}] 💭 {self.assistant_buffers[key].strip()}"
+                    self.output_lines.append(full_message)
                     self.assistant_buffers[key] = ""
             
-            # Flush thinking buffers
+            # Flush thinking buffers to their boxes
             for box_id, current_text in self.current_lines.items():
                 if current_text.strip():
                     line = current_text.strip()
