@@ -186,7 +186,7 @@ def _get_current_tty() -> Optional[str]:
         if tty and tty.startswith('/dev/'):
             return tty.split('/')[-1]
         return None
-    except:
+    except Exception:
         return None
 
 
