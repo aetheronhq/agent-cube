@@ -58,8 +58,6 @@ def parse_judge_decision(judge_key: str, task_id: str) -> Optional[JudgeDecision
             decision = "APPROVED"  # If they voted, assume approved
         if not decision:
             decision = "UNKNOWN"
-        if not decision:
-            decision = "UNKNOWN"
         
         # Extract winner (try winner, vote, or nested fields)
         winner = data.get("winner") or data.get("vote")
