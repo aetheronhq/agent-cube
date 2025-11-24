@@ -56,8 +56,8 @@ def writers_command(
             raise typer.Exit(1)
         
         try:
-            asyncio.run(launch_dual_writers(task_id, prompt_path, resume_mode=False))
-            update_phase(task_id, 2, writers_complete=True)
+        asyncio.run(launch_dual_writers(task_id, prompt_path, resume_mode=False))
+        update_phase(task_id, 2, writers_complete=True)
         except RuntimeError as e:
             print_error(str(e))
             raise typer.Exit(1)
