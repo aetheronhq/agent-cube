@@ -45,7 +45,7 @@ class CursorParser(ParserAdapter):
                         return msg
                 # Also check direct content field (from CLIReviewAdapter)
                 if msg.content:
-                    return msg
+                        return msg
             
             if msg.type == "tool_call":
                 tool_call = data.get("tool_call", {})
