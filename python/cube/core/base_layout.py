@@ -11,6 +11,13 @@ from rich.console import Console
 from rich.text import Text
 from typing import Dict, Optional
 
+def get_terminal_width() -> int:
+    """Get terminal width, with safe fallback."""
+    try:
+        return os.get_terminal_size().columns
+    except Exception:
+        return 100
+
 class BaseThinkingLayout:
     """Base class for thinking box layouts."""
     
@@ -21,22 +28,33 @@ class BaseThinkingLayout:
         """
         self.boxes = boxes
         self.lines_per_box = lines_per_box
-        self.width = 100
         self.buffers = {box_id: deque(maxlen=lines_per_box) for box_id in boxes}
         self.current_lines = {box_id: "" for box_id in boxes}
         self.output_lines = deque(maxlen=1000)
-        self.assistant_buffers = {}  # Buffer per agent key for assistant messages
-        self.assistant_metadata = {}  # Track label/color for each agent key
+        self.assistant_buffers = {}
+        self.assistant_metadata = {}
         self.started = False
         self.live = None
         self.layout = None
         self.console = Console()
         self.lock = Lock()
         self.last_update_time = 0
-        self.min_update_interval = 0.1
+        self.min_update_interval = 0.05  # Faster updates for smoother scrolling
         self.completed = {box_id: False for box_id in boxes}
         self.completion_status = {box_id: None for box_id in boxes}
         self.last_activity = {box_id: 0 for box_id in boxes}
+    
+    def _get_max_content_width(self, prefix_len: int = 0) -> int:
+        """Get max content width accounting for prefix and panel borders."""
+        term_width = get_terminal_width()
+        # Account for: panel border (4), padding (2), prefix
+        return max(40, term_width - 6 - prefix_len)
+    
+    def _truncate(self, text: str, max_len: int) -> str:
+        """Truncate text to max_len with ellipsis."""
+        if len(text) <= max_len:
+            return text
+        return text[:max_len - 3] + "..."
     
     def start(self):
         """Start the live layout."""
@@ -89,12 +107,11 @@ class BaseThinkingLayout:
                     buf.rstrip().endswith('?') or
                     buf.rstrip().endswith(':')
                 )
-            ) or len(buf) > 150  # Safety limit for thinking boxes
+            ) or len(buf) > 150
             
             if should_flush and buf.strip():
-                line = buf.strip()
-                if len(line) > 90:
-                    line = line[:87] + "..."
+                max_width = self._get_max_content_width()
+                line = self._truncate(buf.strip(), max_width)
                 self.buffers[box_id].append(line)
                 self.current_lines[box_id] = ""
                 self._update()
@@ -136,8 +153,7 @@ class BaseThinkingLayout:
             
             buf = self.assistant_buffers[key]
             
-            # Only flush when buffer has substantial content AND ends with sentence punctuation
-            # Check the BUFFER not the incoming content - we want complete sentences
+            # Flush when buffer has content AND ends with sentence punctuation
             should_flush = (
                 len(buf) > 50 and (
                     buf.rstrip().endswith('.') or
@@ -145,12 +161,13 @@ class BaseThinkingLayout:
                     buf.rstrip().endswith('?') or
                     buf.rstrip().endswith(':')
                 )
-            ) or len(buf) > 300  # Safety limit
+            ) or len(buf) > 300
             
             if should_flush and buf.strip():
-                buffered = buf.strip()
-                if len(buffered) > 75:
-                    buffered = buffered[:72] + "..."
+                # Calculate max width accounting for prefix: "Label 💭 "
+                prefix_len = len(label) + 4  # label + " 💭 "
+                max_width = self._get_max_content_width(prefix_len)
+                buffered = self._truncate(buf.strip(), max_width)
                     
                 full_message = f"[{color}]{label}[/{color}] 💭 {buffered}"
                 self.output_lines.append(full_message)
@@ -175,16 +192,18 @@ class BaseThinkingLayout:
                     metadata = self.assistant_metadata.get(key, {"label": key, "color": "white"})
                     label = metadata.get("label", key)
                     color = metadata.get("color", "white")
-                    full_message = f"[{color}]{label}[/{color}] 💭 {self.assistant_buffers[key].strip()}"
+                    prefix_len = len(label) + 4
+                    max_width = self._get_max_content_width(prefix_len)
+                    buffered = self._truncate(self.assistant_buffers[key].strip(), max_width)
+                    full_message = f"[{color}]{label}[/{color}] 💭 {buffered}"
                     self.output_lines.append(full_message)
                     self.assistant_buffers[key] = ""
             
             # Flush thinking buffers to their boxes
             for box_id, current_text in self.current_lines.items():
                 if current_text.strip():
-                    line = current_text.strip()
-                    if len(line) > 94:
-                        line = line[:91] + "..."
+                    max_width = self._get_max_content_width()
+                    line = self._truncate(current_text.strip(), max_width)
                     self.buffers[box_id].append(line)
                     self.current_lines[box_id] = ""
             
@@ -232,6 +251,16 @@ class BaseThinkingLayout:
             height=self.lines_per_box + 2
         )
     
+    def _visual_line_count(self, line: str, term_width: int) -> int:
+        """Calculate how many visual lines a string takes when wrapped."""
+        # Strip Rich markup to get visible length
+        import re
+        visible = re.sub(r'\[/?[^\]]+\]', '', line)
+        if not visible:
+            return 1
+        # Ceiling division: how many rows does this line take?
+        return max(1, (len(visible) + term_width - 1) // term_width)
+    
     def _update(self) -> None:
         """Update all regions."""
         if not self.live or not self.layout:
@@ -248,14 +277,28 @@ class BaseThinkingLayout:
             self.layout[box_id].update(self._create_panel(title, visible, box_id))
         
         try:
+            term_width = os.get_terminal_size().columns
             term_height = os.get_terminal_size().lines
             thinking_boxes_height = len(self.boxes) * (self.lines_per_box + 2) + 2
-            available_lines = max(20, term_height - thinking_boxes_height - 5)
-        except:
-            available_lines = 30
+            available_visual_lines = max(10, term_height - thinking_boxes_height - 5)
+        except Exception:
+            term_width = 100
+            available_visual_lines = 20
         
-        recent_output = list(self.output_lines)[-available_lines:]
-        output_text = "\n".join(recent_output)
+        # Work backwards from end, counting visual lines until we fill available space
+        all_lines = list(self.output_lines)
+        selected_lines = []
+        visual_count = 0
+        
+        for line in reversed(all_lines):
+            line_visual = self._visual_line_count(line, term_width)
+            if visual_count + line_visual > available_visual_lines:
+                break
+            selected_lines.append(line)
+            visual_count += line_visual
+        
+        selected_lines.reverse()
+        output_text = "\n".join(selected_lines)
         
         from rich.text import Text
         text = Text.from_markup(output_text)
