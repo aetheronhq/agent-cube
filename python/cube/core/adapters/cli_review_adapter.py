@@ -60,19 +60,26 @@ class CLIReviewAdapter(CLIAdapter):
             cmd_str = self.tool_cmd.replace("{{worktree}}", str(wt_path))
             import shlex
             cmd_args = shlex.split(cmd_str)
+            last_error_line = None  # Capture actual error messages from output
             
             try:
                 async for line in run_subprocess_streaming(cmd_args, wt_path, self.tool_name):
                     clean_line = line.strip()
                     if clean_line:
+                        # Capture error-like lines for better error messages
+                        lower = clean_line.lower()
+                        if "error" in lower or "rate limit" in lower or "failed" in lower:
+                            last_error_line = clean_line[:200]
                         if not clean_line.endswith(('.', '!', '?')):
                             clean_line += '.'
                         await queue.put((writer, "thinking", clean_line))
                     output_buffers[writer].append(line)
                     line_counts[writer] += 1
             except RuntimeError as e:
-                output_buffers[writer].append(f"[TOOL ERROR] {str(e)}")
-                await queue.put((writer, "error", str(e)))
+                # Use captured error line if available, otherwise generic message
+                error_msg = last_error_line or str(e)
+                output_buffers[writer].append(f"[TOOL ERROR] {error_msg}")
+                await queue.put((writer, "error", error_msg))
             finally:
                 await queue.put((writer, "done", None))
         
