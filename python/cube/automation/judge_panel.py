@@ -47,7 +47,6 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout) ->
     
     parser = get_parser(cli_name)
     
-    from pathlib import Path
     logs_dir = Path.home() / ".cube" / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     
