@@ -53,11 +53,11 @@ class GeminiAdapter(CLIAdapter):
                 
                 if "not logged in" in line.lower() or "authentication" in line.lower():
                     last_error = "Authentication required"
-                elif "error" in line.lower() and not last_error:
+                elif line.startswith('{"type":"error"') or line.startswith('Error:'):
                     last_error = line[:200]
                 
                 yield line
-                
+        
         except RuntimeError as e:
             if last_error == "Authentication required":
                 raise RuntimeError("gemini CLI not logged in. Run: gemini (choose 'Login with Google')")

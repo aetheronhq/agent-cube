@@ -64,11 +64,11 @@ class CursorAdapter(CLIAdapter):
                     last_error = "Authentication required"
                 elif "ConnectError" in line or "ECONNRESET" in line:
                     last_error = "Network connection error"
-                elif "error" in line.lower() and not last_error:
+                elif line.startswith('{"type":"error"') or line.startswith('Error:'):
                     last_error = line[:200]
                 
                 yield line
-                
+        
         except RuntimeError as e:
             # Enhance error message based on detected errors
             if last_error == "Authentication required":
