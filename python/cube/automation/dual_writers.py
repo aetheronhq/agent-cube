@@ -185,6 +185,14 @@ async def launch_dual_writers(
     console.print("🚀 Launching writers in parallel...")
     console.print()
     
+    # Show which models/CLIs are being used
+    from ..core.user_config import load_config
+    config = load_config()
+    for w in writers:
+        cli_name = config.cli_tools.get(w.model, "cursor-agent")
+        console.print(f"[dim]{w.label}: Starting with model {w.model} (CLI: {cli_name})...[/dim]")
+    console.print()
+    
     results = await asyncio.gather(
         run_writer(writers[0], prompt, resume_mode),
         run_writer(writers[1], prompt, resume_mode),
