@@ -185,8 +185,7 @@ def _get_current_tty() -> Optional[str]:
         # Extract just the device name (e.g., /dev/ttys001 -> ttys001)
         if tty and tty.startswith('/dev/'):
             return tty.split('/')[-1]
-        return None
-    except:
+    except Exception:
         return None
 
 
