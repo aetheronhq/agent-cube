@@ -631,6 +631,9 @@ Winner's location: ~/.cube/worktrees/PROJECT/writer-{winner_cfg.name}-{task_id}/
 
 Read these for full context on what judges liked/disliked.
 
+**IMPORTANT:** Some judges (like CodeRabbit) include `review_findings` in their JSON with specific file/line issues.
+Extract ALL `review_findings` for the winner and present them as improvement suggestions.
+
 **Judge Logs (reasoning and analysis):**
 {judge_log_files}
 
@@ -643,12 +646,17 @@ Optional: Read for deeper understanding of judge concerns.
 ## Your Task
 
 Create a synthesis prompt that:
-1. References specific files/lines from winner's code
-2. Addresses each blocker issue with concrete fixes
-3. Preserves what judges liked (winner's architecture)
-4. Tells writer to commit and push when complete
+1. Lists ALL improvement suggestions from judge `review_findings` for the WINNER (not just blockers)
+2. References specific files/lines from winner's code
+3. Addresses each blocker issue with concrete fixes
+4. Presents non-blocking issues as "Suggested Improvements" the winner should also fix
+5. Preserves what judges liked (winner's architecture)
+6. Tells writer to commit and push when complete
 
-Read the judge decisions for full context!
+**CRITICAL:** Even if the winner is approved, include ALL review findings from judges like CodeRabbit as improvement items.
+The winning writer should address these, not just skip them because they won.
+
+Read the judge decisions and extract review_findings!
 
 Save to: `.prompts/synthesis-{task_id}.md`"""
         

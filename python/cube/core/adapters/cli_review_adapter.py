@@ -125,7 +125,7 @@ class CLIReviewAdapter(CLIAdapter):
     def _build_synthesis_prompt(self, original_prompt: str, reviews: Dict[str, str]) -> str:
         """Construct the synthesis prompt."""
         return f"""
-You are a technical judge synthesizing results from a CLI review tool.
+You are a technical judge synthesizing results from a CLI review tool ({self.tool_name}).
 
 ## Task Context
 {original_prompt}
@@ -137,29 +137,43 @@ You are a technical judge synthesizing results from a CLI review tool.
 {reviews.get('Writer B', 'No output')}
 
 ## Your Job
-1. Analyze the issues found in the reviews above.
+1. Analyze ALL issues found in the reviews above for BOTH writers.
 2. Determine which implementation is better based ONLY on the review output.
-3. Output a JSON decision file.
+3. Output a JSON decision file that includes ALL review findings.
 
-**CRITICAL: Do NOT use any tools (read_file, shell, etc.). Make your decision SOLELY based on the review output provided above.**
+**CRITICAL REQUIREMENTS:**
+- Do NOT use any tools (read_file, shell, etc.)
+- Make your decision SOLELY based on the review output provided above
+- Include ALL issues found by {self.tool_name} in the `review_findings` field
+- Even if a writer wins, their issues should still be listed as improvement opportunities
 
 **If reviews contain errors or are empty:**
 - Use decision: "REQUEST_CHANGES"  
 - Use winner: "TIE"
 - Set blocker_issues to explain the tool failure
-- Do NOT approve when reviews failed
 
 ## JSON Format
 {{
   "decision": "APPROVED" | "REQUEST_CHANGES",
   "winner": "A" | "B" | "TIE",
   "scores": {{
-    "writer_a": {{ "total_weighted": <0-10> }},
-    "writer_b": {{ "total_weighted": <0-10> }}
+    "writer_a": {{ "total_weighted": <0-100> }},
+    "writer_b": {{ "total_weighted": <0-100> }}
+  }},
+  "review_findings": {{
+    "writer_a": [
+      {{"file": "path/to/file.py", "line": 42, "issue": "Description of issue", "severity": "warning|error|info", "suggestion": "How to fix it"}}
+    ],
+    "writer_b": [
+      {{"file": "path/to/file.py", "line": 10, "issue": "Description of issue", "severity": "warning|error|info", "suggestion": "How to fix it"}}
+    ]
   }},
   "blocker_issues": ["list", "of", "critical", "issues"],
   "recommendation": "Explanation..."
 }}
+
+**IMPORTANT:** The `review_findings` field must capture ALL specific issues from the {self.tool_name} output.
+These will be shown to the winning writer as improvement suggestions.
 
 Output ONLY valid JSON.
 """
