@@ -8,7 +8,7 @@ console = Console()
 console_err = Console(stderr=True)
 
 def print_error(message: str) -> None:
-    """Print an error message in red."""
+    """Print an error message in bold red."""
     console_err.print(f"[bold red]❌ Error: {message}[/bold red]")
 
 def print_success(message: str) -> None:
