@@ -26,7 +26,7 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout) ->
     if judge_info.adapter_config and judge_info.adapter_config.get("type") == "cli-review":
         cli_name = "cli-review"
     else:
-    cli_name = config.cli_tools.get(judge_info.model, "cursor-agent")
+        cli_name = config.cli_tools.get(judge_info.model, "cursor-agent")
         
     adapter = get_adapter(cli_name, judge_info.adapter_config)
     
@@ -200,7 +200,7 @@ async def launch_judge_panel(
     if not prompt_file.exists():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
     
-    # Create fresh layout for judges (separate from writers phase)
+    # Create fresh layout for judges (closes previous if exists)
     from ..core.dynamic_layout import DynamicLayout
     from ..core.user_config import get_judge_configs
     
@@ -213,7 +213,8 @@ async def launch_judge_panel(
         judge_configs = all_judges
     
     boxes = {j.key: j.label for j in judge_configs}
-    panel_layout = DynamicLayout(boxes, lines_per_box=2)
+    DynamicLayout.initialize(boxes, lines_per_box=2)
+    panel_layout = DynamicLayout
     
     base_prompt = prompt_file.read_text()
     

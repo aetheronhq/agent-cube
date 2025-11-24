@@ -21,13 +21,14 @@ async def send_dual_feedback(
 ) -> None:
     """Send feedback to both writers in parallel with dual layout."""
     
-    # Create fresh layout for feedback prompters
+    # Create fresh layout for feedback prompters (closes previous if exists)
     from ..core.dynamic_layout import DynamicLayout
     
     writer_a = get_writer_config("writer_a")
     writer_b = get_writer_config("writer_b")
     boxes = {"prompter_a": f"Prompter A ({writer_a.label})", "prompter_b": f"Prompter B ({writer_b.label})"}
-    layout = DynamicLayout(boxes, lines_per_box=2)
+    DynamicLayout.initialize(boxes, lines_per_box=2)
+    layout = DynamicLayout
     layout.start()
     
     config = load_config()

@@ -114,10 +114,14 @@ async def launch_dual_writers(
     if not prompt_file.exists():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
     
-    # Create fresh layout for this run
-    from ..core.dual_layout import create_dual_layout
+    # Create fresh layout for this run (closes previous if exists)
+    from ..core.dynamic_layout import DynamicLayout
     
-    layout = create_dual_layout()
+    writer_a = get_writer_config("writer_a")
+    writer_b = get_writer_config("writer_b")
+    boxes = {"writer_a": writer_a.label, "writer_b": writer_b.label}
+    DynamicLayout.initialize(boxes, lines_per_box=3)
+    layout = DynamicLayout
     
     # Create minimal state file for UI tracking
     if not resume_mode:

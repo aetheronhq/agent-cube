@@ -851,14 +851,15 @@ Both writers need changes based on judge reviews.
     console.print()
     
     DualWriterLayout.reset()
-    # Create fresh layout for feedback prompters
+    # Create fresh layout for feedback prompters (closes previous if exists)
     from ..core.dynamic_layout import DynamicLayout
     from ..core.user_config import get_writer_config
     
     writer_a = get_writer_config("writer_a")
     writer_b = get_writer_config("writer_b")
     boxes = {"prompter_a": f"Prompter A ({writer_a.label})", "prompter_b": f"Prompter B ({writer_b.label})"}
-    layout = DynamicLayout(boxes, lines_per_box=2)
+    DynamicLayout.initialize(boxes, lines_per_box=2)
+    layout = DynamicLayout
     layout.start()
     
     parser = get_parser("cursor-agent")

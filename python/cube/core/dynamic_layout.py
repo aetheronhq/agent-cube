@@ -1,45 +1,67 @@
 """Dynamic layout that adapts to any number of boxes."""
 
 from .base_layout import BaseThinkingLayout
-from typing import Dict
+from typing import Dict, Optional
 
 class DynamicLayout:
-    """Universal layout for any number of thinking boxes (instance-based, not singleton)."""
+    """Universal layout for any number of thinking boxes (singleton with proper cleanup)."""
     
-    def __init__(self, boxes: Dict[str, str], lines_per_box: int = 2):
-        """Initialize layout with specific boxes.
+    _instance: Optional[BaseThinkingLayout] = None
+    
+    @classmethod
+    def initialize(cls, boxes: Dict[str, str], lines_per_box: int = 2):
+        """Initialize layout with specific boxes (closes previous instance if exists).
         
         Args:
             boxes: Dict of {key: label} e.g. {"judge_1": "Judge Sonnet", "writer_a": "Writer A"}
             lines_per_box: Number of lines per thinking box
         """
-        self.layout = BaseThinkingLayout(boxes, lines_per_box)
+        # Close previous instance to avoid multiple Live() displays
+        if cls._instance:
+            cls._instance.close()
+        
+        cls._instance = BaseThinkingLayout(boxes, lines_per_box)
     
-    def add_thinking(self, key: str, text: str):
+    @classmethod
+    def add_thinking(cls, key: str, text: str):
         """Add thinking to a box (buffers until punctuation)."""
-        self.layout.add_thinking(key, text)
+        if cls._instance:
+            cls._instance.add_thinking(key, text)
     
-    def add_assistant_message(self, key: str, content: str, label: str, color: str):
+    @classmethod
+    def add_assistant_message(cls, key: str, content: str, label: str, color: str):
         """Add assistant message to main output (buffers per agent until punctuation)."""
-        self.layout.add_assistant_message(key, content, label, color)
+        if cls._instance:
+            cls._instance.add_assistant_message(key, content, label, color)
     
-    def add_output(self, line: str, buffered: bool = False):
+    @classmethod
+    def add_output(cls, line: str, buffered: bool = False):
         """Add to main output (immediate)."""
-        self.layout.add_output(line, buffered)
+        if cls._instance:
+            cls._instance.add_output(line, buffered)
     
-    def mark_complete(self, key: str, status: str = None):
+    @classmethod
+    def mark_complete(cls, key: str, status: str = None):
         """Mark a box as complete."""
-        self.layout.mark_complete(key, status)
+        if cls._instance:
+            cls._instance.mark_complete(key, status)
     
-    def flush_buffers(self):
+    @classmethod
+    def flush_buffers(cls):
         """Flush all buffers."""
-        self.layout.flush_buffers()
+        if cls._instance:
+            cls._instance.flush_buffers()
     
-    def start(self):
+    @classmethod
+    def start(cls):
         """Start layout."""
-        self.layout.start()
+        if cls._instance:
+            cls._instance.start()
     
-    def close(self):
+    @classmethod
+    def close(cls):
         """Close layout."""
-        self.layout.close()
+        if cls._instance:
+            cls._instance.close()
+            cls._instance = None
 
