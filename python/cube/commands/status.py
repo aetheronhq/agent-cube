@@ -13,7 +13,7 @@ def status_command(task_id: str = None) -> None:
     else:
         show_all_status()
 
-def show_task_status(task_id: str):
+def show_task_status(task_id: str) -> None:
     """Show detailed status for a specific task."""
     from ..core.state import load_state, get_progress
     
