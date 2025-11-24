@@ -35,10 +35,10 @@ class DynamicLayout:
             cls._instance.add_assistant_message(key, content, label, color)
     
     @classmethod
-    def add_output(cls, line: str, buffered: bool = False):
+    def add_output(cls, line: str):
         """Add to main output (immediate)."""
         if cls._instance:
-            cls._instance.add_output(line, buffered)
+            cls._instance.add_output(line)
     
     @classmethod
     def mark_complete(cls, key: str, status: str = None):

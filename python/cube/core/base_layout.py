@@ -117,14 +117,22 @@ class BaseThinkingLayout:
             
             self.thinking_current[box_id] += text
             buf = self.thinking_current[box_id]
+            width = self._term_width() - 10
             
-            # Flush on sentence end or length limit
+            # Handle embedded newlines - flush each complete line
+            while '\n' in buf:
+                line, buf = buf.split('\n', 1)
+                if line.strip():
+                    self.thinking_buffers[box_id].append(self._truncate(line.strip(), width))
+                self.thinking_current[box_id] = buf
+            
+            # Flush remaining buffer on sentence end or length limit
             ends = buf.rstrip().endswith(('.', '!', '?', ':'))
             if (len(buf) > 40 and ends) or len(buf) > 150:
-                width = self._term_width() - 10
                 self.thinking_buffers[box_id].append(self._truncate(buf.strip(), width))
                 self.thinking_current[box_id] = ""
-                self._refresh()
+            
+            self._refresh()
     
     def add_assistant_message(self, key: str, content: str, label: str, color: str) -> None:
         with self.lock:
@@ -139,13 +147,24 @@ class BaseThinkingLayout:
             self.assistant_buf[key] += content
             
             buf = self.assistant_buf[key]
+            width = self._term_width() - len(label) - 10
+            
+            # Handle embedded newlines - flush each complete line
+            while '\n' in buf:
+                line, buf = buf.split('\n', 1)
+                if line.strip():
+                    truncated = self._truncate(line.strip(), width)
+                    self.output_lines.append(f"[{color}]{label}[/{color}] 💭 {truncated}")
+                self.assistant_buf[key] = buf
+            
+            # Flush remaining buffer on sentence end or length limit
             ends = buf.rstrip().endswith(('.', '!', '?', ':'))
             if (len(buf) > 50 and ends) or len(buf) > 300:
-                width = self._term_width() - len(label) - 10
                 truncated = self._truncate(buf.strip(), width)
                 self.output_lines.append(f"[{color}]{label}[/{color}] 💭 {truncated}")
                 self.assistant_buf[key] = ""
-                self._refresh()
+            
+            self._refresh()
     
     def add_output(self, line: str) -> None:
         with self.lock:
