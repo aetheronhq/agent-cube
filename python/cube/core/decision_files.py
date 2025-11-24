@@ -21,9 +21,17 @@ def find_decision_file(judge_key: str, task_id: str, decision_type: str = "decis
     if primary_path.exists():
         return primary_path
     
+    # Also try with underscores (in case judge wrote it that way)
+    filename_with_underscores = f"{judge_key}-{task_id}-{decision_type}.json"
+    alt_path = PROJECT_ROOT / ".prompts" / "decisions" / filename_with_underscores
+    if alt_path.exists():
+        return alt_path
+    
     fallback_paths = [
         WORKTREE_BASE.parent / ".prompts" / "decisions" / filename,
+        WORKTREE_BASE.parent / ".prompts" / "decisions" / filename_with_underscores,
         Path.home() / ".cube" / ".prompts" / "decisions" / filename,
+        Path.home() / ".cube" / ".prompts" / "decisions" / filename_with_underscores,
         WORKTREE_BASE.parent / "decisions" / filename,
     ]
     
