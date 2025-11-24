@@ -68,7 +68,7 @@ class BaseThinkingLayout:
             self.started = True
     
     def add_thinking(self, box_id: str, text: str) -> None:
-        """Add thinking text to a specific box (buffers until punctuation + space)."""
+        """Add thinking text to a specific box (buffers until complete sentence)."""
         with self.lock:
             if not self.started:
                 self.start()
@@ -77,13 +77,22 @@ class BaseThinkingLayout:
                 return
             
             self.last_activity[box_id] = time.time()
-            
             self.current_lines[box_id] += text
             
-            # Flush immediately on sentence-ending punctuation
-            if text.endswith(('.', '!', '?', '\n')) and self.current_lines[box_id].strip():
-                line = self.current_lines[box_id].strip()
-                # Truncate to 90 chars to prevent wrapping in narrow terminals
+            buf = self.current_lines[box_id]
+            
+            # Flush when buffer has content AND ends with sentence punctuation
+            should_flush = (
+                len(buf) > 30 and (
+                    buf.rstrip().endswith('.') or
+                    buf.rstrip().endswith('!') or
+                    buf.rstrip().endswith('?') or
+                    buf.rstrip().endswith(':')
+                )
+            ) or len(buf) > 150  # Safety limit for thinking boxes
+            
+            if should_flush and buf.strip():
+                line = buf.strip()
                 if len(line) > 90:
                     line = line[:87] + "..."
                 self.buffers[box_id].append(line)
@@ -104,7 +113,7 @@ class BaseThinkingLayout:
                 self._update()
     
     def add_assistant_message(self, key: str, content: str, label: str, color: str) -> None:
-        """Add assistant message to main output (buffers per agent until punctuation).
+        """Add assistant message to main output (buffers per agent until complete sentence).
         
         Args:
             key: Agent key (for buffering)
@@ -116,30 +125,30 @@ class BaseThinkingLayout:
             if not self.started:
                 self.start()
             
-            # Skip empty/whitespace-only content
-            if not content or not content.strip():
+            if not content:
                 return
             
             if key not in self.assistant_buffers:
                 self.assistant_buffers[key] = ""
             
-            # Store metadata for proper flushing later
             self.assistant_metadata[key] = {"label": label, "color": color}
-            
             self.assistant_buffers[key] += content
             
-            # Flush when complete sentence (punctuation + space or newline)
-            should_flush = (
-                content.endswith('\n') or
-                content.endswith('. ') or
-                content.endswith('! ') or
-                content.endswith('? ') or
-                (content.endswith('.') and len(self.assistant_buffers[key]) > 200)  # Long buffer safety
-            )
+            buf = self.assistant_buffers[key]
             
-            if should_flush and self.assistant_buffers[key].strip():
-                # Truncate to prevent line wrapping (account for prefix length ~25 chars)
-                buffered = self.assistant_buffers[key].strip()
+            # Only flush when buffer has substantial content AND ends with sentence punctuation
+            # Check the BUFFER not the incoming content - we want complete sentences
+            should_flush = (
+                len(buf) > 50 and (
+                    buf.rstrip().endswith('.') or
+                    buf.rstrip().endswith('!') or
+                    buf.rstrip().endswith('?') or
+                    buf.rstrip().endswith(':')
+                )
+            ) or len(buf) > 300  # Safety limit
+            
+            if should_flush and buf.strip():
+                buffered = buf.strip()
                 if len(buffered) > 75:
                     buffered = buffered[:72] + "..."
                     
