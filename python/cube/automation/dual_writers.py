@@ -72,7 +72,12 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
                     if formatted:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(writer_info.letter, thinking_text)
+                            # Use writer_a/writer_b as box keys, not letter
+                            box_key = "writer_a" if writer_info.letter == "A" else "writer_b"
+                            layout.add_thinking(box_key, thinking_text)
+                        elif msg.type == "assistant" and msg.content:
+                            box_key = "writer_a" if writer_info.letter == "A" else "writer_b"
+                            layout.add_assistant_message(box_key, msg.content, writer_info.label, writer_info.color)
                         else:
                             layout.add_output(formatted)
     finally:

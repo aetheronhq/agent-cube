@@ -48,6 +48,8 @@ async def send_dual_feedback(
                     if formatted.startswith("[thinking]"):
                         thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                         layout.add_thinking("prompter_a", thinking_text)
+                    elif msg.type == "assistant" and msg.content:
+                        layout.add_assistant_message("prompter_a", msg.content, "Prompter A", "green")
                     else:
                         layout.add_output(formatted)
     
@@ -65,6 +67,8 @@ async def send_dual_feedback(
                     if formatted.startswith("[thinking]"):
                         thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                         layout.add_thinking("prompter_b", thinking_text)
+                    elif msg.type == "assistant" and msg.content:
+                        layout.add_assistant_message("prompter_b", msg.content, "Prompter B", "blue")
                     else:
                         layout.add_output(formatted)
     
