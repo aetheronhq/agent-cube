@@ -113,6 +113,10 @@ class BaseThinkingLayout:
             if not self.started:
                 self.start()
             
+            # Skip empty/whitespace-only content
+            if not content or not content.strip():
+                return
+            
             if key not in self.assistant_buffers:
                 self.assistant_buffers[key] = ""
             
@@ -120,7 +124,7 @@ class BaseThinkingLayout:
             
             # Flush when complete sentence
             if content.endswith(('.', '!', '?', '\n')) and self.assistant_buffers[key].strip():
-                full_message = f"[{color}]{label}[/{color}] 💭 {self.assistant_buffers[key]}"
+                full_message = f"[{color}]{label}[/{color}] 💭 {self.assistant_buffers[key].strip()}"
                 self.output_lines.append(full_message)
                 self.assistant_buffers[key] = ""
                 self._update()
