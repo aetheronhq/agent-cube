@@ -457,6 +457,9 @@ Use absolute path when writing the file. The project root is available in your w
     console.print(f"⏳ Waiting for all {len(judges)} judges to complete...")
     console.print()
     
+    # Start layout AFTER printing startup messages
+    panel_layout.start()
+    
     results = await asyncio.gather(
         *(run_judge(judge, prompt, resume_mode, panel_layout) for judge in judges),
         return_exceptions=True
