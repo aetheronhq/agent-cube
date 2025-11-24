@@ -80,16 +80,8 @@ class BaseThinkingLayout:
             
             self.current_lines[box_id] += text
             
-            # Flush on punctuation + space or newline (prevents mid-word breaks)
-            should_flush = (
-                text.endswith('\n') or
-                text.endswith('. ') or
-                text.endswith('! ') or
-                text.endswith('? ') or
-                (text.endswith('.') and len(self.current_lines[box_id]) > 150)  # Long buffer safety
-            )
-            
-            if should_flush and self.current_lines[box_id].strip():
+            # Flush immediately on sentence-ending punctuation
+            if text.endswith(('.', '!', '?', '\n')) and self.current_lines[box_id].strip():
                 line = self.current_lines[box_id].strip()
                 if len(line) > 94:
                     line = line[:91] + "..."
