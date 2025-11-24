@@ -128,13 +128,21 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     result = aggregate_decisions(decisions)
     
     if result["consensus"]:
-        print_success(f"Consensus: APPROVED ({result['votes']['approve']}/3)")
+        print_success(f"Consensus: APPROVED ({result['votes']['approve']}/{len(decisions)})")
     else:
-        print_warning(f"No consensus: {result['votes']['approve']} approve, {result['votes']['request_changes']} request changes")
+        print_warning(f"No consensus: {result['votes']['approve']} approve, {result['votes']['request_changes']} request changes, {result['votes']['reject']} reject")
     
     console.print()
-    console.print(f"[bold]🏆 Winner: Writer {result['winner']}[/bold]")
-    console.print(f"📊 Average Scores: A={result['avg_score_a']}, B={result['avg_score_b']}")
+    
+    # Format winner display
+    winner_display = result['winner']
+    if winner_display == "writer_a":
+        winner_display = "A"
+    elif winner_display == "writer_b":
+        winner_display = "B"
+    
+    console.print(f"[bold]🏆 Winner: Writer {winner_display}[/bold]")
+    console.print(f"📊 Average Scores: A={result['avg_score_a']:.1f}, B={result['avg_score_b']:.1f}")
     console.print()
     
     if result["blocker_issues"]:
