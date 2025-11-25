@@ -26,6 +26,8 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     config = load_user_config()
     cli_name = config.cli_tools.get(writer_info.model, "cursor-agent")
     parser = get_parser(cli_name)
+    
+    # Get layout (initialize done in launch_dual_writers)
     layout = get_dual_layout()
     layout.start()
     
@@ -70,7 +72,12 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
                     if formatted:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(writer_info.letter, thinking_text)
+                            # Use writer_a/writer_b as box keys, not letter
+                            box_key = "writer_a" if writer_info.letter == "A" else "writer_b"
+                            layout.add_thinking(box_key, thinking_text)
+                        elif msg.type == "assistant" and msg.content:
+                            box_key = "writer_a" if writer_info.letter == "A" else "writer_b"
+                            layout.add_assistant_message(box_key, msg.content, writer_info.label, writer_info.color)
                         else:
                             layout.add_output(formatted)
     finally:
@@ -111,6 +118,15 @@ async def launch_dual_writers(
     
     if not prompt_file.exists():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
+    
+    # Create fresh layout for this run (closes previous if exists)
+    from ..core.dynamic_layout import DynamicLayout
+    
+    writer_a = get_writer_config("writer_a")
+    writer_b = get_writer_config("writer_b")
+    boxes = {"writer_a": writer_a.label, "writer_b": writer_b.label}
+    DynamicLayout.initialize(boxes, lines_per_box=3)
+    layout = DynamicLayout
     
     # Create minimal state file for UI tracking
     if not resume_mode:
@@ -167,6 +183,14 @@ async def launch_dual_writers(
     
     console.print()
     console.print("🚀 Launching writers in parallel...")
+    console.print()
+    
+    # Show which models/CLIs are being used
+    from ..core.user_config import load_config
+    config = load_config()
+    for w in writers:
+        cli_name = config.cli_tools.get(w.model, "cursor-agent")
+        console.print(f"[dim]{w.label}: Starting with model {w.model} (CLI: {cli_name})...[/dim]")
     console.print()
     
     results = await asyncio.gather(

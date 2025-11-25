@@ -11,180 +11,196 @@ from rich.console import Console
 from rich.text import Text
 from typing import Dict, Optional
 
+
 class BaseThinkingLayout:
-    """Base class for thinking box layouts."""
+    """Thinking boxes at top + scrolling log output below."""
     
     def __init__(self, boxes: Dict[str, str], lines_per_box: int = 3):
-        """
-        boxes: dict of {box_id: title} e.g. {"writer_a": "Writer A", "judge_1": "Judge 1"}
-        lines_per_box: number of lines per box
-        """
         self.boxes = boxes
         self.lines_per_box = lines_per_box
-        self.width = 100
-        self.buffers = {box_id: deque(maxlen=lines_per_box) for box_id in boxes}
-        self.current_lines = {box_id: "" for box_id in boxes}
-        self.output_lines = deque(maxlen=1000)
-        self.started = False
-        self.live = None
-        self.layout = None
-        self.console = Console()
-        self.lock = Lock()
-        self.last_update_time = 0
-        self.min_update_interval = 0.1
+        self.thinking_buffers = {box_id: deque(maxlen=lines_per_box) for box_id in boxes}
+        self.thinking_current = {box_id: "" for box_id in boxes}
+        self.output_lines = deque(maxlen=500)
+        self.assistant_buf = {}
+        self.assistant_meta = {}
         self.completed = {box_id: False for box_id in boxes}
         self.completion_status = {box_id: None for box_id in boxes}
-        self.last_activity = {box_id: 0 for box_id in boxes}
+        
+        self.console = Console()
+        self.live = None
+        self.layout = None
+        self.started = False
+        self.lock = Lock()
+    
+    def _term_width(self) -> int:
+        try:
+            return os.get_terminal_size().columns
+        except Exception:
+            return 100
+    
+    def _term_height(self) -> int:
+        try:
+            return os.get_terminal_size().lines
+        except Exception:
+            return 40
+    
+    def _truncate(self, text: str, max_len: int) -> str:
+        if len(text) <= max_len:
+            return text
+        return text[:max_len - 3] + "..."
     
     def start(self):
-        """Start the live layout."""
         with self.lock:
             if self.started:
                 return
             
             self.layout = Layout()
-            
-            regions = []
-            for box_id in self.boxes:
-                regions.append(Layout(name=box_id, size=self.lines_per_box + 2))
+            regions = [Layout(name=box_id, size=self.lines_per_box + 2) for box_id in self.boxes]
             regions.append(Layout(name="output", ratio=1))
-            
             self.layout.split_column(*regions)
             
             for box_id, title in self.boxes.items():
-                self.layout[box_id].update(self._create_panel(title, [], box_id))
+                self.layout[box_id].update(self._make_panel(box_id, title))
             self.layout["output"].update("")
             
-            self.live = Live(
-                self.layout, 
-                console=self.console, 
-                refresh_per_second=2,
-                screen=False,
-                transient=True
-            )
+            self.live = Live(self.layout, console=self.console, refresh_per_second=4, transient=True)
             self.live.start()
             self.started = True
     
+    def _make_panel(self, box_id: str, title: str) -> Panel:
+        text = Text()
+        
+        if self.completed.get(box_id):
+            status = self.completion_status.get(box_id) or "Completed"
+            text.append(f"✅ {status}\n", style="green")
+            for _ in range(self.lines_per_box - 1):
+                text.append("\n")
+            border = "green"
+            icon = "💭" if "Writer" in title or "Prompter" in title else "⚖️"
+            title_fmt = f"[green]{icon} {title} ✓[/green]"
+        else:
+            lines = list(self.thinking_buffers[box_id])[-self.lines_per_box:]
+            for line in lines:
+                text.append(line + "\n", style="dim")
+            for _ in range(self.lines_per_box - len(lines)):
+                text.append("\n")
+            border = "dim"
+            icon = "💭" if "Writer" in title or "Prompter" in title else "⚖️"
+            title_fmt = f"[dim]{icon} {title}[/dim]"
+        
+        return Panel(text, title=title_fmt, border_style=border, padding=(0, 1), height=self.lines_per_box + 2)
+    
+    def _refresh(self):
+        if not self.live or not self.layout:
+            return
+        
+        for box_id, title in self.boxes.items():
+            self.layout[box_id].update(self._make_panel(box_id, title))
+        
+        # Calculate available lines for output
+        boxes_height = len(self.boxes) * (self.lines_per_box + 2)
+        available = max(5, self._term_height() - boxes_height - 3)
+        
+        # Take last N lines, truncate each to terminal width
+        width = self._term_width() - 2
+        recent = list(self.output_lines)[-available:]
+        lines = [self._truncate(line, width) for line in recent]
+        
+        self.layout["output"].update(Text.from_markup("\n".join(lines)))
+    
     def add_thinking(self, box_id: str, text: str) -> None:
-        """Add thinking text to a specific box."""
         with self.lock:
             if not self.started:
                 self.start()
-            
-            if box_id not in self.current_lines:
+            if box_id not in self.thinking_current:
                 return
             
-            self.last_activity[box_id] = time.time()
+            self.thinking_current[box_id] += text
+            buf = self.thinking_current[box_id]
+            width = self._term_width() - 10
             
-            self.current_lines[box_id] += text
+            # Handle embedded newlines - flush each complete line
+            while '\n' in buf:
+                line, buf = buf.split('\n', 1)
+                if line.strip():
+                    self.thinking_buffers[box_id].append(self._truncate(line.strip(), width))
+                self.thinking_current[box_id] = buf
             
-            if text.endswith(('.', '!', '?', '\n')) and self.current_lines[box_id].strip():
-                line = self.current_lines[box_id].strip()
-                if len(line) > 94:
-                    line = line[:91] + "..."
-                self.buffers[box_id].append(line)
-                self.current_lines[box_id] = ""
-                self._update()
+            # Flush remaining buffer on sentence end or length limit
+            ends = buf.rstrip().endswith(('.', '!', '?', ':'))
+            if (len(buf) > 40 and ends) or len(buf) > 150:
+                self.thinking_buffers[box_id].append(self._truncate(buf.strip(), width))
+                self.thinking_current[box_id] = ""
+            
+            self._refresh()
+    
+    def add_assistant_message(self, key: str, content: str, label: str, color: str) -> None:
+        with self.lock:
+            if not self.started:
+                self.start()
+            if not content:
+                return
+            
+            if key not in self.assistant_buf:
+                self.assistant_buf[key] = ""
+            self.assistant_meta[key] = (label, color)
+            self.assistant_buf[key] += content
+            
+            buf = self.assistant_buf[key]
+            width = self._term_width() - len(label) - 10
+            
+            # Handle embedded newlines - flush each complete line
+            while '\n' in buf:
+                line, buf = buf.split('\n', 1)
+                if line.strip():
+                    truncated = self._truncate(line.strip(), width)
+                    self.output_lines.append(f"[{color}]{label}[/{color}] 💭 {truncated}")
+                self.assistant_buf[key] = buf
+            
+            # Flush remaining buffer on sentence end or length limit
+            ends = buf.rstrip().endswith(('.', '!', '?', ':'))
+            if (len(buf) > 50 and ends) or len(buf) > 300:
+                truncated = self._truncate(buf.strip(), width)
+                self.output_lines.append(f"[{color}]{label}[/{color}] 💭 {truncated}")
+                self.assistant_buf[key] = ""
+            
+            self._refresh()
+    
+    def add_output(self, line: str) -> None:
+        with self.lock:
+            if not self.started:
+                self.start()
+            self.output_lines.append(line)
+            self._refresh()
     
     def mark_complete(self, box_id: str, status: Optional[str] = None) -> None:
-        """Mark a box as complete with optional status message.
-        
-        Args:
-            box_id: Box to mark complete
-            status: Optional status to display (e.g., "APPROVED", "Winner", "3 commits")
-        """
         with self.lock:
             if box_id in self.completed:
                 self.completed[box_id] = True
                 self.completion_status[box_id] = status
-                self._update()
+                self._refresh()
     
-    def add_output(self, line: str) -> None:
-        """Add output line."""
+    def flush_buffers(self) -> None:
         with self.lock:
-            if not self.started:
-                self.start()
+            for key, buf in list(self.assistant_buf.items()):
+                if buf.strip():
+                    label, color = self.assistant_meta.get(key, (key, "white"))
+                    width = self._term_width() - len(label) - 10
+                    truncated = self._truncate(buf.strip(), width)
+                    self.output_lines.append(f"[{color}]{label}[/{color}] 💭 {truncated}")
+                    self.assistant_buf[key] = ""
             
-            self.output_lines.append(line)
-            self._update()
-    
-    def _create_panel(self, title: str, lines: list, box_id: str) -> Panel:
-        """Create a panel."""
-        text = Text()
-        
-        if self.completed.get(box_id, False):
-            status = self.completion_status.get(box_id)
-            if status:
-                text.append("✅ ", style="green bold")
-                text.append(f"{status}\n", style="green")
-            else:
-                text.append("✅ Completed\n", style="green bold")
-            
-            for _ in range(self.lines_per_box - 1):
-                text.append("\n")
-        else:
-            for line in lines:
-                text.append(line + "\n", style="dim")
-        
-        while len(text.plain.split('\n')) < self.lines_per_box:
-            text.append("\n")
-        
-        icon = "💭" if "Writer" in title or "Prompter" in title else "⚖️ "
-        
-        if self.completed.get(box_id, False):
-            border_style = "green"
-            title_text = f"[green]{icon} {title} ✓[/green]"
-        else:
-            border_style = "dim"
-            title_text = f"[dim]{icon} {title}[/dim]"
-        
-        return Panel(
-            text,
-            title=title_text,
-            border_style=border_style,
-            padding=(0, 1),
-            height=self.lines_per_box + 2
-        )
-    
-    def _update(self) -> None:
-        """Update all regions."""
-        if not self.live or not self.layout:
-            return
-        
-        current_time = time.time()
-        if current_time - self.last_update_time < self.min_update_interval:
-            return
-        
-        self.last_update_time = current_time
-        
-        for box_id, title in self.boxes.items():
-            visible = list(self.buffers[box_id])[-self.lines_per_box:]
-            self.layout[box_id].update(self._create_panel(title, visible, box_id))
-        
-        try:
-            term_height = os.get_terminal_size().lines
-            thinking_boxes_height = len(self.boxes) * (self.lines_per_box + 2) + 2
-            available_lines = max(20, term_height - thinking_boxes_height - 5)
-        except:
-            available_lines = 30
-        
-        recent_output = list(self.output_lines)[-available_lines:]
-        output_text = "\n".join(recent_output)
-        
-        from rich.text import Text
-        text = Text.from_markup(output_text)
-        
-        self.layout["output"].update(text)
+            for box_id, buf in self.thinking_current.items():
+                if buf.strip():
+                    width = self._term_width() - 10
+                    self.thinking_buffers[box_id].append(self._truncate(buf.strip(), width))
+                    self.thinking_current[box_id] = ""
+            self._refresh()
     
     def close(self) -> None:
-        """Stop the live display and print all output to scrollback."""
         with self.lock:
             if self.started and self.live:
                 self.live.stop()
                 self.started = False
-                
-                if self.output_lines:
-                    from rich.text import Text
-                    for line in self.output_lines:
-                        self.console.print(Text.from_markup(line))
-
+                for line in self.output_lines:
+                    self.console.print(Text.from_markup(line))

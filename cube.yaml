@@ -1,20 +1,17 @@
 # Agent Cube Project Configuration
 
 writers:
-  writer_a:
-    name: "codex"
-    model: "gpt-5.1-codex-high"
-    label: "Writer A"
+  writer_b:
+    name: "gemini"
+    model: "gemini-3-pro-preview"
+    label: "Writer B"
     color: "magenta"
 
 judges:
-  judge_2:
-    model: "gemini-3-pro"
-    label: "Judge Gemini"
-    color: "magenta"
-  judge_3:
+  judge_4:
     type: "cli-review"
     cmd: "coderabbit review --plain --type all --cwd {{worktree}}"
     model: "composer-1"
     label: "CodeRabbit"
-    color: "blue"
+    color: "magenta"
+    # peer_review_only: true  # Uncomment to save rate limits (skip panel, run in peer-review only)

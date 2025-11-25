@@ -58,20 +58,26 @@ async def read_stream_with_buffer(
 async def monitor_process_health(
     process: 'asyncio.subprocess.Process',
     name: str,
-    check_interval: float = 5.0
+    check_interval: float = 5.0,
+    last_output_tracker: Optional[list] = None,
+    output_timeout: float = 600.0  # 10 minutes
 ) -> None:
-    """Monitor subprocess health and detect if it dies silently.
+    """Monitor subprocess health and detect if it dies or stalls.
     
-    Uses dual detection for maximum reliability:
+    Uses triple detection for maximum reliability:
     1. process.returncode - Check if process has exited
     2. os.kill(pid, 0) - Verify PID still exists
+    3. output_timeout - Fail if no output for too long (hung process)
     
     Args:
         process: Subprocess to monitor
         name: Process name for error messages
         check_interval: How often to check (seconds)
+        last_output_tracker: Mutable list [timestamp] updated by caller on output
+        output_timeout: Fail if no output for this many seconds (default 10 min)
     """
     import os
+    import time
     
     while True:
         await asyncio.sleep(check_interval)
@@ -85,4 +91,75 @@ async def monitor_process_health(
             os.kill(process.pid, 0)
         except OSError:
             raise RuntimeError(f"{name} process died (PID {process.pid} gone)")
+        
+        # Check for output stall (hung process)
+        if last_output_tracker and len(last_output_tracker) > 0:
+            elapsed = time.time() - last_output_tracker[0]
+            if elapsed > output_timeout:
+                process.kill()
+                raise RuntimeError(f"{name} stalled (no output for {int(elapsed)}s, killed)")
+
+async def run_subprocess_streaming(
+    cmd: list[str],
+    cwd: Path,
+    tool_name: str,
+    env: Optional[dict] = None,
+    output_timeout: float = 600.0  # 10 minutes
+) -> AsyncGenerator[str, None]:
+    """Run a subprocess with health monitoring and stream output.
+    
+    Generic function for all CLI tools (cursor, gemini, coderabbit, etc.)
+    
+    Args:
+        cmd: Command and arguments as list
+        cwd: Working directory
+        tool_name: Name for error messages
+        env: Environment variables (defaults to os.environ.copy())
+        output_timeout: Fail if no output for this many seconds (default 10 min)
+    
+    Yields:
+        Lines of output from the subprocess
+        
+    Raises:
+        RuntimeError: If process exits non-zero, dies, or stalls
+    """
+    import os
+    import time
+    
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        cwd=cwd,
+        env=env or os.environ.copy(),
+        limit=1024 * 1024 * 10
+    )
+    
+    # Track last output time for stall detection
+    last_output_time = [time.time()]  # Mutable list so monitor can read it
+    
+    health_monitor = asyncio.create_task(
+        monitor_process_health(
+            process, tool_name, 
+            check_interval=5.0,
+            last_output_tracker=last_output_time,
+            output_timeout=output_timeout
+        )
+    )
+    
+    try:
+        if process.stdout:
+            async for line in read_stream_with_buffer(process.stdout):
+                last_output_time[0] = time.time()  # Update on each output
+                yield line
+    finally:
+        health_monitor.cancel()
+        try:
+            await health_monitor
+        except (asyncio.CancelledError, RuntimeError):
+            pass
+    
+    exit_code = await process.wait()
+    if exit_code != 0:
+        raise RuntimeError(f"{tool_name} exited with code {exit_code}")
 

@@ -20,7 +20,7 @@ class WriterInfo:
 @dataclass
 class JudgeInfo:
     """Information about a judge agent."""
-    number: int
+    key: str
     model: str
     color: str
     label: str

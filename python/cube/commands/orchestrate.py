@@ -349,7 +349,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
             console.print()
             from ..core.user_config import get_judge_configs
             judge_configs = get_judge_configs()
-            judge_nums = [j.number for j in judge_configs]
+            judge_nums = [j.key for j in judge_configs]
             total_judges = len(judge_nums)
             
             decisions_count = final_result.get("decisions_found", 0)
@@ -360,10 +360,11 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
                 console.print()
                 console.print("Options:")
                 console.print(f"  1. Get missing judge(s) to file decisions:")
-                for judge_num in judge_nums:
-                    peer_file = PROJECT_ROOT / ".prompts" / "decisions" / f"judge-{judge_num}-{task_id}-peer-review.json"
+                for judge_key in judge_nums:
+                    judge_label = judge_key.replace("_", "-")
+                    peer_file = PROJECT_ROOT / ".prompts" / "decisions" / f"{judge_label}-{task_id}-peer-review.json"
                     if not peer_file.exists():
-                        console.print(f"     cube resume judge-{judge_num} {task_id} \"Write peer review decision\"")
+                        console.print(f"     cube resume {judge_label} {task_id} \"Write peer review decision\"")
                 console.print()
                 console.print(f"  2. Continue with {decisions_count}/{total_judges} decisions:")
                 console.print(f"     cube auto task.md --resume-from 8")
@@ -448,6 +449,8 @@ Include: context, requirements, steps, constraints, anti-patterns, success crite
                 if formatted.startswith("[thinking]"):
                     thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                     layout.add_thinking(thinking_text)
+                elif msg.type == "assistant" and msg.content:
+                    layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
                 else:
                     layout.add_output(formatted)
         
@@ -491,6 +494,8 @@ Include evaluation criteria, scoring rubric, and decision JSON format."""
                 if formatted.startswith("[thinking]"):
                     thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                     layout.add_thinking(thinking_text)
+                elif msg.type == "assistant" and msg.content:
+                    layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
                 else:
                     layout.add_output(formatted)
         
@@ -532,11 +537,11 @@ def run_decide_peer_review(task_id: str) -> dict:
     
     has_request_changes = False
     judge_configs = get_judge_configs()
-    judge_nums = [j.number for j in judge_configs]
+    judge_nums = [j.key for j in judge_configs]
     total_judges = len(judge_nums)
     
-    for judge_num in judge_nums:
-        peer_file = find_decision_file(judge_num, task_id, "peer-review")
+    for judge_key in judge_nums:
+        peer_file = find_decision_file(judge_key, task_id, "peer-review")
         
         if peer_file and peer_file.exists():
             decisions_found += 1
@@ -545,9 +550,10 @@ def run_decide_peer_review(task_id: str) -> dict:
                 decision = data.get("decision", "UNKNOWN")
                 remaining = data.get("remaining_issues", [])
                 
-                judge_decisions[f"judge_{judge_num}_decision"] = decision
+                judge_decisions[f"{judge_key}_decision"] = decision
                 
-                console.print(f"Judge {judge_num}: {decision}")
+                judge_label = judge_key.replace("_", "-")
+                console.print(f"Judge {judge_label}: {decision}")
                 if remaining:
                     console.print(f"  Issues: {len(remaining)}")
                     all_issues.extend(remaining)
@@ -558,15 +564,16 @@ def run_decide_peer_review(task_id: str) -> dict:
                     has_request_changes = True
                     if not remaining:
                         console.print(f"  [yellow]⚠️  No issues listed (malformed decision)[/yellow]")
-                        all_issues.append(f"Judge {judge_num} requested changes but didn't specify issues")
+                        all_issues.append(f"Judge {judge_label} requested changes but didn't specify issues")
     
     console.print()
     
     if decisions_found == 0:
         print_warning("No peer review decisions found!")
         console.print("Expected files:")
-        for judge_num in judge_nums:
-            console.print(f"  .prompts/decisions/judge-{judge_num}-{task_id}-peer-review.json")
+        for judge_key in judge_nums:
+            judge_label = judge_key.replace("_", "-")
+            console.print(f"  .prompts/decisions/{judge_label}-{task_id}-peer-review.json")
         console.print()
         return {"approved": False, "remaining_issues": [], "decisions_found": 0, "approvals": 0}
     
@@ -591,8 +598,9 @@ def run_decide_peer_review(task_id: str) -> dict:
 async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
     """Phase 6: Run synthesis if needed."""
     from pathlib import Path as PathLib
+    from ..core.user_config import get_writer_by_key_or_letter
     
-    winner = "sonnet" if result["winner"] == "A" else "codex"
+    winner_cfg = get_writer_by_key_or_letter(result["winner"])
     winner_name = result["winner"]
     
     synthesis_path = prompts_dir / f"synthesis-{task_id}.md"
@@ -602,28 +610,36 @@ async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
         
         logs_dir = PathLib.home() / ".cube" / "logs"
         
+        from ..core.user_config import get_judge_configs
+        judge_configs = get_judge_configs()
+        judge_decision_files = '\n'.join([f"- `.prompts/decisions/{j.key.replace('_', '-')}-{task_id}-decision.json`" for j in judge_configs])
+        judge_log_files = '\n'.join([f"- `~/.cube/logs/{j.key.replace('_', '-')}-{task_id}-panel-*.json`" for j in judge_configs])
+        
         prompt = f"""Generate a synthesis prompt for the WINNING writer.
 
 ## Context
 
 Task: {task_id}
-Winner: Writer {winner_name} ({winner})
-Winner's branch: writer-{winner}/{task_id}
-Winner's location: ~/.cube/worktrees/PROJECT/writer-{winner}-{task_id}/
+Winner: Writer {winner_name} ({winner_cfg.label})
+Winner's branch: writer-{winner_cfg.name}/{task_id}
+Winner's location: ~/.cube/worktrees/PROJECT/writer-{winner_cfg.name}-{task_id}/
 
 ## Available Information
 
 **Judge Decisions (JSON with detailed feedback):**
-- `.prompts/decisions/judge-1-{task_id}-decision.json`
-- `.prompts/decisions/judge-2-{task_id}-decision.json`
-- `.prompts/decisions/judge-3-{task_id}-decision.json`
+{judge_decision_files}
 
 Read these for full context on what judges liked/disliked.
 
+**IMPORTANT:** Some judges (like CodeRabbit) include:
+- `review_output_files` - paths to FULL review output with "Prompt for AI Agent" sections
+- `blocker_issues` - critical issues that must be fixed
+
+Tell the winner to READ their review output file (e.g., `.prompts/reviews/{task_id}-writer-a-coderabbit.txt`)
+for the FULL context including code diffs and detailed fix instructions.
+
 **Judge Logs (reasoning and analysis):**
-- `~/.cube/logs/judge-1-{task_id}-panel-*.json`
-- `~/.cube/logs/judge-2-{task_id}-panel-*.json`
-- `~/.cube/logs/judge-3-{task_id}-panel-*.json`
+{judge_log_files}
 
 Optional: Read for deeper understanding of judge concerns.
 
@@ -634,12 +650,19 @@ Optional: Read for deeper understanding of judge concerns.
 ## Your Task
 
 Create a synthesis prompt that:
-1. References specific files/lines from winner's code
-2. Addresses each blocker issue with concrete fixes
-3. Preserves what judges liked (winner's architecture)
-4. Tells writer to commit and push when complete
+1. **Points writer to their review file** (from `review_output_files` in CodeRabbit decision)
+2. Lists blocker issues that MUST be fixed
+3. References specific files/lines from winner's code  
+4. Tells writer to READ the review file for full context and "Prompt for AI Agent" sections
+5. Preserves what judges liked (winner's architecture)
+6. Tells writer to commit and push when complete
 
-Read the judge decisions for full context!
+**CRITICAL:** The CodeRabbit review file contains:
+- Full output with code diffs
+- "Prompt for AI Agent" sections with detailed fix instructions
+- ALL issues, not just blockers
+
+Tell the winner: "Read `.prompts/reviews/{task_id}-writer-{{a|b}}-coderabbit.txt` for full details"
 
 Save to: `.prompts/synthesis-{task_id}.md`"""
         
@@ -659,6 +682,8 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
                     if formatted.startswith("[thinking]"):
                         thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                         layout.add_thinking(thinking_text)
+                    elif msg.type == "assistant" and msg.content:
+                        layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
                     else:
                         layout.add_output(formatted)
             
@@ -676,17 +701,19 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
     from ..core.config import WORKTREE_BASE
     from pathlib import Path
     
-    session_id = load_session(f"WRITER_{'A' if winner == 'sonnet' else 'B'}", task_id)
+    session_id = load_session(f"WRITER_{winner_cfg.letter}", task_id)
     if not session_id:
         raise RuntimeError(f"No session found for Writer {winner_name}. Cannot send synthesis.")
     
     project_name = Path(PROJECT_ROOT).name
-    worktree = WORKTREE_BASE / project_name / f"writer-{winner}-{task_id}"
-    await send_feedback_async(winner, task_id, synthesis_path, session_id, worktree)
+    worktree = WORKTREE_BASE / project_name / f"writer-{winner_cfg.name}-{task_id}"
+    await send_feedback_async(winner_cfg.name, task_id, synthesis_path, session_id, worktree)
 
 async def run_peer_review(task_id: str, result: dict, prompts_dir: Path):
     """Phase 7: Run peer review."""
-    winner = "sonnet" if result["winner"] == "A" else "codex"
+    from ..core.user_config import get_writer_by_key_or_letter
+    
+    winner_cfg = get_writer_by_key_or_letter(result["winner"])
     winner_name = result["winner"]
     
     peer_review_path = prompts_dir / f"peer-review-{task_id}.md"
@@ -699,13 +726,13 @@ async def run_peer_review(task_id: str, result: dict, prompts_dir: Path):
 ## Context
 
 Task: {task_id}
-Winner: Writer {winner_name} ({winner})
-Branch: writer-{winner}/{task_id}
+Winner: {winner_cfg.label} (key: {winner_cfg.key})
+Branch: writer-{winner_cfg.name}/{task_id}
 
 ## Your Task
 
 Create a peer review prompt that tells the 3 judges to:
-1. Review ONLY Writer {winner_name}'s updated implementation
+1. Review ONLY {winner_cfg.label}'s updated implementation
 2. Verify synthesis changes were made correctly
 3. Confirm all blocker issues are resolved
 4. Write decision JSON: `.prompts/decisions/judge-{{{{N}}}}-{task_id}-peer-review.json`
@@ -730,6 +757,8 @@ Include the worktree location and git commands for reviewing."""
                     if formatted.startswith("[thinking]"):
                         thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                         layout.add_thinking(thinking_text)
+                    elif msg.type == "assistant" and msg.content:
+                        layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
                     else:
                         layout.add_output(formatted)
             
@@ -746,7 +775,10 @@ Include the worktree location and git commands for reviewing."""
 
 async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):
     """Address minor issues from peer review."""
-    winner = "sonnet" if result["winner"] == "A" else "codex"
+    from ..core.user_config import get_writer_by_key_or_letter
+    
+    winner_cfg = get_writer_by_key_or_letter(result["winner"])
+    winner_name = winner_cfg.name
     
     minor_fixes_path = prompts_dir / f"minor-fixes-{task_id}.md"
     
@@ -754,7 +786,7 @@ async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir:
 
 ## Context
 
-Winner: Writer {result['winner']} ({winner})
+Winner: Writer {result['winner']} ({winner_cfg.label})
 
 ## Minor Issues from Peer Review
 
@@ -781,17 +813,16 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
         from ..core.config import WORKTREE_BASE
         from pathlib import Path
         
-        session_id = load_session(f"WRITER_{'A' if winner == 'sonnet' else 'B'}", task_id)
+        session_id = load_session(f"WRITER_{winner_cfg.letter}", task_id)
         if not session_id:
-            raise RuntimeError(f"No session found for Writer {winner_name}. Cannot send minor fixes.")
+            raise RuntimeError(f"No session found for Writer {winner_cfg.label}. Cannot send minor fixes.")
         
         project_name = Path(PROJECT_ROOT).name
-        worktree = WORKTREE_BASE / project_name / f"writer-{winner}-{task_id}"
-        await send_feedback_async(winner, task_id, minor_fixes_path, session_id, worktree)
+        worktree = WORKTREE_BASE / project_name / f"writer-{winner_name}-{task_id}"
+        await send_feedback_async(winner_name, task_id, minor_fixes_path, session_id, worktree)
 
 async def generate_dual_feedback(task_id: str, result: dict, prompts_dir: Path):
     """Generate feedback prompts for both writers in parallel with dual layout."""
-    from ..core.dual_layout import get_dual_layout, DualWriterLayout
     
     feedback_a_path = prompts_dir / f"feedback-a-{task_id}.md"
     feedback_b_path = prompts_dir / f"feedback-b-{task_id}.md"
@@ -821,25 +852,36 @@ Create a targeted feedback prompt for Writer {writer} that:
 
 Save to: `.prompts/feedback-{writer_letter}-{task_id}.md`"""
     
-    prompt_a = f"""Generate a feedback prompt for Writer A (Sonnet).
-
-Task: {task_id}
-Both writers need changes based on judge reviews.
-
-{prompt_base.format(task_id=task_id, writer='A', writer_slug='sonnet', writer_letter='a')}"""
+    from ..core.user_config import get_writer_config
+    writer_a = get_writer_config("writer_a")
+    writer_b = get_writer_config("writer_b")
     
-    prompt_b = f"""Generate a feedback prompt for Writer B (Codex).
+    prompt_a = f"""Generate a feedback prompt for {writer_a.label}.
 
 Task: {task_id}
 Both writers need changes based on judge reviews.
 
-{prompt_base.format(task_id=task_id, writer='B', writer_slug='codex', writer_letter='b')}"""
+{prompt_base.format(task_id=task_id, writer=writer_a.letter, writer_slug=writer_a.name, writer_letter=writer_a.letter.lower())}"""
+    
+    prompt_b = f"""Generate a feedback prompt for {writer_b.label}.
+
+Task: {task_id}
+Both writers need changes based on judge reviews.
+
+{prompt_base.format(task_id=task_id, writer=writer_b.letter, writer_slug=writer_b.name, writer_letter=writer_b.letter.lower())}"""
     
     console.print("Generating feedback for both writers in parallel...")
     console.print()
     
-    DualWriterLayout.reset()
-    layout = get_dual_layout()
+    # Create fresh layout for feedback prompters (closes previous if exists)
+    from ..core.dynamic_layout import DynamicLayout
+    from ..core.user_config import get_writer_config
+    
+    writer_a = get_writer_config("writer_a")
+    writer_b = get_writer_config("writer_b")
+    boxes = {"prompter_a": f"Prompter A ({writer_a.label})", "prompter_b": f"Prompter B ({writer_b.label})"}
+    DynamicLayout.initialize(boxes, lines_per_box=2)
+    layout = DynamicLayout
     layout.start()
     
     parser = get_parser("cursor-agent")
@@ -853,7 +895,9 @@ Both writers need changes based on judge reviews.
                 if formatted:
                     if formatted.startswith("[thinking]"):
                         thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking("A", thinking_text)
+                        layout.add_thinking("prompter_a", thinking_text)
+                    elif msg.type == "assistant" and msg.content:
+                        layout.add_assistant_message("prompter_a", msg.content, "Prompter A", "green")
                     else:
                         layout.add_output(formatted)
             
@@ -869,7 +913,9 @@ Both writers need changes based on judge reviews.
                 if formatted:
                     if formatted.startswith("[thinking]"):
                         thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking("B", thinking_text)
+                        layout.add_thinking("prompter_b", thinking_text)
+                    elif msg.type == "assistant" and msg.content:
+                        layout.add_assistant_message("prompter_b", msg.content, "Prompter B", "blue")
                     else:
                         layout.add_output(formatted)
             
@@ -906,9 +952,13 @@ Both writers need changes based on judge reviews.
         if not session_b:
             raise RuntimeError("No session found for Writer B. Cannot send feedback.")
         
+        from ..core.user_config import get_writer_config
+        writer_a = get_writer_config("writer_a")
+        writer_b = get_writer_config("writer_b")
+        
         project_name = Path(PROJECT_ROOT).name
-        worktree_a = WORKTREE_BASE / project_name / f"writer-sonnet-{task_id}"
-        worktree_b = WORKTREE_BASE / project_name / f"writer-codex-{task_id}"
+        worktree_a = WORKTREE_BASE / project_name / f"writer-{writer_a.name}-{task_id}"
+        worktree_b = WORKTREE_BASE / project_name / f"writer-{writer_b.name}-{task_id}"
         
         await send_dual_feedback(
             task_id, feedback_a_path, feedback_b_path,
@@ -918,9 +968,10 @@ Both writers need changes based on judge reviews.
 async def create_pr(task_id: str, winner: str):
     """Create PR automatically."""
     import subprocess
+    from ..core.user_config import get_writer_by_key_or_letter
     
-    winner_name = "sonnet" if winner == "A" else "codex"
-    branch = f"writer-{winner_name}/{task_id}"
+    winner_cfg = get_writer_by_key_or_letter(winner)
+    branch = f"writer-{winner_cfg.name}/{task_id}"
     
     console.print(f"[green]✅ Creating PR from: {branch}[/green]")
     console.print()

@@ -20,7 +20,7 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     
     from ..core.user_config import get_judge_configs
     judge_configs = get_judge_configs()
-    judge_nums = [j.number for j in judge_configs]
+    judge_nums = [j.key for j in judge_configs]
     
     if review_type == "auto":
         has_peer = any(find_decision_file(j, task_id, "peer-review") for j in judge_nums)
@@ -53,39 +53,74 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
         print_error("No decision files found")
         console.print()
         console.print("Expected decision files:")
-        for judge_num in judge_nums:
-            decision_file = get_decision_file_path(judge_num, task_id)
+        for judge_key in judge_nums:
+            decision_file = get_decision_file_path(judge_key, task_id)
             console.print(f"  {decision_file}")
         console.print()
         
         console.print("Missing decisions from:")
-        for judge_num in judge_nums:
-            decision_file = get_decision_file_path(judge_num, task_id)
+        for judge_key in judge_nums:
+            decision_file = get_decision_file_path(judge_key, task_id)
             if not decision_file.exists():
-                session_id = load_session(f"JUDGE_{judge_num}", f"{task_id}_panel")
+                session_id = load_session(f"JUDGE_{judge_key}", f"{task_id}_panel")
                 if session_id:
-                    console.print(f"  [yellow]Judge {judge_num}[/yellow] (session: {session_id})")
-                    console.print(f"    Resume: [cyan]cube resume judge-{judge_num} {task_id} \"Write decision file\"[/cyan]")
+                    judge_label = judge_key.replace("_", "-")
+                    console.print(f"  [yellow]Judge {judge_label}[/yellow] (session: {session_id})")
+                    console.print(f"    Resume: [cyan]cube resume {judge_label} {task_id} \"Write decision file\"[/cyan]")
                     
                     from ..core.user_config import get_judge_config
-                    jconfig = get_judge_config(judge_num)
+                    jconfig = get_judge_config(judge_key)
                     if "gemini" in jconfig.model.lower():
-                        console.print(f"    [dim]Note: Gemini may need help finding PROJECT_ROOT[/dim]")
-                        console.print(f"    [dim]Tell it: Write to {PROJECT_ROOT}/.prompts/decisions/judge-{judge_num}-{task_id}-decision.json[/dim]")
+                        console.print("    [dim]Note: Gemini may need help finding PROJECT_ROOT[/dim]")
+                        console.print(f"    [dim]Tell it: Write to {PROJECT_ROOT}/.prompts/decisions/{judge_key.replace('_', '-')}-{task_id}-decision.json[/dim]")
                 else:
-                    console.print(f"  [red]Judge {judge_num}[/red] (no session)")
+                    judge_label = judge_key.replace("_", "-")
+                    console.print(f"  [red]Judge {judge_label}[/red] (no session)")
         
         raise typer.Exit(1)
     
     total_judges = len(judge_nums)
     if len(decisions) < total_judges:
-        missing = [j for j in judge_nums if not any(d.judge == j for d in decisions)]
-        print_warning(f"Only {len(decisions)}/{total_judges} decisions found. Missing: Judge {', '.join(map(str, missing))}")
+        # Normalize judge keys for comparison (handle "1" vs "judge_1" etc)
+        found_judges = set()
+        for d in decisions:
+            found_judges.add(str(d.judge))
+            # Also add with judge_ prefix if it's a number
+            if str(d.judge).isdigit():
+                found_judges.add(f"judge_{d.judge}")
+        
+        missing = [j for j in judge_nums if j not in found_judges]
+        if missing:
+            missing_labels = []
+            for j in missing:
+                try:
+                    from ..core.user_config import get_judge_config
+                    jconfig = get_judge_config(j)
+                    missing_labels.append(jconfig.label)
+                except:
+                    missing_labels.append(j)
+            print_warning(f"Only {len(decisions)}/{total_judges} decisions found. Missing: {', '.join(missing_labels)}")
         console.print()
     
     for d in decisions:
+        # Get judge label (handle key, number, or already a label)
+        judge_label = str(d.judge)
+        try:
+            from ..core.user_config import get_judge_config
+            # Try as-is first
+            jconfig = get_judge_config(judge_label)
+            judge_label = jconfig.label
+        except:
+            # Try adding judge_ prefix if it's just a number
+            try:
+                if judge_label.isdigit():
+                    jconfig = get_judge_config(f"judge_{judge_label}")
+                    judge_label = jconfig.label
+            except:
+                pass
+        
         color = "green" if d.decision == "APPROVED" else ("yellow" if d.decision == "REQUEST_CHANGES" else "red")
-        console.print(f"[{color}]Judge {d.judge}:[/{color}] {d.decision} → Winner: {d.winner} (A: {d.scores_a}, B: {d.scores_b})")
+        console.print(f"[{color}]{judge_label}:[/{color}] {d.decision} → Winner: {d.winner} (A: {d.scores_a}, B: {d.scores_b})")
     
     console.print()
     console.print("━" * 60)
@@ -93,13 +128,21 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     result = aggregate_decisions(decisions)
     
     if result["consensus"]:
-        print_success(f"Consensus: APPROVED ({result['votes']['approve']}/3)")
+        print_success(f"Consensus: APPROVED ({result['votes']['approve']}/{len(decisions)})")
     else:
-        print_warning(f"No consensus: {result['votes']['approve']} approve, {result['votes']['request_changes']} request changes")
+        print_warning(f"No consensus: {result['votes']['approve']} approve, {result['votes']['request_changes']} request changes, {result['votes']['reject']} reject")
     
     console.print()
-    console.print(f"[bold]🏆 Winner: Writer {result['winner']}[/bold]")
-    console.print(f"📊 Average Scores: A={result['avg_score_a']}, B={result['avg_score_b']}")
+    
+    # Format winner display
+    winner_display = result['winner']
+    if winner_display == "writer_a":
+        winner_display = "A"
+    elif winner_display == "writer_b":
+        winner_display = "B"
+    
+    console.print(f"[bold]🏆 Winner: Writer {winner_display}[/bold]")
+    console.print(f"📊 Average Scores: A={result['avg_score_a']:.1f}, B={result['avg_score_b']:.1f}")
     console.print()
     
     if result["blocker_issues"]:
@@ -116,21 +159,21 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     console.print()
     
     if result["next_action"] == "MERGE":
-        winner = result["winner"].lower()
-        winner_name = "sonnet" if winner == "a" else "codex"
+        from ..core.user_config import get_writer_by_key_or_letter
+        winner_cfg = get_writer_by_key_or_letter(result["winner"])
         console.print("[green]✅ Ready for PR![/green]")
         console.print()
         console.print("Create pull request:")
-        console.print(f"  git checkout writer-{winner_name}/{task_id}")
-        console.print(f"  git push -u origin writer-{winner_name}/{task_id}")
+        console.print(f"  git checkout writer-{winner_cfg.name}/{task_id}")
+        console.print(f"  git push -u origin writer-{winner_cfg.name}/{task_id}")
         console.print(f"  gh pr create --base main --title 'feat: {task_id}' --fill")
     
     elif result["next_action"] == "SYNTHESIS":
-        winner = result["winner"].lower()
-        winner_name = "sonnet" if winner == "a" else "codex"
+        from ..core.user_config import get_writer_by_key_or_letter
+        winner_cfg = get_writer_by_key_or_letter(result["winner"])
         console.print("Synthesis needed (winner has blockers):")
         console.print(f"  1. Create: .prompts/synthesis-{task_id}.md")
-        console.print(f"  2. Run: cube feedback {winner_name} {task_id} .prompts/synthesis-{task_id}.md")
+        console.print(f"  2. Run: cube feedback {winner_cfg.name} {task_id} .prompts/synthesis-{task_id}.md")
         console.print(f"  3. After fixes: cube peer-review {task_id} .prompts/peer-review-{task_id}.md")
     
     elif result["next_action"] == "FEEDBACK":
