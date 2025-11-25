@@ -35,7 +35,7 @@ def ensure_trusted_folders() -> None:
     
     settings = load_gemini_settings()
     
-    trusted = settings.get("trustedFolders", [])
+    trusted = settings.setdefault("trustedFolders", [])
     
     paths_to_add = [
         str(WORKTREE_BASE.parent),
