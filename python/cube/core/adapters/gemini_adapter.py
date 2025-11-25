@@ -32,7 +32,8 @@ class GeminiAdapter(CLIAdapter):
             "-m", model,
             "--output-format", "stream-json",
             "--approval-mode", "yolo",
-            "--no-sandbox"
+            "--no-sandbox",
+            "--debug"  # Capture ALL output for timeout heartbeat
         ]
         
         if resume and session_id:
@@ -46,17 +47,24 @@ class GeminiAdapter(CLIAdapter):
         
         last_error = None
         line_count = 0
+        json_started = False
         
         try:
             async for line in run_subprocess_streaming(cmd, worktree, "gemini", env):
                 line_count += 1
                 
+                # Check for errors in any output
                 if "not logged in" in line.lower() or "authentication" in line.lower():
                     last_error = "Authentication required"
                 elif line.startswith('{"type":"error"') or line.startswith('Error:'):
                     last_error = line[:200]
                 
-                yield line
+                # Only yield JSON lines (filter out debug spam)
+                if line.startswith('{'):
+                    json_started = True
+                    yield line
+                elif json_started:
+                    yield line  # After JSON starts, yield everything
         
         except RuntimeError as e:
             if last_error == "Authentication required":
