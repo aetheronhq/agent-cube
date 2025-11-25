@@ -36,6 +36,10 @@ class CursorParser(ParserAdapter):
                     return msg
             
             if msg.type == "assistant":
+                # Skip messages with model_call_id - they're summaries of already-streamed content
+                if data.get("model_call_id"):
+                    return None
+                    
                 message_data = data.get("message", {})
                 content_list = message_data.get("content", [])
                 if content_list and len(content_list) > 0:
