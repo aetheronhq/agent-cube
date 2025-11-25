@@ -46,6 +46,10 @@ judges:
     label: "Judge Gemini"
     color: "magenta"
 
+# Prompter agent (generates prompts for writers/synthesis)
+prompter:
+  model: "sonnet-4.5-thinking"
+
 # Paths
 paths:
   worktree_base: "~/.cube/worktrees"

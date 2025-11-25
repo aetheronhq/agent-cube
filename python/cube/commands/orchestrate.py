@@ -8,6 +8,7 @@ import typer
 from ..core.output import print_error, print_success, print_warning, print_info, console
 from ..core.config import PROJECT_ROOT, resolve_path
 from ..core.agent import run_agent
+from ..core.user_config import get_prompter_model
 from ..core.parsers.registry import get_parser
 from ..automation.stream import format_stream_message
 from ..automation.dual_writers import launch_dual_writers
@@ -439,7 +440,7 @@ Include: context, requirements, steps, constraints, anti-patterns, success crite
     layout = SingleAgentLayout(title="Prompter")
     layout.start()
     
-    stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
+    stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
     
     async for line in stream:
         msg = parser.parse(line)
@@ -484,7 +485,7 @@ Include evaluation criteria, scoring rubric, and decision JSON format."""
     layout = SingleAgentLayout(title="Prompter")
     layout.start()
     
-    stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
+    stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
     
     async for line in stream:
         msg = parser.parse(line)
@@ -672,7 +673,7 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
         layout = SingleAgentLayout(title="Prompter")
         layout.start()
         
-        stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
+        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
         
         async for line in stream:
             msg = parser.parse(line)
@@ -747,7 +748,7 @@ Include the worktree location and git commands for reviewing."""
         layout = SingleAgentLayout(title="Prompter")
         layout.start()
         
-        stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
+        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
         
         async for line in stream:
             msg = parser.parse(line)
@@ -800,7 +801,7 @@ Keep their implementation intact, just fix these specific points.
 Save to: `.prompts/minor-fixes-{task_id}.md`"""
     
     parser = get_parser("cursor-agent")
-    stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
+    stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
     
     async for line in stream:
         if minor_fixes_path.exists():
@@ -887,7 +888,7 @@ Both writers need changes based on judge reviews.
     parser = get_parser("cursor-agent")
     
     async def generate_feedback_a():
-        stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt_a, session_id=None, resume=False)
+        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt_a, session_id=None, resume=False)
         async for line in stream:
             msg = parser.parse(line)
             if msg:
@@ -905,7 +906,7 @@ Both writers need changes based on judge reviews.
                 return
     
     async def generate_feedback_b():
-        stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt_b, session_id=None, resume=False)
+        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt_b, session_id=None, resume=False)
         async for line in stream:
             msg = parser.parse(line)
             if msg:
