@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import re
 from pathlib import Path
 from typing import AsyncGenerator, Optional, Dict, Any
 
@@ -111,14 +112,30 @@ class CLIReviewAdapter(CLIAdapter):
         # Wait for tasks to finish
         await asyncio.gather(*worker_tasks, return_exceptions=True)
         
-        # Build reviews dict
+        # Build reviews dict and save to files
+        review_files = {}
+        reviews_dir = worktree / ".prompts" / "reviews"
+        reviews_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Extract task_id from prompt if possible
+        task_match = re.search(r'task[_\s]*(?:id)?[:\s]*["\']?(\w+)', prompt, re.IGNORECASE)
+        task_id = task_match.group(1) if task_match else "review"
+        
         for writer, lines in output_buffers.items():
             reviews[writer] = "\n".join(lines)
+            
+            # Save raw output to file
+            writer_slug = "writer-a" if "A" in writer else "writer-b"
+            review_file = reviews_dir / f"{task_id}-{writer_slug}-{self.tool_name.lower()}.txt"
+            review_file.write_text(reviews[writer])
+            review_files[writer] = f".prompts/reviews/{review_file.name}"
+            
+        yield json.dumps({"type": "assistant", "content": f"📁 Saved review output to {reviews_dir.relative_to(worktree)}"})
 
         # 3. Run Synthesis Agent
         yield json.dumps({"type": "assistant", "content": f"🤖 Synthesizing decision with {orch_model}..."})
         
-        synthesis_prompt = self._build_synthesis_prompt(prompt, reviews)
+        synthesis_prompt = self._build_synthesis_prompt(prompt, reviews, review_files)
         
         async for line in run_agent(
             worktree=worktree,
@@ -129,13 +146,23 @@ class CLIReviewAdapter(CLIAdapter):
         ):
             yield line
 
-    def _build_synthesis_prompt(self, original_prompt: str, reviews: Dict[str, str]) -> str:
+    def _build_synthesis_prompt(self, original_prompt: str, reviews: Dict[str, str], review_files: Dict[str, str]) -> str:
         """Construct the synthesis prompt."""
+        writer_a_file = review_files.get('Writer A', 'N/A')
+        writer_b_file = review_files.get('Writer B', 'N/A')
+        
         return f"""
 You are a technical judge synthesizing results from a CLI review tool ({self.tool_name}).
 
 ## Task Context
 {original_prompt}
+
+## Review Output Files (IMPORTANT - reference these in your decision)
+- **Writer A:** `{writer_a_file}`
+- **Writer B:** `{writer_b_file}`
+
+These files contain the FULL {self.tool_name} output including "Prompt for AI Agent" sections.
+The winning writer should read their file to address all issues.
 
 ## Review: Writer A
 {reviews.get('Writer A', 'No output')}
@@ -146,13 +173,12 @@ You are a technical judge synthesizing results from a CLI review tool ({self.too
 ## Your Job
 1. Analyze ALL issues found in the reviews above for BOTH writers.
 2. Determine which implementation is better based ONLY on the review output.
-3. Output a JSON decision file that includes ALL review findings.
+3. Output a JSON decision file that includes the review file paths.
 
 **CRITICAL REQUIREMENTS:**
 - Do NOT use any tools (read_file, shell, etc.)
 - Make your decision SOLELY based on the review output provided above
-- Include ALL issues found by {self.tool_name} in the `review_findings` field
-- Even if a writer wins, their issues should still be listed as improvement opportunities
+- Include the `review_output_files` field so the writer knows where to find full details
 
 **If reviews contain errors or are empty:**
 - Use decision: "REQUEST_CHANGES"  
@@ -167,20 +193,18 @@ You are a technical judge synthesizing results from a CLI review tool ({self.too
     "writer_a": {{ "total_weighted": <0-100> }},
     "writer_b": {{ "total_weighted": <0-100> }}
   }},
-  "review_findings": {{
-    "writer_a": [
-      {{"file": "path/to/file.py", "line": 42, "issue": "Description of issue", "severity": "warning|error|info", "suggestion": "How to fix it"}}
-    ],
-    "writer_b": [
-      {{"file": "path/to/file.py", "line": 10, "issue": "Description of issue", "severity": "warning|error|info", "suggestion": "How to fix it"}}
-    ]
+  "review_output_files": {{
+    "writer_a": "{writer_a_file}",
+    "writer_b": "{writer_b_file}"
   }},
-  "blocker_issues": ["list", "of", "critical", "issues"],
-  "recommendation": "Explanation..."
+  "blocker_issues": ["list", "of", "critical", "issues", "from", "the", "review"],
+  "recommendation": "Brief explanation. Tell winner to read their review file for full details."
 }}
 
-**IMPORTANT:** The `review_findings` field must capture ALL specific issues from the {self.tool_name} output.
-These will be shown to the winning writer as improvement suggestions.
+**IMPORTANT:** 
+- The `review_output_files` paths let the writer find the FULL {self.tool_name} output
+- The output includes "Prompt for AI Agent" sections with detailed fix instructions
+- Blocker issues should be a SHORT summary; full details are in the review files
 
 Output ONLY valid JSON.
 """

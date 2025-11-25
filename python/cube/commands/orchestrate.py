@@ -631,8 +631,12 @@ Winner's location: ~/.cube/worktrees/PROJECT/writer-{winner_cfg.name}-{task_id}/
 
 Read these for full context on what judges liked/disliked.
 
-**IMPORTANT:** Some judges (like CodeRabbit) include `review_findings` in their JSON with specific file/line issues.
-Extract ALL `review_findings` for the winner and present them as improvement suggestions.
+**IMPORTANT:** Some judges (like CodeRabbit) include:
+- `review_output_files` - paths to FULL review output with "Prompt for AI Agent" sections
+- `blocker_issues` - critical issues that must be fixed
+
+Tell the winner to READ their review output file (e.g., `.prompts/reviews/{task_id}-writer-a-coderabbit.txt`)
+for the FULL context including code diffs and detailed fix instructions.
 
 **Judge Logs (reasoning and analysis):**
 {judge_log_files}
@@ -646,17 +650,19 @@ Optional: Read for deeper understanding of judge concerns.
 ## Your Task
 
 Create a synthesis prompt that:
-1. Lists ALL improvement suggestions from judge `review_findings` for the WINNER (not just blockers)
-2. References specific files/lines from winner's code
-3. Addresses each blocker issue with concrete fixes
-4. Presents non-blocking issues as "Suggested Improvements" the winner should also fix
+1. **Points writer to their review file** (from `review_output_files` in CodeRabbit decision)
+2. Lists blocker issues that MUST be fixed
+3. References specific files/lines from winner's code  
+4. Tells writer to READ the review file for full context and "Prompt for AI Agent" sections
 5. Preserves what judges liked (winner's architecture)
 6. Tells writer to commit and push when complete
 
-**CRITICAL:** Even if the winner is approved, include ALL review findings from judges like CodeRabbit as improvement items.
-The winning writer should address these, not just skip them because they won.
+**CRITICAL:** The CodeRabbit review file contains:
+- Full output with code diffs
+- "Prompt for AI Agent" sections with detailed fix instructions
+- ALL issues, not just blockers
 
-Read the judge decisions and extract review_findings!
+Tell the winner: "Read `.prompts/reviews/{task_id}-writer-{a|b}-coderabbit.txt` for full details"
 
 Save to: `.prompts/synthesis-{task_id}.md`"""
         
