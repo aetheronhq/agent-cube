@@ -44,10 +44,23 @@ class BaseThinkingLayout:
         except Exception:
             return 40
     
+    def _visual_len(self, text: str) -> int:
+        if '[' not in text:
+            return len(text)
+        from rich.text import Text as RichText
+        return len(RichText.from_markup(text).plain)
+    
     def _truncate(self, text: str, max_len: int) -> str:
-        if len(text) <= max_len:
+        visual_len = self._visual_len(text)
+        if visual_len <= max_len:
             return text
-        return text[:max_len - 3] + "..."
+        
+        if '[' not in text:
+            return text[:max_len - 3] + "..."
+        
+        from rich.text import Text as RichText
+        plain = RichText.from_markup(text).plain
+        return plain[:max_len - 3] + "..."
     
     def start(self):
         with self.lock:
