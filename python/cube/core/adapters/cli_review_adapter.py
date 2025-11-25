@@ -121,7 +121,8 @@ class CLIReviewAdapter(CLIAdapter):
         reviews_dir.mkdir(parents=True, exist_ok=True)
         
         # Extract task_id from prompt if possible
-        task_match = re.search(r'task[_\s]*(?:id)?[:\s]*["\']?(\w+)', prompt, re.IGNORECASE)
+        # Handles: **Task:** `quick`, Task: rand, task_id: test-task
+        task_match = re.search(r'\*?\*?[Tt]ask[_\s]*(?:[Ii][Dd])?:?\*?\*?\s*["\'\`]?([a-zA-Z0-9_-]+)', prompt)
         task_id = task_match.group(1) if task_match else "review"
         
         for writer, lines in output_buffers.items():
