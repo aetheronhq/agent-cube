@@ -1,6 +1,7 @@
 """Decide command - aggregate judge decisions."""
 
 import json
+import logging
 import typer
 from pathlib import Path
 
@@ -9,6 +10,8 @@ from ..core.output import print_error, print_success, print_warning, print_info,
 from ..core.config import PROJECT_ROOT
 from ..core.session import load_session
 from ..core.state import update_phase
+
+logger = logging.getLogger(__name__)
 
 def decide_command(task_id: str, review_type: str = "auto") -> None:
     """Aggregate judge decisions and determine next action.
@@ -97,7 +100,8 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
                     from ..core.user_config import get_judge_config
                     jconfig = get_judge_config(j)
                     missing_labels.append(jconfig.label)
-                except:
+                except Exception as e:
+                    logger.debug(f"Could not get judge config for {j}: {e}")
                     missing_labels.append(j)
             print_warning(f"Only {len(decisions)}/{total_judges} decisions found. Missing: {', '.join(missing_labels)}")
         console.print()
@@ -110,13 +114,14 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
             # Try as-is first
             jconfig = get_judge_config(judge_label)
             judge_label = jconfig.label
-        except:
+        except Exception as e1:
             # Try adding judge_ prefix if it's just a number
             try:
                 if judge_label.isdigit():
                     jconfig = get_judge_config(f"judge_{judge_label}")
                     judge_label = jconfig.label
-            except:
+            except Exception as e2:
+                logger.debug(f"Could not resolve judge label '{judge_label}': {e1}, {e2}")
                 pass
         
         color = "green" if d.decision == "APPROVED" else ("yellow" if d.decision == "REQUEST_CHANGES" else "red")

@@ -1,11 +1,14 @@
 """Parallel judge panel execution."""
 
 import asyncio
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import List
 
 from ..core.agent import run_agent
+
+logger = logging.getLogger(__name__)
 from ..core.git import fetch_branches, get_commit_hash, branch_exists
 from ..core.session import save_session, load_session, SessionWatcher
 from ..core.output import print_info, print_success, print_warning, print_error, console
@@ -154,13 +157,15 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout) ->
                         try:
                             wcfg = get_writer_config("writer_a")
                             winner_text = f"{wcfg.label} wins"
-                        except:
+                        except Exception as e:
+                            logger.debug(f"Could not get writer_a config: {e}")
                             winner_text = "Writer A wins"
                     elif winner in ["B", "writer_b", "Writer B"]:
                         try:
                             wcfg = get_writer_config("writer_b")
                             winner_text = f"{wcfg.label} wins"
-                        except:
+                        except Exception as e:
+                            logger.debug(f"Could not get writer_b config: {e}")
                             winner_text = "Writer B wins"
                     else:
                         winner_text = f"Winner: {winner}"

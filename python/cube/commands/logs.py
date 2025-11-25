@@ -1,10 +1,13 @@
 """Logs command - view agent log files."""
 
+import logging
 import typer
 from pathlib import Path
 from typing import Optional
 
 from ..core.output import print_error, print_info, console
+
+logger = logging.getLogger(__name__)
 
 def logs_command(
     task_id: Optional[str] = None,
@@ -72,7 +75,9 @@ def logs_command(
                         subtype = data.get("subtype", "")
                         if subtype == "started":
                             console.print(f"[yellow]🔧 Tool call started[/yellow]")
-                except:
+                except (json.JSONDecodeError, ValueError, TypeError) as e:
+                    # Skip unparseable lines without clogging output, but log to debug
+                    logger.debug(f"Failed to parse log line: {e}")
                     pass
         else:
             console.print(f"[cyan]📋 Found {len(logs)} log files for {task_id}:[/cyan]")

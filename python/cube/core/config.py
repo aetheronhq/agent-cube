@@ -1,8 +1,11 @@
 """Configuration and constants for Cube CLI."""
 
+import logging
 import os
 from pathlib import Path
 from typing import Final, Optional
+
+logger = logging.getLogger(__name__)
 
 VERSION: Final[str] = "1.1.0"
 
@@ -186,7 +189,8 @@ def _get_current_tty() -> Optional[str]:
         if tty and tty.startswith('/dev/'):
             return tty.split('/')[-1]
         return None
-    except:
+    except (subprocess.SubprocessError, OSError) as e:
+        logger.debug(f"Failed to get TTY: {e}")
         return None
 
 
@@ -206,7 +210,8 @@ def get_current_task_id() -> Optional[str]:
     if tty_file.exists():
         try:
             return tty_file.read_text().strip()
-        except:
+        except (OSError, UnicodeDecodeError) as e:
+            logger.debug(f"Failed to read TTY session file: {e}")
             return None
     
     return None

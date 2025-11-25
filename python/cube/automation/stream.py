@@ -1,8 +1,11 @@
 """Real-time JSON stream parsing from cursor-agent."""
 
 import json
+import logging
 from typing import AsyncGenerator, Optional
 import re
+
+logger = logging.getLogger(__name__)
 
 from ..core.output import format_duration, truncate_path, colorize
 from ..models.types import StreamMessage
@@ -149,7 +152,8 @@ def get_max_path_width() -> int:
     try:
         term_width = os.get_terminal_size().columns
         return max(40, term_width - 30)
-    except:
+    except (OSError, ValueError, AttributeError) as e:
+        # logger.debug(f"Could not get terminal size: {e}") # Too noisy?
         return 80
 
 def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Optional[str]:

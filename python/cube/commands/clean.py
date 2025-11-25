@@ -1,10 +1,13 @@
 """Clean command - remove completed/old sessions and artifacts."""
 
+import logging
 import typer
 from pathlib import Path
 from datetime import datetime, timedelta
 from ..core.output import print_success, print_info, print_warning, console
 from ..core.config import PROJECT_ROOT, get_sessions_dir
+
+logger = logging.getLogger(__name__)
 
 def clean_command(
     task_id: str = None,
@@ -92,7 +95,8 @@ def clean_command(
     for f in to_remove:
         try:
             f.unlink()
-        except:
+        except OSError as e:
+            logger.debug(f"Failed to delete {f}: {e}")
             pass
     
     print_success(f"Removed {len(to_remove)} file(s)")

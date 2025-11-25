@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections import deque
+
+logger = logging.getLogger(__name__)
 from contextlib import suppress
 from datetime import datetime, timezone
 import re
@@ -331,7 +334,8 @@ async def stream_task(task_id: str) -> StreamingResponse:
                                         })
                             
                             file_positions[str(log_file)] = f.tell()
-                    except:
+                    except (OSError, ValueError) as e:
+                        logger.debug(f"Stream cleanup error: {e}")
                         pass
                 
                 await asyncio.sleep(0.5)
