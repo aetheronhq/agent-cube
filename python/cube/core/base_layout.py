@@ -117,7 +117,7 @@ class BaseThinkingLayout:
             
             self.thinking_current[box_id] += text
             buf = self.thinking_current[box_id]
-            width = self._term_width() - 10
+            width = self._term_width() - 4  # Just borders
             
             # Handle embedded newlines - flush each complete line
             while '\n' in buf:
@@ -147,7 +147,7 @@ class BaseThinkingLayout:
             self.assistant_buf[key] += content
             
             buf = self.assistant_buf[key]
-            width = self._term_width() - len(label) - 10
+            width = self._term_width() - len(label) - 6  # Label + emoji + borders
             
             # Handle embedded newlines - flush each complete line
             while '\n' in buf:
@@ -185,14 +185,14 @@ class BaseThinkingLayout:
             for key, buf in list(self.assistant_buf.items()):
                 if buf.strip():
                     label, color = self.assistant_meta.get(key, (key, "white"))
-                    width = self._term_width() - len(label) - 10
+                    width = self._term_width() - len(label) - 6
                     truncated = self._truncate(buf.strip(), width)
                     self.output_lines.append(f"[{color}]{label}[/{color}] 💭 {truncated}")
                     self.assistant_buf[key] = ""
             
             for box_id, buf in self.thinking_current.items():
                 if buf.strip():
-                    width = self._term_width() - 10
+                    width = self._term_width() - 4
                     self.thinking_buffers[box_id].append(self._truncate(buf.strip(), width))
                     self.thinking_current[box_id] = ""
             self._refresh()
