@@ -45,9 +45,10 @@ class BaseThinkingLayout:
             return 40
     
     def _truncate(self, text: str, max_len: int) -> str:
-        if len(text) <= max_len:
+        plain = Text.from_markup(text).plain
+        if len(plain) <= max_len:
             return text
-        return text[:max_len - 3] + "..."
+        return plain[:max_len - 1] + "…"
     
     def start(self):
         with self.lock:
