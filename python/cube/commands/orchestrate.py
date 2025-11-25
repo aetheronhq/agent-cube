@@ -206,18 +206,20 @@ Begin orchestration now!"""
     
     return prompt
 
-async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None:
+async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id: str = None) -> None:
     """Fully autonomous orchestration - runs entire workflow.
     
     Args:
-        task_file: Path to task file
+        task_file: Path to task file (can be None if resuming from phase > 1)
         resume_from: Phase number to resume from (1-10)
+        task_id: Optional task ID (if not provided, extracted from task_file)
     """
     from ..core.state import validate_resume, update_phase, load_state, get_progress
     
-    task_path = resolve_path(task_file)
+    # Get task_id - either provided directly or from file
+    if task_id is None:
+        task_id = extract_task_id_from_file(task_file)
     
-    task_id = extract_task_id_from_file(task_file)
     prompts_dir = PROJECT_ROOT / ".prompts"
     prompts_dir.mkdir(parents=True, exist_ok=True)
     
@@ -250,6 +252,10 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1) -> None
     
     if resume_from <= 1:
         console.print("[yellow]═══ Phase 1: Generate Writer Prompt ═══[/yellow]")
+        if not task_file:
+            print_error("Task file required for Phase 1. Provide a task.md path.")
+            raise typer.Exit(1)
+        task_path = resolve_path(task_file)
         writer_prompt_path = await generate_writer_prompt(task_id, task_path.read_text(), prompts_dir)
         update_phase(task_id, 1, path="INIT")
     
