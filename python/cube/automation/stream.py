@@ -149,7 +149,7 @@ def get_max_path_width() -> int:
     try:
         term_width = os.get_terminal_size().columns
         return max(40, term_width - 30)
-    except:
+    except Exception:
         return 80
 
 def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Optional[str]:
