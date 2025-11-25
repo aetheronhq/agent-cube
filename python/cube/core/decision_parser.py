@@ -58,8 +58,6 @@ def parse_judge_decision(judge_key: str, task_id: str) -> Optional[JudgeDecision
             decision = "APPROVED"  # If they voted, assume approved
         if not decision:
             decision = "UNKNOWN"
-        if not decision:
-            decision = "UNKNOWN"
         
         # Extract winner (try winner, vote, or nested fields)
         winner = data.get("winner") or data.get("vote")
@@ -144,7 +142,7 @@ def parse_judge_decision(judge_key: str, task_id: str) -> Optional[JudgeDecision
             timestamp=data.get("timestamp", "")
         )
     except (json.JSONDecodeError, Exception) as e:
-        raise RuntimeError(f"Invalid decision file for Judge {judge_key}: {e}\nFile: {decision_file}")
+        raise RuntimeError(f"Invalid decision file for Judge {judge_key}: {e}\nFile: {decision_file}") from e
 
 def parse_all_decisions(task_id: str) -> List[JudgeDecision]:
     """Parse all judge decisions for a task."""

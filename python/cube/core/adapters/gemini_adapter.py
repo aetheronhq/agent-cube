@@ -68,9 +68,9 @@ class GeminiAdapter(CLIAdapter):
         
         except RuntimeError as e:
             if last_error == "Authentication required":
-                raise RuntimeError("gemini CLI not logged in. Run: gemini (choose 'Login with Google')")
+                raise RuntimeError("gemini CLI not logged in. Run: gemini (choose 'Login with Google')") from e
             elif last_error:
-                raise RuntimeError(f"gemini failed: {last_error}")
+                raise RuntimeError(f"gemini failed: {last_error}") from e
             else:
                 raise
         

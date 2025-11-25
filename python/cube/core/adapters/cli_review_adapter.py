@@ -128,7 +128,7 @@ class CLIReviewAdapter(CLIAdapter):
             reviews[writer] = "\n".join(lines)
             
             # Save raw output to file
-            writer_slug = "writer-a" if "A" in writer else "writer-b"
+            writer_slug = "writer-a" if writer == "Writer A" else "writer-b"
             review_file = reviews_dir / f"{task_id}-{writer_slug}-{self.tool_name.lower()}.txt"
             review_file.write_text(reviews[writer])
             review_files[writer] = f".prompts/reviews/{review_file.name}"

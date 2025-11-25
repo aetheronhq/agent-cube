@@ -147,7 +147,7 @@ class BaseThinkingLayout:
             self.assistant_buf[key] += content
             
             buf = self.assistant_buf[key]
-            width = self._term_width() - len(label) - 10
+            width = max(20, self._term_width() - len(label) - 10)
             
             # Handle embedded newlines - flush each complete line
             while '\n' in buf:

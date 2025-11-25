@@ -359,14 +359,10 @@ Use absolute path when writing the file. The project root is available in your w
     
     prompt = judge_assignments + review_instructions + base_prompt
     
-    from ..core.user_config import load_config as load_user_config, get_judge_configs
+    from ..core.user_config import load_config as load_user_config
     
-    judge_configs = get_judge_configs()
-    
-    # Filter judges based on review type and peer_review_only flag
-    if review_type == "panel":
-        # Skip peer-review-only judges in panel
-        judge_configs = [j for j in judge_configs if not j.peer_review_only]
+    # Reuse already-filtered judge_configs from above (lines 210-213)
+    # No need to re-filter here
     
     judges: List[JudgeInfo] = []
     for jconfig in judge_configs:
