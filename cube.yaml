@@ -1,5 +1,8 @@
 # Agent Cube Project Configuration
 
+prompter:
+  model: "sonnet-4.5-thinking"
+
 writers:
   writer_b:
     name: "gemini"

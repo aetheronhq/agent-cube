@@ -40,6 +40,7 @@ class CursorAdapter(CLIAdapter):
         
         cmd = [
             "cursor-agent",
+            "--print",
             "--force",
             "--output-format", "stream-json",
             "--stream-partial-output",
@@ -80,7 +81,7 @@ class CursorAdapter(CLIAdapter):
                 raise
         
         if line_count == 0:
-            raise RuntimeError("cursor-agent produced no output. Run: cursor-agent login")
+            raise RuntimeError("cursor-agent produced no output (API may be unavailable)")
     
     def check_installed(self) -> bool:
         """Check if cursor-agent is installed."""
