@@ -56,11 +56,11 @@ class BaseThinkingLayout:
             return text
         
         if '[' not in text:
-            return text[:max_len - 3] + "..."
+            return text[:max_len - 1] + "…"
         
         from rich.text import Text as RichText
         plain = RichText.from_markup(text).plain
-        return plain[:max_len - 3] + "..."
+        return plain[:max_len - 1] + "…"
     
     def start(self):
         with self.lock:
