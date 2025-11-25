@@ -138,9 +138,9 @@ def parse_stream_message(line: str) -> Optional[StreamMessage]:
         
         return None
         
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
         return None
-    except Exception:
+    except Exception as e:
         return None
 
 def get_max_path_width() -> int:
@@ -149,7 +149,7 @@ def get_max_path_width() -> int:
     try:
         term_width = os.get_terminal_size().columns
         return max(40, term_width - 30)
-    except:
+    except (OSError, ValueError) as e:
         return 80
 
 def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Optional[str]:

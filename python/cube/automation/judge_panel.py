@@ -154,13 +154,13 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout) ->
                         try:
                             wcfg = get_writer_config("writer_a")
                             winner_text = f"{wcfg.label} wins"
-                        except:
+                        except (KeyError, AttributeError, ValueError) as e:
                             winner_text = "Writer A wins"
                     elif winner in ["B", "writer_b", "Writer B"]:
                         try:
                             wcfg = get_writer_config("writer_b")
                             winner_text = f"{wcfg.label} wins"
-                        except:
+                        except (KeyError, AttributeError, ValueError) as e:
                             winner_text = "Writer B wins"
                     else:
                         winner_text = f"Winner: {winner}"

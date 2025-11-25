@@ -331,7 +331,7 @@ async def stream_task(task_id: str) -> StreamingResponse:
                                         })
                             
                             file_positions[str(log_file)] = f.tell()
-                    except:
+                    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
                         pass
                 
                 await asyncio.sleep(0.5)
