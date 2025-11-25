@@ -206,7 +206,11 @@ Begin orchestration now!"""
     
     return prompt
 
-async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id: str = None) -> None:
+async def orchestrate_auto_command(
+    task_file: str | None,
+    resume_from: int = 1,
+    task_id: str | None = None
+) -> None:
     """Fully autonomous orchestration - runs entire workflow.
     
     Args:
@@ -218,6 +222,8 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id
     
     # Get task_id - either provided directly or from file
     if task_id is None:
+        if task_file is None:
+            raise ValueError("task_id is required when task_file is None")
         task_id = extract_task_id_from_file(task_file)
     
     prompts_dir = PROJECT_ROOT / ".prompts"

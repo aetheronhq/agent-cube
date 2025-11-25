@@ -387,6 +387,13 @@ def auto(
         task_id = saved_task_id
         print_info(f"Resuming task: {task_id}")
         
+        # Verify that state exists for this task
+        from .core.state import load_state
+        existing_state = load_state(task_id)
+        if not existing_state:
+            print_error(f"No saved state found for task '{task_id}'. Please start with: cube auto <task-file>")
+            raise typer.Exit(1)
+        
         # Try to find the task file
         from pathlib import Path
         possible_paths = [
@@ -399,7 +406,11 @@ def auto(
             # Create a minimal task reference
             task_file = f".prompts/{task_id}.md"
     else:
-        task_id = extract_task_id_from_file(task_file)
+        try:
+            task_id = extract_task_id_from_file(task_file)
+        except ValueError as exc:
+            print_error(str(exc))
+            raise typer.Exit(1)
     
     set_current_task_id(task_id)
     
