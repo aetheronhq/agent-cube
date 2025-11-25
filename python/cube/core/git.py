@@ -16,7 +16,7 @@ def get_repo() -> Repo:
     except git.InvalidGitRepositoryError:
         raise RuntimeError(
             f"Not a git repository: {PROJECT_ROOT}\n"
-            f"Make sure you're running from the git repository root directory, not a subdirectory."
+            f"No git repository found in current directory or any parent directories."
         )
 
 def create_worktree(task_id: str, writer_name: str) -> Path:
