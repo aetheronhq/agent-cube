@@ -3,7 +3,6 @@
 import asyncio
 from pathlib import Path
 from ..core.agent import run_agent
-from ..core.dual_layout import get_dual_layout
 from ..core.user_config import load_config, get_writer_config
 from ..core.parsers.registry import get_parser
 from ..core.config import WRITER_LETTERS
