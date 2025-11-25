@@ -1,6 +1,9 @@
 """Main CLI entry point for cube-py."""
 
 import sys
+import subprocess
+import platform
+from contextlib import contextmanager
 from typing import Optional
 
 import typer
@@ -10,6 +13,27 @@ from .core.config import VERSION
 from .core.output import console
 from .core.phases import format_phase_aliases, resolve_phase_identifier
 from .core.updater import auto_update
+
+
+@contextmanager
+def keep_awake():
+    """Prevent system sleep while running (macOS only)."""
+    proc = None
+    if platform.system() == "Darwin":
+        try:
+            proc = subprocess.Popen(
+                ["caffeinate", "-dims"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+        except FileNotFoundError:
+            pass
+    try:
+        yield
+    finally:
+        if proc:
+            proc.terminate()
+            proc.wait()
 from .commands.version import version_command
 from .commands.status import status_command
 from .commands.sessions import sessions_command
@@ -266,7 +290,8 @@ def orchestrate(
         
         try:
             import asyncio
-            asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from))
+            with keep_awake():
+                asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from))
         except Exception as e:
             from .core.output import console_err
             console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
@@ -424,7 +449,8 @@ def auto(
     
     try:
         import asyncio
-        asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from, task_id=task_id))
+        with keep_awake():
+            asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from, task_id=task_id))
     except Exception as e:
         from .core.output import console_err
         console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
@@ -460,7 +486,8 @@ def continue_task(
     
     try:
         import asyncio
-        asyncio.run(orchestrate_auto_command(f"**/{resolved_task_id}.md", next_phase))
+        with keep_awake():
+            asyncio.run(orchestrate_auto_command(f"**/{resolved_task_id}.md", next_phase))
     except Exception as e:
         from .core.output import console_err
         console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
