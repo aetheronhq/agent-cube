@@ -21,14 +21,14 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     from ..automation.stream import format_stream_message
     from ..core.user_config import load_config as load_user_config
     from ..core.parsers.registry import get_parser
-    from ..core.dual_layout import get_dual_layout
+    from ..core.dynamic_layout import DynamicLayout
     
     config = load_user_config()
     cli_name = config.cli_tools.get(writer_info.model, "cursor-agent")
     parser = get_parser(cli_name)
     
     # Get layout (initialize done in launch_dual_writers)
-    layout = get_dual_layout()
+    layout = DynamicLayout
     layout.start()
     
     box_id = f"writer_{writer_info.letter.lower()}"
@@ -199,8 +199,7 @@ async def launch_dual_writers(
         return_exceptions=True
     )
     
-    from ..core.dual_layout import get_dual_layout
-    get_dual_layout().close()
+    DynamicLayout.close()
     
     errors = []
     for i, result in enumerate(results):
