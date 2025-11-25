@@ -19,7 +19,21 @@ async def send_dual_feedback(
     worktree_a: Path,
     worktree_b: Path
 ) -> None:
-    """Send feedback to both writers in parallel with dual layout."""
+    """Send feedback to both writers in parallel with dual layout.
+    
+    Deliver feedback through each writer's configured communication
+    channel using their existing sessions. Display progress in a dual
+    layout with thinking boxes for each writer.
+    
+    Args:
+        task_id: The task identifier for context
+        feedback_a_path: Path to feedback file for Writer A
+        feedback_b_path: Path to feedback file for Writer B
+        session_a: Session ID for Writer A's existing session
+        session_b: Session ID for Writer B's existing session
+        worktree_a: Path to Writer A's worktree directory
+        worktree_b: Path to Writer B's worktree directory
+    """
     
     # Create fresh layout for feedback prompters (closes previous if exists)
     from ..core.dynamic_layout import DynamicLayout

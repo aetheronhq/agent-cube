@@ -41,6 +41,15 @@ class SSELayout(BaseThinkingLayout):
         return
 
     def add_thinking(self, box_id: str, text: str) -> None:  # type: ignore[override]
+        """Add thinking text to the SSE stream.
+        
+        Broadcast thinking text to all connected SSE clients for
+        real-time display in the web UI's thinking boxes.
+        
+        Args:
+            box_id: The identifier of the thinking box
+            text: Text chunk to broadcast
+        """
         super().add_thinking(box_id, text)
         cleaned = _strip_markup(text)
         if not cleaned:
@@ -56,6 +65,14 @@ class SSELayout(BaseThinkingLayout):
         asyncio.create_task(self.queue.put(payload))
 
     def add_output(self, line: str) -> None:  # type: ignore[override]
+        """Add output message to the SSE stream.
+        
+        Broadcast output message to all connected SSE clients for
+        display in the web UI's output region.
+        
+        Args:
+            line: The message to broadcast
+        """
         super().add_output(line)
         cleaned = _strip_markup(line)
         if not cleaned:

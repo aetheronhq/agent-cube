@@ -103,6 +103,15 @@ class TaskStreamState:
             pass
 
     def add_subscriber(self) -> asyncio.Queue[Dict[str, Any]]:
+        """Add an SSE subscriber for real-time task updates.
+        
+        Register a new subscriber queue to receive server-sent events for
+        this task. On first subscriber, hijack the layout singletons to
+        intercept automation output.
+        
+        Returns:
+            Async queue that will receive SSE message dictionaries
+        """
         queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
         self.subscribers.add(queue)
         # Hijack layouts when first subscriber connects
@@ -112,9 +121,27 @@ class TaskStreamState:
         return queue
 
     def remove_subscriber(self, queue: asyncio.Queue[Dict[str, Any]]) -> None:
+        """Remove an SSE subscriber.
+        
+        Unregister the subscriber queue when the connection closes or
+        client disconnects. Clean up is handled by the stream registry
+        when all subscribers are gone.
+        
+        Args:
+            queue: The subscriber queue to remove
+        """
         self.subscribers.discard(queue)
 
     def get_history(self) -> Iterable[Dict[str, Any]]:
+        """Get the message history for this task.
+        
+        Return all messages sent to subscribers since the task started,
+        useful for late-joining clients to catch up on recent activity.
+        History is bounded by HISTORY_LIMIT to prevent unbounded growth.
+        
+        Returns:
+            List of message dictionaries in chronological order
+        """
         return list(self.history)
 
     def ensure_writers_layout(self) -> None:

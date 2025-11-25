@@ -17,7 +17,20 @@ from .decide import decide_command
 __all__ = ['orchestrate_prompt_command', 'orchestrate_auto_command']
 
 def extract_task_id_from_file(task_file: str) -> str:
-    """Extract task ID from filename."""
+    """Extract task ID from a task file path.
+    
+    Parse the filename to determine the task identifier, handling
+    various naming conventions (writer-prompt-*, task-*, or plain names).
+    
+    Args:
+        task_file: Path to the task file
+    
+    Returns:
+        The extracted task identifier string
+    
+    Raises:
+        ValueError: If no valid task ID can be extracted from filename
+    """
     name = Path(task_file).stem
     
     if not name:
@@ -522,7 +535,17 @@ Include evaluation criteria, scoring rubric, and decision JSON format."""
     return panel_prompt_path
 
 def run_decide_and_get_result(task_id: str) -> dict:
-    """Run decide and return parsed result."""
+    """Run decide command and return the aggregated result.
+    
+    Execute the decide command to aggregate judge decisions, then load
+    and return the resulting decision data from the generated JSON file.
+    
+    Args:
+        task_id: The task identifier
+    
+    Returns:
+        Dictionary containing aggregated decision with winner, next_action, etc
+    """
     import json
     decide_command(task_id)
     
@@ -531,7 +554,18 @@ def run_decide_and_get_result(task_id: str) -> dict:
         return json.load(f)
 
 def run_decide_peer_review(task_id: str) -> dict:
-    """Check peer review decisions and extract any remaining issues."""
+    """Check peer review decisions and extract remaining issues.
+    
+    Read peer review decision files from all judges, tally approvals,
+    collect any remaining issues, and determine if implementation is
+    approved for merge.
+    
+    Args:
+        task_id: The task identifier
+    
+    Returns:
+        Dictionary with approval status, remaining_issues list, and counts
+    """
     import json
     from pathlib import Path
     from ..core.user_config import get_judge_configs
@@ -608,7 +642,17 @@ def run_decide_peer_review(task_id: str) -> dict:
     return result
 
 async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
-    """Phase 6: Run synthesis if needed."""
+    """Generate and send synthesis prompt to the winning writer.
+    
+    Create a synthesis prompt that tells the winner how to incorporate
+    feedback from judges, then send it via their existing session to
+    resume their work.
+    
+    Args:
+        task_id: The task identifier
+        result: Aggregated judge decision with winner and blocker_issues
+        prompts_dir: Directory to save the synthesis prompt file
+    """
     from pathlib import Path as PathLib
     from ..core.user_config import get_writer_by_key_or_letter
     
@@ -722,7 +766,16 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
     await send_feedback_async(winner_cfg.name, task_id, synthesis_path, session_id, worktree)
 
 async def run_peer_review(task_id: str, result: dict, prompts_dir: Path):
-    """Phase 7: Run peer review."""
+    """Generate peer review prompt and launch judge panel.
+    
+    Create a peer review prompt for the judges to verify the winner's
+    updated implementation, then launch the judge panel to review.
+    
+    Args:
+        task_id: The task identifier
+        result: Aggregated judge decision with winner information
+        prompts_dir: Directory to save the peer review prompt file
+    """
     from ..core.user_config import get_writer_by_key_or_letter
     
     winner_cfg = get_writer_by_key_or_letter(result["winner"])
@@ -786,7 +839,18 @@ Include the worktree location and git commands for reviewing."""
     await launch_judge_panel(task_id, peer_review_path, "peer-review", resume_mode=True)
 
 async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):
-    """Address minor issues from peer review."""
+    """Generate and send minor fixes prompt to the winning writer.
+    
+    Create a targeted prompt for the winner to address specific minor
+    issues identified during peer review, preserving their implementation
+    while fixing the identified problems.
+    
+    Args:
+        task_id: The task identifier
+        result: Aggregated judge decision with winner information
+        issues: List of minor issues to address
+        prompts_dir: Directory to save the minor fixes prompt file
+    """
     from ..core.user_config import get_writer_by_key_or_letter
     
     winner_cfg = get_writer_by_key_or_letter(result["winner"])
@@ -834,7 +898,17 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
         await send_feedback_async(winner_name, task_id, minor_fixes_path, session_id, worktree)
 
 async def generate_dual_feedback(task_id: str, result: dict, prompts_dir: Path):
-    """Generate feedback prompts for both writers in parallel with dual layout."""
+    """Generate feedback prompts for both writers in parallel.
+    
+    Use two parallel prompter agents with a dual layout display to generate
+    targeted feedback for each writer based on judge decisions. Both prompts
+    are created simultaneously for efficiency.
+    
+    Args:
+        task_id: The task identifier
+        result: Aggregated judge decision results with issues
+        prompts_dir: Directory to save the feedback prompt files
+    """
     
     feedback_a_path = prompts_dir / f"feedback-a-{task_id}.md"
     feedback_b_path = prompts_dir / f"feedback-b-{task_id}.md"
@@ -978,7 +1052,15 @@ Both writers need changes based on judge reviews.
         )
 
 async def create_pr(task_id: str, winner: str):
-    """Create PR automatically."""
+    """Create a pull request from the winning writer's branch.
+    
+    Use the gh CLI to create a PR from the winner's branch to main,
+    including task context and review decision references in the body.
+    
+    Args:
+        task_id: The task identifier
+        winner: The winning writer key (e.g., "A" or "B")
+    """
     import subprocess
     from ..core.user_config import get_writer_by_key_or_letter
     

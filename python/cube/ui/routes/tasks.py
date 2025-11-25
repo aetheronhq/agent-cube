@@ -67,6 +67,17 @@ class FeedbackRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_payload(self) -> "FeedbackRequest":
+        """Validate the feedback request payload.
+        
+        Check that exactly one of feedback_file or feedback_text is
+        provided, and that the writer alias resolves to a valid writer.
+        
+        Returns:
+            The validated FeedbackRequest instance
+        
+        Raises:
+            ValueError: If payload is missing required fields or has invalid values
+        """
         if bool(self.feedback_file) == bool(self.feedback_text):
             raise ValueError("Provide exactly one of feedback_file or feedback_text")
         try:
@@ -80,7 +91,14 @@ class FeedbackRequest(BaseModel):
 
 @router.get("", response_model=TaskListResponse)
 async def list_tasks() -> TaskListResponse:
-    """Return a summary of all known tasks ordered by last update."""
+    """Return a summary of all known tasks ordered by last update.
+    
+    Scan the state directory for task state files and return a list
+    of task summaries with current phase, path, and workflow status.
+    
+    Returns:
+        TaskListResponse containing list of TaskSummary objects
+    """
     if not STATE_DIR.exists():
         return TaskListResponse(tasks=[])
 
@@ -108,7 +126,17 @@ async def list_tasks() -> TaskListResponse:
 
 @router.get("/{task_id}")
 async def get_task(task_id: str) -> dict:
-    """Return complete workflow state for a single task."""
+    """Return complete workflow state for a single task.
+    
+    Args:
+        task_id: The task identifier to look up
+    
+    Returns:
+        Dictionary containing full workflow state
+    
+    Raises:
+        HTTPException: 404 if task not found
+    """
     state = load_state(task_id)
     if not state:
         raise HTTPException(
@@ -121,7 +149,20 @@ async def get_task(task_id: str) -> dict:
 
 @router.get("/{task_id}/logs", response_model=TaskLogsResponse)
 async def get_task_logs(task_id: str) -> TaskLogsResponse:
-    """Return available log files for the given task."""
+    """Return available log files for the given task.
+    
+    Find and read all log files matching the task ID from the logs
+    directory, returning their contents for display.
+    
+    Args:
+        task_id: The task identifier to get logs for
+    
+    Returns:
+        TaskLogsResponse containing list of LogEntry objects
+    
+    Raises:
+        HTTPException: 404 if logs directory or task logs not found
+    """
     if not LOGS_DIR.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -165,7 +206,20 @@ async def get_task_logs(task_id: str) -> TaskLogsResponse:
     status_code=status.HTTP_200_OK,
 )
 async def get_task_decisions(task_id: str) -> dict[str, Any]:
-    """Return decision data for a task."""
+    """Return decision data for a task.
+    
+    Parse and aggregate all judge decisions for the task, returning
+    votes, rationales, and overall winner determination.
+    
+    Args:
+        task_id: The task identifier to get decisions for
+    
+    Returns:
+        Dictionary containing aggregated decision data
+    
+    Raises:
+        HTTPException: 404 if no decisions found, 500 on read errors
+    """
     try:
         judge_decisions = parse_all_decisions(task_id)
     except Exception as exc:  # pragma: no cover - defensive logging
@@ -191,7 +245,22 @@ async def start_writers(
     request: WriterRequest,
     background_tasks: BackgroundTasks,
 ) -> dict[str, str]:
-    """Launch dual writers in the background for the given task."""
+    """Launch dual writers in the background for the given task.
+    
+    Schedule the dual writer workflow to run asynchronously, returning
+    immediately with a status message.
+    
+    Args:
+        task_id: The task identifier
+        request: Writer configuration with prompt file and resume flag
+        background_tasks: FastAPI background task manager
+    
+    Returns:
+        Status dictionary with task_id and message
+    
+    Raises:
+        HTTPException: 404 if prompt file not found
+    """
     prompt_path = _resolve_project_path(request.prompt_file)
 
     if not prompt_path.exists():
@@ -227,7 +296,22 @@ async def start_panel(
     request: PanelRequest,
     background_tasks: BackgroundTasks,
 ) -> dict[str, str]:
-    """Launch judge panel agents in the background."""
+    """Launch judge panel agents in the background.
+    
+    Schedule the judge panel workflow to run asynchronously with the
+    specified review type (panel or peer-review).
+    
+    Args:
+        task_id: The task identifier
+        request: Panel configuration with prompt file and review type
+        background_tasks: FastAPI background task manager
+    
+    Returns:
+        Status dictionary with task_id and message
+    
+    Raises:
+        HTTPException: 404 if prompt file not found
+    """
     prompt_path = _resolve_project_path(request.prompt_file)
 
     if not prompt_path.exists():
@@ -265,7 +349,22 @@ async def send_feedback(
     request: FeedbackRequest,
     background_tasks: BackgroundTasks,
 ) -> dict[str, str]:
-    """Queue feedback to resume a writer session."""
+    """Queue feedback to resume a writer session.
+    
+    Send feedback content to a specific writer, resuming their session
+    to continue work on the task.
+    
+    Args:
+        task_id: The task identifier
+        request: Feedback request with writer and content
+        background_tasks: FastAPI background task manager
+    
+    Returns:
+        Status dictionary with task_id and message
+    
+    Raises:
+        HTTPException: 404 if session, feedback file, or worktree not found
+    """
     writer_cfg = resolve_writer_alias(request.writer)
     writer = writer_cfg.name
     writer_letter = WRITER_LETTERS[writer]

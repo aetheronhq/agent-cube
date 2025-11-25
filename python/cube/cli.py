@@ -306,6 +306,20 @@ def decide(
     panel: Annotated[bool, typer.Option("--panel", help="Check panel decisions")] = False,
     peer: Annotated[bool, typer.Option("--peer", help="Check peer review decisions")] = False
 ):
+    """Aggregate judge decisions and determine the winner.
+    
+    Read decision JSON files from all three judges, aggregate their votes
+    using majority rule, and display the result. Auto-detects the latest
+    review type unless --panel or --peer is specified.
+    
+    Args:
+        task_id: The task identifier to find decisions for
+        panel: If True, only check initial panel decisions
+        peer: If True, only check peer review decisions
+    
+    Raises:
+        typer.Exit: If no task ID provided or decisions missing
+    """
     from .core.config import resolve_task_id, set_current_task_id
     
     resolved_task_id = resolve_task_id(task_id)

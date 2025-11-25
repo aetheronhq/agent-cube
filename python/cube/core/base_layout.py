@@ -63,6 +63,12 @@ class BaseThinkingLayout:
         return plain[:max_len - 3] + "..."
     
     def start(self):
+        """Initialize and start the layout display rendering.
+        
+        Set up terminal state, create Rich layout regions for each thinking
+        box, and begin the live display loop. Must be called before any
+        content methods (add_thinking, add_output, add_assistant_message).
+        """
         with self.lock:
             if self.started:
                 return
@@ -122,6 +128,16 @@ class BaseThinkingLayout:
         self.layout["output"].update(Text.from_markup("\n".join(lines)))
     
     def add_thinking(self, box_id: str, text: str) -> None:
+        """Add thinking text to a specific thinking box.
+        
+        Buffer text until a complete sentence is detected (ending with
+        punctuation or newline), then flush to the box's line buffer for
+        display. Used for streaming AI model thinking output.
+        
+        Args:
+            box_id: The identifier of the thinking box (e.g., "writer_a")
+            text: Text chunk to add (may be partial sentence)
+        """
         with self.lock:
             if not self.started:
                 self.start()
@@ -148,6 +164,18 @@ class BaseThinkingLayout:
             self._refresh()
     
     def add_assistant_message(self, key: str, content: str, label: str, color: str) -> None:
+        """Add a buffered assistant message to the output region.
+        
+        Messages are buffered and flushed on sentence boundaries to prevent
+        overwhelming the terminal with rapid updates. Displayed with a
+        colored label prefix.
+        
+        Args:
+            key: Unique identifier for this message stream
+            content: The assistant message content to buffer
+            label: Display label for the agent (e.g., "Writer A")
+            color: Rich color name for the label (e.g., "green")
+        """
         with self.lock:
             if not self.started:
                 self.start()
@@ -180,6 +208,15 @@ class BaseThinkingLayout:
             self._refresh()
     
     def add_output(self, line: str) -> None:
+        """Add a message to the main output region.
+        
+        Output messages appear in the scrolling output area below the
+        thinking boxes and are immediately visible. Unlike thinking text
+        and assistant messages, output is not buffered.
+        
+        Args:
+            line: The message line to display
+        """
         with self.lock:
             if not self.started:
                 self.start()
@@ -187,6 +224,15 @@ class BaseThinkingLayout:
             self._refresh()
     
     def mark_complete(self, box_id: str, status: Optional[str] = None) -> None:
+        """Mark a thinking box as complete.
+        
+        Change the box's visual state to indicate processing is finished,
+        displaying a green checkmark and optional status message.
+        
+        Args:
+            box_id: The identifier of the box to mark complete
+            status: Optional completion status message to display
+        """
         with self.lock:
             if box_id in self.completed:
                 self.completed[box_id] = True
@@ -194,6 +240,12 @@ class BaseThinkingLayout:
                 self._refresh()
     
     def flush_buffers(self) -> None:
+        """Flush all pending text buffers to the display.
+        
+        Force immediate display of any buffered assistant messages and
+        thinking text. Called automatically when boxes complete and can
+        be called manually to ensure all content is visible.
+        """
         with self.lock:
             for key, buf in list(self.assistant_buf.items()):
                 if buf.strip():
@@ -211,6 +263,12 @@ class BaseThinkingLayout:
             self._refresh()
     
     def close(self) -> None:
+        """Stop the layout and print final output.
+        
+        Flush all buffers, stop the Rich live display, restore terminal
+        state, and print accumulated output lines to the console. Should
+        be called when workflow is complete or interrupted.
+        """
         with self.lock:
             if self.started and self.live:
                 self.live.stop()
