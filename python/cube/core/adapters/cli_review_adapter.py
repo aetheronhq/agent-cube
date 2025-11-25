@@ -66,9 +66,9 @@ class CLIReviewAdapter(CLIAdapter):
                 async for line in run_subprocess_streaming(cmd_args, wt_path, self.tool_name):
                     clean_line = line.strip()
                     if clean_line:
-                        # Capture error-like lines for better error messages
+                        # Capture FIRST error-like line for better error messages
                         lower = clean_line.lower()
-                        if "error" in lower or "rate limit" in lower or "failed" in lower:
+                        if not last_error_line and ("error" in lower or "rate limit" in lower or "failed" in lower):
                             last_error_line = clean_line[:200]
                         if not clean_line.endswith(('.', '!', '?')):
                             clean_line += '.'
