@@ -47,7 +47,7 @@ def resolve_path(path_str: str) -> Path:
         FileNotFoundError: If path cannot be resolved
     """
     path = Path(path_str)
-    
+
     # Absolute path - use as-is
     if path.is_absolute():
         if path.exists():

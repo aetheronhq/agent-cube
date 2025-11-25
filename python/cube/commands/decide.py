@@ -100,7 +100,7 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
                 except:
                     missing_labels.append(j)
             print_warning(f"Only {len(decisions)}/{total_judges} decisions found. Missing: {', '.join(missing_labels)}")
-            console.print()
+        console.print()
     
     for d in decisions:
         # Get judge label (handle key, number, or already a label)

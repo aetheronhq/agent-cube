@@ -101,10 +101,13 @@ class CLIReviewAdapter(CLIAdapter):
                 yield json.dumps({"type": "assistant", "content": f"❌ ERROR: {self.tool_name} failed on {writer}: {content}"})
             elif msg_type == "done":
                 completed.add(writer)
-                if line_counts[writer] == 0:
+                if writer in errors:
+                    if line_counts[writer] == 0:
+                        status = f"❌ {self.tool_name} failed for {writer} before producing output"
+                    else:
+                        status = f"❌ {self.tool_name} completed with errors for {writer} ({line_counts[writer]} lines captured)"
+                elif line_counts[writer] == 0:
                     status = f"⚠️  {self.tool_name} produced no output for {writer}"
-                elif writer in errors:
-                    status = f"❌ {self.tool_name} completed with errors for {writer} ({line_counts[writer]} lines captured before failure)"
                 else:
                     status = f"✅ {self.tool_name} complete: {line_counts[writer]} lines from {writer}"
                 yield json.dumps({"type": "assistant", "content": status})

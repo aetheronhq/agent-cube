@@ -8,7 +8,7 @@ from .cli_review_parser import CLIReviewParser
 
 _PARSERS: Dict[str, Type[ParserAdapter]] = {
     "cursor-agent": CursorParser,
-    "gemini": CursorParser,  # Gemini CLI now uses Cursor-style JSON format
+    "gemini": GeminiParser,
     "cli-review": CLIReviewParser,
 }
 

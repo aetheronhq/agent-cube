@@ -662,7 +662,7 @@ Create a synthesis prompt that:
 - "Prompt for AI Agent" sections with detailed fix instructions
 - ALL issues, not just blockers
 
-Tell the winner: "Read `.prompts/reviews/{task_id}-writer-{a|b}-coderabbit.txt` for full details"
+Tell the winner: "Read `.prompts/reviews/{task_id}-writer-{{a|b}}-coderabbit.txt` for full details"
 
 Save to: `.prompts/synthesis-{task_id}.md`"""
         
@@ -778,6 +778,7 @@ async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir:
     from ..core.user_config import get_writer_by_key_or_letter
     
     winner_cfg = get_writer_by_key_or_letter(result["winner"])
+    winner_name = winner_cfg.name
     
     minor_fixes_path = prompts_dir / f"minor-fixes-{task_id}.md"
     
@@ -785,7 +786,7 @@ async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir:
 
 ## Context
 
-Winner: Writer {result['winner']} ({winner})
+Winner: Writer {result['winner']} ({winner_cfg.label})
 
 ## Minor Issues from Peer Review
 
@@ -812,13 +813,13 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
         from ..core.config import WORKTREE_BASE
         from pathlib import Path
         
-        session_id = load_session(f"WRITER_{'A' if winner == 'sonnet' else 'B'}", task_id)
+        session_id = load_session(f"WRITER_{winner_cfg.letter}", task_id)
         if not session_id:
-            raise RuntimeError(f"No session found for Writer {winner_name}. Cannot send minor fixes.")
+            raise RuntimeError(f"No session found for Writer {winner_cfg.label}. Cannot send minor fixes.")
         
         project_name = Path(PROJECT_ROOT).name
-        worktree = WORKTREE_BASE / project_name / f"writer-{winner}-{task_id}"
-        await send_feedback_async(winner, task_id, minor_fixes_path, session_id, worktree)
+        worktree = WORKTREE_BASE / project_name / f"writer-{winner_name}-{task_id}"
+        await send_feedback_async(winner_name, task_id, minor_fixes_path, session_id, worktree)
 
 async def generate_dual_feedback(task_id: str, result: dict, prompts_dir: Path):
     """Generate feedback prompts for both writers in parallel with dual layout."""
@@ -872,7 +873,6 @@ Both writers need changes based on judge reviews.
     console.print("Generating feedback for both writers in parallel...")
     console.print()
     
-    DualWriterLayout.reset()
     # Create fresh layout for feedback prompters (closes previous if exists)
     from ..core.dynamic_layout import DynamicLayout
     from ..core.user_config import get_writer_config

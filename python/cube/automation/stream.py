@@ -167,7 +167,7 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
         return f"[thinking]{msg.content}[/thinking]"
     
     if msg.type == "assistant" and msg.content:
-        return f"[{color}]{prefix}[/{color}] 💭 {msg.content}"
+            return f"[{color}]{prefix}[/{color}] 💭 {msg.content}"
     
     max_width = get_max_path_width()
     
