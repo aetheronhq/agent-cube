@@ -11,24 +11,32 @@ from ..core.config import PROJECT_ROOT
 
 def markdown_to_rich(text: str) -> str:
     """Convert basic markdown to Rich markup for console display."""
-    # Escape existing brackets first
-    text = text.replace("[", "\\[").replace("]", "\\]")
-    
-    # Bold: **text** or __text__ -> [bold]text[/bold]
-    text = re.sub(r'\*\*(.+?)\*\*', r'[bold]\1[/bold]', text)
-    text = re.sub(r'__(.+?)__', r'[bold]\1[/bold]', text)
-    
-    # Inline code: `code` -> [cyan]code[/cyan]
-    text = re.sub(r'`([^`]+)`', r'[cyan]\1[/cyan]', text)
-    
-    # Headers: ### text -> [bold]text[/bold]
-    text = re.sub(r'^#{1,6}\s+(.+)$', r'[bold]\1[/bold]', text, flags=re.MULTILINE)
-    
-    # Checkmarks and X marks (common in thinking)
-    text = text.replace("✅", "[green]✅[/green]")
-    text = text.replace("❌", "[red]❌[/red]")
-    
-    return text
+    try:
+        # Escape existing brackets first
+        text = text.replace("[", "\\[").replace("]", "\\]")
+        
+        # Bold: **text** or __text__ -> [bold]text[/bold]
+        text = re.sub(r'\*\*(.+?)\*\*', r'[bold]\1[/bold]', text)
+        text = re.sub(r'__(.+?)__', r'[bold]\1[/bold]', text)
+        
+        # Inline code: `code` -> [cyan]code[/cyan]
+        text = re.sub(r'`([^`]+)`', r'[cyan]\1[/cyan]', text)
+        
+        # Headers: ### text -> [bold]text[/bold]
+        text = re.sub(r'^#{1,6}\s+(.+)$', r'[bold]\1[/bold]', text, flags=re.MULTILINE)
+        
+        # Checkmarks and X marks (common in thinking)
+        text = text.replace("✅", "[green]✅[/green]")
+        text = text.replace("❌", "[red]❌[/red]")
+        
+        # Validate the markup is balanced before returning
+        from rich.text import Text
+        Text.from_markup(text)
+        return text
+    except Exception:
+        # If markup is invalid, return escaped plain text
+        from rich.markup import escape
+        return escape(text.replace("\\[", "[").replace("\\]", "]"))
 
 def strip_worktree_path(path: str) -> str:
     """Strip worktree path prefix from file paths, removing writer-sonnet/writer-codex dirs."""
