@@ -48,8 +48,13 @@ class CLIReviewAdapter(CLIAdapter):
             yield json.dumps({"type": "assistant", "content": "ERROR: No writer worktrees configured for CLI review"})
             return
 
-        # Run tool in parallel for both writers with real-time streaming
-        yield json.dumps({"type": "assistant", "content": f"🔍 Running {self.tool_name} on both writers in parallel..."})
+        # Run tool on writers with real-time streaming
+        num_writers = len(self.writer_worktrees)
+        if num_writers == 1:
+            writer_name = list(self.writer_worktrees.keys())[0]
+            yield json.dumps({"type": "assistant", "content": f"🔍 Running {self.tool_name} on {writer_name}..."})
+        else:
+            yield json.dumps({"type": "assistant", "content": f"🔍 Running {self.tool_name} on {num_writers} writers in parallel..."})
         
         reviews = {}
         output_buffers = {writer: [] for writer in self.writer_worktrees}
