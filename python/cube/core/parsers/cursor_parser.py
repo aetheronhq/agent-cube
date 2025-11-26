@@ -37,12 +37,16 @@ class CursorParser(ParserAdapter):
                         return msg
             
             if msg.type == "thinking":
+                # Ignore empty deltas and completed markers
+                if msg.subtype in ("delta", "completed") and not data.get("text"):
+                    return None
                 # Try "text" field first (standard cursor format), then use pre-set content
                 text = data.get("text")
                 if text:
                     msg.content = text
                 if msg.content:
                     return msg
+                return None  # Empty thinking, ignore
             
             if msg.type == "assistant":
                 # Skip messages with model_call_id - they're summaries of already-streamed content
