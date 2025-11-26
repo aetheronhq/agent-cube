@@ -196,7 +196,7 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
             raise RuntimeError(f"Prompter failed to generate synthesis prompt at {synthesis_path}")
     
     print_info(f"Sending synthesis to Writer {winner_name}")
-    from .feedback import send_feedback_async
+    from ...commands.feedback import send_feedback_async
     from ...core.session import load_session
     from ...core.config import WORKTREE_BASE
     from pathlib import Path
