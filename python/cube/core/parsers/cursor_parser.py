@@ -64,6 +64,10 @@ class CursorParser(ParserAdapter):
             if msg.type == "tool_call":
                 tool_call = data.get("tool_call", {})
                 
+                # If no tool_call data, ignore silently
+                if not tool_call:
+                    return None
+                
                 if msg.subtype == "started":
                     if "readToolCall" in tool_call:
                         path = tool_call["readToolCall"].get("args", {}).get("path", "unknown")
@@ -104,6 +108,12 @@ class CursorParser(ParserAdapter):
                         todos = tool_call["updateTodosToolCall"].get("args", {}).get("todos", [])
                         msg.tool_name = "todos"
                         msg.tool_args = {"count": len(todos)}
+                        return msg
+                    else:
+                        # Unknown tool type - show generic
+                        tool_type = list(tool_call.keys())[0] if tool_call else "unknown"
+                        msg.tool_name = tool_type.replace("ToolCall", "")
+                        msg.tool_args = {}
                         return msg
                 
                 elif msg.subtype == "completed":
@@ -148,6 +158,12 @@ class CursorParser(ParserAdapter):
                         msg.tool_name = "todos"
                         msg.tool_args = {}
                         return msg
+                    else:
+                        # Unknown tool completion - ignore
+                        return None
+                
+                # Unrecognized subtype - ignore
+                return None
             
             if msg.type == "result":
                 msg.duration_ms = data.get("duration_ms", 0)
