@@ -310,56 +310,55 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id
             await run_peer_review(task_id, result, prompts_dir)
             update_phase(task_id, 7, peer_review_complete=True)
         
+        # Phase 8: Check peer review decisions
         if resume_from <= 8:
             console.print()
             console.print("[yellow]═══ Phase 8: Final Decision ═══[/yellow]")
-        
-        final_result = run_decide_peer_review(task_id)
-        update_phase(task_id, 8)
-        
-        if final_result["approved"] and not final_result["remaining_issues"]:
-            await create_pr(task_id, result["winner"])
-        elif final_result["approved"] and final_result["remaining_issues"]:
-            console.print()
-            print_warning(f"Peer review approved but has {len(final_result['remaining_issues'])} minor issue(s)")
-            console.print()
-            console.print("Minor issues to address:")
-            for issue in final_result["remaining_issues"]:
-                console.print(f"  • {issue}")
-            console.print()
             
-            if resume_from <= 9:
-                console.print("[yellow]═══ Phase 9: Address Minor Issues ═══[/yellow]")
-                await run_minor_fixes(task_id, result, final_result["remaining_issues"], prompts_dir)
-                update_phase(task_id, 9)
+            final_result = run_decide_peer_review(task_id)
+            update_phase(task_id, 8)
             
-            if resume_from <= 10:
-                console.print()
-                console.print("[yellow]═══ Phase 10: Final Peer Review ═══[/yellow]")
-                await run_peer_review(task_id, result, prompts_dir)
-                update_phase(task_id, 10)
-            
-            final_check = run_decide_peer_review(task_id)
-            if final_check["approved"] and not final_check["remaining_issues"]:
+            if final_result["approved"] and not final_result["remaining_issues"]:
                 await create_pr(task_id, result["winner"])
-            elif final_check["approved"] and final_check["remaining_issues"]:
-                print_warning(f"Approved but still has {len(final_check['remaining_issues'])} issue(s) after minor fixes")
+                return
+            elif not final_result["approved"] or final_result["remaining_issues"]:
                 console.print()
-                console.print("Issues remaining:")
-                for issue in final_check["remaining_issues"]:
+                print_warning(f"Peer review has {len(final_result['remaining_issues'])} issue(s) to address")
+                console.print()
+                console.print("Issues to address:")
+                for issue in final_result["remaining_issues"]:
                     console.print(f"  • {issue}")
                 console.print()
-                console.print("Creating PR anyway (issues are minor)...")
-                await create_pr(task_id, result["winner"])
-            else:
-                print_warning("Minor fixes didn't resolve all issues")
-                console.print()
-                console.print("The iteration limit has been reached. Manual review needed.")
-                console.print()
-                console.print("Next steps:")
-                console.print("  1. Read peer-review decisions for remaining issues")
-                console.print(f"  2. Manually fix in winner's worktree")
-                console.print(f"  3. Or adjust synthesis and retry from Phase 6")
+        
+        # Phase 9: Address minor issues
+        if resume_from <= 9:
+            console.print("[yellow]═══ Phase 9: Address Minor Issues ═══[/yellow]")
+            # Load issues from decision files if resuming
+            if resume_from > 8:
+                final_result = run_decide_peer_review(task_id)
+            await run_minor_fixes(task_id, result, final_result["remaining_issues"], prompts_dir)
+            update_phase(task_id, 9)
+        
+        # Phase 10: Final peer review after fixes
+        if resume_from <= 10:
+            console.print()
+            console.print("[yellow]═══ Phase 10: Final Peer Review ═══[/yellow]")
+            await run_peer_review(task_id, result, prompts_dir)
+            update_phase(task_id, 10)
+        
+        # Final check after Phase 10
+        final_check = run_decide_peer_review(task_id)
+        if final_check["approved"] and not final_check["remaining_issues"]:
+            await create_pr(task_id, result["winner"])
+        elif final_check["approved"]:
+            print_warning(f"Approved but still has {len(final_check['remaining_issues'])} issue(s) after minor fixes")
+            console.print()
+            console.print("Issues remaining:")
+            for issue in final_check["remaining_issues"]:
+                console.print(f"  • {issue}")
+            console.print()
+            console.print("Creating PR anyway (all judges approved)...")
+            await create_pr(task_id, result["winner"])
         else:
             console.print()
             from ..core.user_config import get_judge_configs
