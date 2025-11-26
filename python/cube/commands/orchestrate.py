@@ -594,13 +594,15 @@ def run_decide_peer_review(task_id: str) -> dict:
     
     console.print(f"Decisions: {decisions_found}/{total_judges}, Approvals: {approvals}/{decisions_found}")
     
-    # Majority approval (>50% of decisions) is enough to proceed
-    # If there are remaining issues, they'll be addressed in minor fixes phase
-    approved = approvals > decisions_found / 2
+    # Unanimous approval required - all judges must approve
+    approved = approvals == decisions_found
     
-    if approved and all_issues:
+    if approved:
         console.print()
-        print_info(f"Approved with {len(all_issues)} issue(s) to address in minor fixes")
+        print_info("All judges approved!")
+    elif approvals > 0:
+        console.print()
+        print_warning(f"Not unanimous: {approvals}/{decisions_found} approved, {len(all_issues)} issue(s) to address")
     
     result = {
         "approved": approved,
