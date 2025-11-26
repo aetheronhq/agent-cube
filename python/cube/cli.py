@@ -10,9 +10,15 @@ from .core.config import VERSION
 from .core.output import console
 
 def _print_error(e: Exception):
-    """Print error message safely, always falling back to plain text."""
-    # Always use plain text to avoid any Rich markup issues
-    print(f"\n❌ Error: {e}\n", file=sys.stderr)
+    """Print error message safely, escaping markup and falling back to plain text."""
+    msg = str(e)
+    try:
+        from rich.markup import escape
+        from rich.console import Console
+        escaped_msg = escape(msg)
+        Console(stderr=True).print(f"\n[bold red]❌ Error:[/bold red] {escaped_msg}\n")
+    except Exception:
+        print(f"\n❌ Error: {msg}\n", file=sys.stderr)
 from .core.phases import format_phase_aliases, resolve_phase_identifier
 from .core.updater import auto_update
 from .commands.version import version_command
