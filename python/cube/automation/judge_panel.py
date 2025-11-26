@@ -88,6 +88,13 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout) ->
                 if msg:
                     if msg.session_id and not judge_info.session_id:
                         judge_info.session_id = msg.session_id
+                        # Save session immediately when captured
+                        save_session(
+                            judge_info.key.upper(),
+                            f"{judge_info.task_id}_{judge_info.review_type}",
+                            msg.session_id,
+                            f"{judge_info.label} ({judge_info.model})"
+                        )
                     
                     formatted = format_stream_message(msg, judge_info.label, judge_info.color)
                     if formatted:
