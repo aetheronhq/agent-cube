@@ -378,7 +378,11 @@ Use absolute path when writing the file. The project root is available in your w
     judges: List[JudgeInfo] = []
     for jconfig in judge_configs:
         session_id = None
-        if resume_mode:
+        
+        # CLI review tools and peer_review_only judges don't have resumable sessions
+        needs_resume = resume_mode and jconfig.type != "cli-review" and not jconfig.peer_review_only
+        
+        if needs_resume:
             if review_type == "peer-review":
                 session_id = load_session(jconfig.key.upper(), f"{task_id}_panel")
             else:
