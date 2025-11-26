@@ -27,6 +27,15 @@ class CursorParser(ParserAdapter):
             if msg.type == "system" and msg.subtype == "init":
                 return msg
             
+            if msg.type == "user":
+                message_data = data.get("message", {})
+                content_list = message_data.get("content", [])
+                if content_list and len(content_list) > 0:
+                    text = content_list[0].get("text", "")
+                    if text:
+                        msg.content = text[:100] + "..." if len(text) > 100 else text
+                        return msg
+            
             if msg.type == "thinking":
                 # Try "text" field first (standard cursor format), then use pre-set content
                 text = data.get("text")

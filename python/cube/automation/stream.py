@@ -163,6 +163,11 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
         session_safe = str(msg.session_id).replace("[", "\\[").replace("]", "\\]") if msg.session_id else ""
         return f"[{color}]{prefix}[/{color}] 🤖 {msg.model} | Session: {session_safe}"
     
+    if msg.type == "user" and msg.content:
+        content = msg.content[:60] + "..." if len(msg.content) > 60 else msg.content
+        content = content.replace("\n", " ").strip()
+        return f"[{color}]{prefix}[/{color}] 📨 Prompt sent"
+    
     if msg.type == "thinking" and msg.content:
         return f"[thinking]{msg.content}[/thinking]"
     
