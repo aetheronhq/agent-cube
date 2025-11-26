@@ -143,10 +143,22 @@ class CursorParser(ParserAdapter):
                 msg.duration_ms = data.get("duration_ms", 0)
                 return msg
             
-            return None
+            if msg.type == "error":
+                msg.content = data.get("message", line[:200])
+                return msg
             
-        except (json.JSONDecodeError, Exception):
-            return None
+            # Return unknown types so they can be logged
+            msg.type = "unknown"
+            msg.content = line[:500]
+            return msg
+            
+        except json.JSONDecodeError:
+            # Non-JSON line - return as unknown
+            msg = StreamMessage(type="unknown", content=line[:500])
+            return msg
+        except Exception as e:
+            msg = StreamMessage(type="error", content=f"Parse error: {e}"[:200])
+            return msg
     
     def supports_resume(self) -> bool:
         """Cursor-agent supports resume."""

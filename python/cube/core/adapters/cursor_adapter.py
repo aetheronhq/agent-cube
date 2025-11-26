@@ -55,9 +55,16 @@ class CursorAdapter(CLIAdapter):
         last_error = None
         line_count = 0
         
+        from ..master_log import get_master_log
+        
         try:
             async for line in run_subprocess_streaming(cmd, worktree, "cursor-agent", env):
                 line_count += 1
+                
+                # Log every line to master log
+                master_log = get_master_log()
+                if master_log:
+                    master_log.write_raw_line(f"cursor-{model}", line)
                 
                 # Detect specific error types
                 if "not logged in" in line.lower() or "authentication" in line.lower():

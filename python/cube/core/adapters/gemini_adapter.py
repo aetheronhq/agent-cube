@@ -49,9 +49,16 @@ class GeminiAdapter(CLIAdapter):
         line_count = 0
         json_started = False
         
+        from ..master_log import get_master_log
+        
         try:
             async for line in run_subprocess_streaming(cmd, worktree, "gemini", env):
                 line_count += 1
+                
+                # Log every line to master log (including debug)
+                master_log = get_master_log()
+                if master_log:
+                    master_log.write_raw_line(f"gemini-{model}", line)
                 
                 # Check for errors in any output
                 if "not logged in" in line.lower() or "authentication" in line.lower():

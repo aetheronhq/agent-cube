@@ -240,6 +240,14 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
         duration = format_duration(msg.duration_ms or 0)
         return f"[{color}]{prefix}[/{color}] 🎯 Completed in {duration}"
     
+    if msg.type == "error" and msg.content:
+        content = msg.content[:100] if len(msg.content) > 100 else msg.content
+        return f"[{color}]{prefix}[/{color}] ❌ {content}"
+    
+    if msg.type == "unknown" and msg.content:
+        content = msg.content[:80] if len(msg.content) > 80 else msg.content
+        return f"[dim]{prefix}[/dim] ⚠️ {content}"
+    
     return None
 
 async def parse_and_format_stream(

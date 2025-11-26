@@ -36,6 +36,7 @@ cube/core/dual_layout.py
 cube/core/dynamic_layout.py
 cube/core/gemini_config.py
 cube/core/git.py
+cube/core/master_log.py
 cube/core/output.py
 cube/core/parser_adapter.py
 cube/core/phases.py
