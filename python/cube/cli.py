@@ -403,8 +403,9 @@ def auto(
         ]
         task_file = next((str(p) for p in possible_paths if p.exists()), None)
         if not task_file:
-            # Create a minimal task reference
-            task_file = f".prompts/{task_id}.md"
+            print_error(f"Could not find task file for '{task_id}'")
+            console.print("Please provide the path: cube auto <task-file>")
+            raise typer.Exit(1)
     else:
         try:
             task_id = extract_task_id_from_file(task_file)

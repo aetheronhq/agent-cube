@@ -203,25 +203,27 @@ Include: context, requirements, steps, constraints, anti-patterns, success crite
     layout = SingleAgentLayout(title="Prompter")
     layout.start()
     
-    stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
-    
-    async for line in stream:
-        msg = parser.parse(line)
-        if msg:
-            formatted = format_stream_message(msg, "Prompter", "cyan")
-            if formatted:
-                if formatted.startswith("[thinking]"):
-                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                    layout.add_thinking(thinking_text)
-                elif msg.type == "assistant" and msg.content:
-                    layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
-                else:
-                    layout.add_output(formatted)
+    try:
+        stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
         
-        if writer_prompt_path.exists():
-            layout.close()
-            print_success(f"Created: {writer_prompt_path}")
-            break
+        async for line in stream:
+            msg = parser.parse(line)
+            if msg:
+                formatted = format_stream_message(msg, "Prompter", "cyan")
+                if formatted:
+                    if formatted.startswith("[thinking]"):
+                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                        layout.add_thinking(thinking_text)
+                    elif msg.type == "assistant" and msg.content:
+                        layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
+                    else:
+                        layout.add_output(formatted)
+            
+            if writer_prompt_path.exists():
+                print_success(f"Created: {writer_prompt_path}")
+                break
+    finally:
+        layout.close()
     
     if not writer_prompt_path.exists():
         raise RuntimeError("Failed to generate writer prompt")
@@ -246,25 +248,27 @@ Include evaluation criteria, scoring rubric, and decision JSON format."""
     layout = SingleAgentLayout(title="Prompter")
     layout.start()
     
-    stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
-    
-    async for line in stream:
-        msg = parser.parse(line)
-        if msg:
-            formatted = format_stream_message(msg, "Prompter", "cyan")
-            if formatted:
-                if formatted.startswith("[thinking]"):
-                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                    layout.add_thinking(thinking_text)
-                elif msg.type == "assistant" and msg.content:
-                    layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
-                else:
-                    layout.add_output(formatted)
+    try:
+        stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
         
-        if panel_prompt_path.exists():
-            layout.close()
-            print_success(f"Created: {panel_prompt_path}")
-            break
+        async for line in stream:
+            msg = parser.parse(line)
+            if msg:
+                formatted = format_stream_message(msg, "Prompter", "cyan")
+                if formatted:
+                    if formatted.startswith("[thinking]"):
+                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                        layout.add_thinking(thinking_text)
+                    elif msg.type == "assistant" and msg.content:
+                        layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
+                    else:
+                        layout.add_output(formatted)
+            
+            if panel_prompt_path.exists():
+                print_success(f"Created: {panel_prompt_path}")
+                break
+    finally:
+        layout.close()
     
     if not panel_prompt_path.exists():
         raise RuntimeError("Failed to generate panel prompt")

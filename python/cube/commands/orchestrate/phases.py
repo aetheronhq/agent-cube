@@ -127,9 +127,12 @@ async def orchestrate_auto_command(
         if resume_from <= 8:
             console.print()
             console.print("[yellow]═══ Phase 8: Final Decision ═══[/yellow]")
-        
-        final_result = run_decide_peer_review(task_id)
-        update_phase(task_id, 8)
+            
+            final_result = run_decide_peer_review(task_id)
+            update_phase(task_id, 8)
+        else:
+            # When resuming from > 8, we need to re-fetch the result to decide next steps
+            final_result = run_decide_peer_review(task_id)
         
         if final_result["approved"] and not final_result["remaining_issues"]:
             await create_pr(task_id, result["winner"])
