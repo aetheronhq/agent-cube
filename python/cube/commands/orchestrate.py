@@ -215,10 +215,22 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id
         task_id: Optional task ID (if not provided, extracted from task_file)
     """
     from ..core.state import validate_resume, update_phase, load_state, get_progress
+    from ..core.master_log import master_log_context, get_master_log
     
     # Get task_id - either provided directly or from file
     if task_id is None:
         task_id = extract_task_id_from_file(task_file)
+    
+    # Wrap entire orchestration in master log context
+    with master_log_context(task_id):
+        await _orchestrate_auto_impl(task_file, resume_from, task_id)
+
+async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str) -> None:
+    """Internal implementation of orchestrate_auto_command."""
+    from ..core.state import validate_resume, update_phase, load_state, get_progress
+    from ..core.master_log import get_master_log
+    
+    master_log = get_master_log()
     
     prompts_dir = PROJECT_ROOT / ".prompts"
     prompts_dir.mkdir(parents=True, exist_ok=True)
@@ -250,8 +262,13 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id
     writer_prompt_path = prompts_dir / f"writer-prompt-{task_id}.md"
     panel_prompt_path = prompts_dir / f"panel-prompt-{task_id}.md"
     
+    def log_phase(phase_num: int, phase_name: str):
+        if master_log:
+            master_log.write_entry("orchestrator", "phase_start", {"phase": phase_num, "phase_name": phase_name})
+    
     if resume_from <= 1:
         console.print("[yellow]═══ Phase 1: Generate Writer Prompt ═══[/yellow]")
+        log_phase(1, "Generate Writer Prompt")
         if not task_file:
             print_error("Task file required for Phase 1. Provide a task.md path.")
             raise typer.Exit(1)
@@ -262,24 +279,28 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id
     if resume_from <= 2:
         console.print()
         console.print("[yellow]═══ Phase 2: Dual Writers Execute ═══[/yellow]")
+        log_phase(2, "Dual Writers Execute")
         await launch_dual_writers(task_id, writer_prompt_path, resume_mode=False)
         update_phase(task_id, 2, writers_complete=True)
     
     if resume_from <= 3:
         console.print()
         console.print("[yellow]═══ Phase 3: Generate Panel Prompt ═══[/yellow]")
+        log_phase(3, "Generate Panel Prompt")
         panel_prompt_path = await generate_panel_prompt(task_id, prompts_dir)
         update_phase(task_id, 3)
     
     if resume_from <= 4:
         console.print()
         console.print("[yellow]═══ Phase 4: Judge Panel Review ═══[/yellow]")
+        log_phase(4, "Judge Panel Review")
         await launch_judge_panel(task_id, panel_prompt_path, "panel", resume_mode=False)
         update_phase(task_id, 4, panel_complete=True)
     
     if resume_from <= 5:
         console.print()
         console.print("[yellow]═══ Phase 5: Aggregate Decisions ═══[/yellow]")
+        log_phase(5, "Aggregate Decisions")
         result = run_decide_and_get_result(task_id)
         update_phase(task_id, 5, path=result["next_action"], winner=result["winner"], next_action=result["next_action"])
     else:
@@ -301,12 +322,14 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id
         if resume_from <= 6:
             console.print()
             console.print("[yellow]═══ Phase 6: Synthesis ═══[/yellow]")
+            log_phase(6, "Synthesis")
             await run_synthesis(task_id, result, prompts_dir)
             update_phase(task_id, 6, synthesis_complete=True)
         
         if resume_from <= 7:
             console.print()
             console.print("[yellow]═══ Phase 7: Peer Review ═══[/yellow]")
+            log_phase(7, "Peer Review")
             await run_peer_review(task_id, result, prompts_dir)
             update_phase(task_id, 7, peer_review_complete=True)
         
@@ -314,6 +337,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id
         if resume_from <= 8:
             console.print()
             console.print("[yellow]═══ Phase 8: Final Decision ═══[/yellow]")
+            log_phase(8, "Final Decision")
             
             final_result = run_decide_peer_review(task_id)
             update_phase(task_id, 8)
@@ -333,6 +357,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id
         # Phase 9: Address minor issues
         if resume_from <= 9:
             console.print("[yellow]═══ Phase 9: Address Minor Issues ═══[/yellow]")
+            log_phase(9, "Address Minor Issues")
             # Load issues from decision files if resuming
             if resume_from > 8:
                 final_result = run_decide_peer_review(task_id)
@@ -343,6 +368,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id
         if resume_from <= 10:
             console.print()
             console.print("[yellow]═══ Phase 10: Final Peer Review ═══[/yellow]")
+            log_phase(10, "Final Peer Review")
             await run_peer_review(task_id, result, prompts_dir)
             update_phase(task_id, 10)
         
@@ -398,6 +424,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id
         if resume_from <= 6:
             console.print()
             console.print("[yellow]═══ Phase 6: Generate Feedback for Both Writers ═══[/yellow]")
+            log_phase(6, "Generate Feedback")
             await generate_dual_feedback(task_id, result, prompts_dir)
             update_phase(task_id, 6, path="FEEDBACK")
         
@@ -409,6 +436,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id
         if resume_from <= 6:
             console.print()
             console.print("[yellow]═══ Phase 6: Create PR ═══[/yellow]")
+            log_phase(6, "Create PR")
             await create_pr(task_id, result["winner"])
             update_phase(task_id, 6, path="MERGE")
     
