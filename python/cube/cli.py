@@ -8,6 +8,15 @@ from typing_extensions import Annotated
 
 from .core.config import VERSION
 from .core.output import console
+
+def _print_error(e: Exception):
+    """Print error message safely, escaping any Rich markup in the exception."""
+    from .core.output import console_err
+    try:
+        from rich.markup import escape
+        console_err.print(f"\n[bold red]❌ Error:[/bold red] {escape(str(e))}\n")
+    except Exception:
+        print(f"\n❌ Error: {e}\n", file=sys.stderr)
 from .core.phases import format_phase_aliases, resolve_phase_identifier
 from .core.updater import auto_update
 from .commands.version import version_command
@@ -109,8 +118,7 @@ def writers(
     try:
         writers_command(resolved_task_id, prompt_file or "", resume)
     except Exception as e:
-        from .core.output import console_err
-        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        _print_error(e)
         sys.exit(1)
 
 @app.command(name="panel")
@@ -138,8 +146,7 @@ def panel(
     try:
         panel_command(resolved_task_id, panel_prompt_file, resume)
     except Exception as e:
-        from .core.output import console_err
-        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        _print_error(e)
         sys.exit(1)
 
 @app.command(name="feedback")
@@ -296,8 +303,7 @@ def run(
     try:
         run_command(model, prompt, directory)
     except Exception as e:
-        from .core.output import console_err
-        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        _print_error(e)
         sys.exit(1)
 
 @app.command(name="decide")
@@ -326,8 +332,7 @@ def decide(
     try:
         decide_command(task_id, review_type)
     except Exception as e:
-        from .core.output import console_err
-        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        _print_error(e)
         sys.exit(1)
 
 @app.command(name="logs")
@@ -415,8 +420,7 @@ def auto(
         import asyncio
         asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from, task_id=task_id))
     except Exception as e:
-        from .core.output import console_err
-        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        _print_error(e)
         sys.exit(1)
 
 @app.command(name="continue")
@@ -451,8 +455,7 @@ def continue_task(
         import asyncio
         asyncio.run(orchestrate_auto_command(f"**/{resolved_task_id}.md", next_phase))
     except Exception as e:
-        from .core.output import console_err
-        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        _print_error(e)
         sys.exit(1)
 
 if __name__ == "__main__":
