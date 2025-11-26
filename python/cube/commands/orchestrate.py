@@ -264,7 +264,7 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str)
     
     def log_phase(phase_num: int, phase_name: str):
         if master_log:
-            master_log.write_entry("orchestrator", "phase_start", {"phase": phase_num, "phase_name": phase_name})
+            master_log.write_phase_start(phase_num, phase_name)
     
     if resume_from <= 1:
         console.print("[yellow]═══ Phase 1: Generate Writer Prompt ═══[/yellow]")
