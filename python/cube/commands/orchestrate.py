@@ -340,7 +340,16 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id
                 update_phase(task_id, 10)
             
             final_check = run_decide_peer_review(task_id)
-            if final_check["approved"]:
+            if final_check["approved"] and not final_check["remaining_issues"]:
+                await create_pr(task_id, result["winner"])
+            elif final_check["approved"] and final_check["remaining_issues"]:
+                print_warning(f"Approved but still has {len(final_check['remaining_issues'])} issue(s) after minor fixes")
+                console.print()
+                console.print("Issues remaining:")
+                for issue in final_check["remaining_issues"]:
+                    console.print(f"  • {issue}")
+                console.print()
+                console.print("Creating PR anyway (issues are minor)...")
                 await create_pr(task_id, result["winner"])
             else:
                 print_warning("Minor fixes didn't resolve all issues")
