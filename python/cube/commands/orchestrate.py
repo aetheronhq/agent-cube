@@ -585,12 +585,13 @@ def run_decide_peer_review(task_id: str) -> dict:
     
     console.print(f"Decisions: {decisions_found}/{total_judges}, Approvals: {approvals}/{decisions_found}")
     
-    approved = approvals >= 2 and not has_request_changes
+    # Majority approval (>50% of decisions) is enough to proceed
+    # If there are remaining issues, they'll be addressed in minor fixes phase
+    approved = approvals > decisions_found / 2
     
-    if approvals >= 2 and has_request_changes and not all_issues:
-        approved = False
+    if approved and all_issues:
         console.print()
-        print_warning("Cannot approve: Judge(s) requested changes but didn't list issues")
+        print_info(f"Approved with {len(all_issues)} issue(s) to address in minor fixes")
     
     result = {
         "approved": approved,
