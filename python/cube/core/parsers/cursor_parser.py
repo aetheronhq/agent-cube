@@ -42,10 +42,8 @@ class CursorParser(ParserAdapter):
                 if text:
                     msg.content = text
                     return msg
-                # Empty thinking (delta/completed markers) - return type but no content
-                # so it's recognized as known but not displayed
-                msg.content = None
-                return msg
+                # Empty thinking deltas are heartbeats - silently ignore
+                return None
             
             if msg.type == "assistant":
                 # Skip messages with model_call_id - they're summaries of already-streamed content
@@ -158,6 +156,10 @@ class CursorParser(ParserAdapter):
             if msg.type == "error":
                 msg.content = data.get("message", line[:200])
                 return msg
+            
+            # Known types that we intentionally ignore (heartbeats, internal messages)
+            if msg.type in ("thinking", "user", "tool_call"):
+                return None  # Already handled above if they had content
             
             # Return unknown types so they can be logged
             msg.type = "unknown"
