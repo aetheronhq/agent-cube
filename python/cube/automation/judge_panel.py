@@ -13,7 +13,7 @@ from ..core.config import PROJECT_ROOT, get_sessions_dir
 from ..core.user_config import get_judge_config
 from ..models.types import JudgeInfo
 
-async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout) -> int:
+async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, winner: str = None) -> int:
     """Run a single judge agent and return line count."""
     from .stream import format_stream_message
     from ..core.user_config import load_config as load_user_config
@@ -32,17 +32,24 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout) ->
     
     # For CLI review adapters, set writer worktree paths programmatically
     if cli_name == "cli-review":
-        from ..core.user_config import get_writer_config
+        from ..core.user_config import get_writer_config, get_writer_by_key_or_letter
         from ..core.config import get_worktree_path, get_project_root
         from pathlib import Path
         
-        writers = [get_writer_config("writer_a"), get_writer_config("writer_b")]
         project_name = Path(get_project_root()).name
         
-        worktrees = {
-            "Writer A": get_worktree_path(project_name, writers[0].name, judge_info.task_id),
-            "Writer B": get_worktree_path(project_name, writers[1].name, judge_info.task_id)
-        }
+        # For peer review with a winner, only review the winner's branch
+        if winner:
+            winner_cfg = get_writer_by_key_or_letter(winner)
+            worktrees = {
+                winner_cfg.label: get_worktree_path(project_name, winner_cfg.name, judge_info.task_id)
+            }
+        else:
+            writers = [get_writer_config("writer_a"), get_writer_config("writer_b")]
+            worktrees = {
+                "Writer A": get_worktree_path(project_name, writers[0].name, judge_info.task_id),
+                "Writer B": get_worktree_path(project_name, writers[1].name, judge_info.task_id)
+            }
         adapter.set_writer_worktrees(worktrees)
     
     parser = get_parser(cli_name)
@@ -200,7 +207,8 @@ async def launch_judge_panel(
     task_id: str,
     prompt_file: Path,
     review_type: str = "initial",
-    resume_mode: bool = False
+    resume_mode: bool = False,
+    winner: str = None
 ) -> None:
     """Launch judge panel in parallel."""
     
@@ -472,7 +480,7 @@ Use absolute path when writing the file. The project root is available in your w
     panel_layout.start()
     
     results = await asyncio.gather(
-        *(run_judge(judge, prompt, resume_mode, panel_layout) for judge in judges),
+        *(run_judge(judge, prompt, resume_mode, panel_layout, winner=winner) for judge in judges),
         return_exceptions=True
     )
     

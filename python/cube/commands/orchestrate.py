@@ -778,7 +778,7 @@ Include the worktree location and git commands for reviewing."""
             raise RuntimeError(f"Prompter failed to generate peer review prompt at {peer_review_path}")
     
     print_info(f"Launching peer review for Winner: Writer {winner_name}")
-    await launch_judge_panel(task_id, peer_review_path, "peer-review", resume_mode=True)
+    await launch_judge_panel(task_id, peer_review_path, "peer-review", resume_mode=True, winner=winner_name)
 
 async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):
     """Address minor issues from peer review."""
