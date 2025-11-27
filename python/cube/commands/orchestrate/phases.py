@@ -106,8 +106,11 @@ async def orchestrate_auto_command(
                 
                 if "next_action" not in result:
                     raise RuntimeError(f"Aggregated decision missing 'next_action'. Re-run Phase 5.")
-            except json.JSONDecodeError:
-                raise RuntimeError(f"Corrupt aggregated decision file: {result_file}. Re-run Phase 5.")
+                
+                if "winner" not in result:
+                    raise RuntimeError(f"Aggregated decision missing 'winner'. Re-run Phase 5.")
+            except json.JSONDecodeError as e:
+                raise RuntimeError(f"Corrupt aggregated decision file: {result_file}. Re-run Phase 5.") from e
         else:
             raise RuntimeError(f"Cannot resume from phase {resume_from}: No aggregated decision found. Run Phase 5 first.")
     
@@ -206,7 +209,7 @@ async def orchestrate_auto_command(
         if resume_from <= 6:
             console.print()
             console.print("[yellow]═══ Phase 6: Generate Feedback for Both Writers ═══[/yellow]")
-            await generate_dual_feedback(task_id, result, prompts_dir)
+            await generate_dual_feedback(task_id, prompts_dir)
             update_phase(task_id, 6, path="FEEDBACK")
         
         console.print()

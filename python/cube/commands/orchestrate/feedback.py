@@ -10,7 +10,7 @@ from ...core.parsers.registry import get_parser
 from ...automation.stream import format_stream_message
 from ...core.single_layout import SingleAgentLayout
 
-async def generate_dual_feedback(task_id: str, result: dict, prompts_dir: Path):
+async def generate_dual_feedback(task_id: str, prompts_dir: Path):
     """Generate feedback prompts for both writers in parallel with dual layout."""
     
     feedback_a_path = prompts_dir / f"feedback-a-{task_id}.md"

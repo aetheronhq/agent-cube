@@ -411,7 +411,7 @@ def auto(
             task_id = extract_task_id_from_file(task_file)
         except ValueError as exc:
             print_error(str(exc))
-            raise typer.Exit(1)
+            raise typer.Exit(1) from exc
     
     set_current_task_id(task_id)
     
