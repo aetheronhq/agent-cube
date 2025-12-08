@@ -1,0 +1,41 @@
+{
+  "name": "cardtrail-ebay-integration",
+  "version": "1.0.0",
+  "description": "eBay API integration with rate limiting and caching for CardTrail PTCG Price Tracker",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint lib/**/*.ts",
+    "lint:fix": "eslint lib/**/*.ts --fix"
+  },
+  "keywords": [
+    "ebay",
+    "api",
+    "rate-limiting",
+    "caching",
+    "pokemon",
+    "tcg"
+  ],
+  "author": "CardTrail Team",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.2",
+    "bottleneck": "^2.19.5",
+    "dotenv": "^16.3.1",
+    "ioredis": "^5.3.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.11",
+    "@types/node": "^20.10.5",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.3.3"
+  }
+}
