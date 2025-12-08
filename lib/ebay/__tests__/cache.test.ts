@@ -155,4 +155,170 @@ describe('Cache Module', () => {
       expect(cache.isConnected()).toBe(true);
     });
   });
+
+  describe('error handling', () => {
+    it('should handle get errors gracefully', async () => {
+      // Create a cache with a mock that throws errors
+      const Redis = require('ioredis');
+      const originalImpl = Redis.mockImplementation;
+      
+      Redis.mockImplementation(() => ({
+        status: 'ready',
+        get: jest.fn().mockRejectedValue(new Error('Redis connection error')),
+        setex: jest.fn(),
+        keys: jest.fn(),
+        del: jest.fn(),
+        info: jest.fn(),
+        quit: jest.fn().mockResolvedValue('OK'),
+        on: jest.fn()
+      }));
+
+      const errorCache = new EbayCache('redis://localhost:6379');
+      
+      const result = await errorCache.get('test', { key: 'value' });
+      
+      expect(result).toBeNull();
+      
+      await errorCache.close();
+      Redis.mockImplementation = originalImpl;
+    });
+
+    it('should handle set errors gracefully', async () => {
+      const Redis = require('ioredis');
+      const originalImpl = Redis.mockImplementation;
+      
+      Redis.mockImplementation(() => ({
+        status: 'ready',
+        get: jest.fn(),
+        setex: jest.fn().mockRejectedValue(new Error('Redis write error')),
+        keys: jest.fn(),
+        del: jest.fn(),
+        info: jest.fn(),
+        quit: jest.fn().mockResolvedValue('OK'),
+        on: jest.fn()
+      }));
+
+      const errorCache = new EbayCache('redis://localhost:6379');
+      
+      // Should not throw, just log error
+      await expect(
+        errorCache.set('test', { key: 'value' }, { data: 'test' })
+      ).resolves.not.toThrow();
+      
+      await errorCache.close();
+      Redis.mockImplementation = originalImpl;
+    });
+
+    it('should handle clear errors gracefully', async () => {
+      const Redis = require('ioredis');
+      const originalImpl = Redis.mockImplementation;
+      
+      Redis.mockImplementation(() => ({
+        status: 'ready',
+        get: jest.fn(),
+        setex: jest.fn(),
+        keys: jest.fn().mockRejectedValue(new Error('Redis keys error')),
+        del: jest.fn(),
+        info: jest.fn(),
+        quit: jest.fn().mockResolvedValue('OK'),
+        on: jest.fn()
+      }));
+
+      const errorCache = new EbayCache('redis://localhost:6379');
+      
+      const result = await errorCache.clear();
+      
+      expect(result).toBe(0);
+      
+      await errorCache.close();
+      Redis.mockImplementation = originalImpl;
+    });
+
+    it('should handle clearEndpoint errors gracefully', async () => {
+      const Redis = require('ioredis');
+      const originalImpl = Redis.mockImplementation;
+      
+      Redis.mockImplementation(() => ({
+        status: 'ready',
+        get: jest.fn(),
+        setex: jest.fn(),
+        keys: jest.fn().mockRejectedValue(new Error('Redis keys error')),
+        del: jest.fn(),
+        info: jest.fn(),
+        quit: jest.fn().mockResolvedValue('OK'),
+        on: jest.fn()
+      }));
+
+      const errorCache = new EbayCache('redis://localhost:6379');
+      
+      const result = await errorCache.clearEndpoint('test');
+      
+      expect(result).toBe(0);
+      
+      await errorCache.close();
+      Redis.mockImplementation = originalImpl;
+    });
+
+    it('should handle getStats errors gracefully', async () => {
+      const Redis = require('ioredis');
+      const originalImpl = Redis.mockImplementation;
+      
+      Redis.mockImplementation(() => ({
+        status: 'ready',
+        get: jest.fn(),
+        setex: jest.fn(),
+        keys: jest.fn().mockRejectedValue(new Error('Redis keys error')),
+        del: jest.fn(),
+        info: jest.fn(),
+        quit: jest.fn().mockResolvedValue('OK'),
+        on: jest.fn()
+      }));
+
+      const errorCache = new EbayCache('redis://localhost:6379');
+      
+      const stats = await errorCache.getStats();
+      
+      expect(stats).toEqual({ totalKeys: 0, memoryUsage: 'unknown' });
+      
+      await errorCache.close();
+      Redis.mockImplementation = originalImpl;
+    });
+
+    it('should handle connection errors in constructor', () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      
+      // The constructor should handle errors gracefully
+      expect(() => {
+        new EbayCache('redis://invalid-host:9999');
+      }).not.toThrow();
+      
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should handle JSON parse errors in get', async () => {
+      const Redis = require('ioredis');
+      const originalImpl = Redis.mockImplementation;
+      
+      Redis.mockImplementation(() => ({
+        status: 'ready',
+        get: jest.fn().mockResolvedValue('invalid json {'),
+        setex: jest.fn(),
+        keys: jest.fn(),
+        del: jest.fn(),
+        info: jest.fn(),
+        quit: jest.fn().mockResolvedValue('OK'),
+        on: jest.fn()
+      }));
+
+      const errorCache = new EbayCache('redis://localhost:6379');
+      
+      const result = await errorCache.get('test', { key: 'value' });
+      
+      // Should return null on parse error
+      expect(result).toBeNull();
+      
+      await errorCache.close();
+      Redis.mockImplementation = originalImpl;
+    });
+  });
 });

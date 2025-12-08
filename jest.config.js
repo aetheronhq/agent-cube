@@ -6,7 +6,8 @@ module.exports = {
   collectCoverageFrom: [
     'lib/**/*.ts',
     '!lib/**/__tests__/**',
-    '!lib/**/*.d.ts'
+    '!lib/**/*.d.ts',
+    '!lib/ebay/example.ts'
   ],
   coverageThreshold: {
     global: {
