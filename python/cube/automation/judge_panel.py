@@ -8,9 +8,9 @@ from typing import List, Optional, Tuple
 
 from ..core.agent import run_agent
 from ..core.git import fetch_branches, get_commit_hash, branch_exists, sync_worktree
-from ..core.session import save_session, load_session, SessionWatcher
+from ..core.session import save_session, load_session
 from ..core.output import print_info, print_success, print_warning, print_error, console
-from ..core.config import PROJECT_ROOT, get_sessions_dir, WORKTREE_BASE, get_worktree_path, get_project_root
+from ..core.config import PROJECT_ROOT, WORKTREE_BASE, get_worktree_path, get_project_root
 from ..core.user_config import get_judge_config, get_writer_config, load_config, get_judge_configs, get_writer_by_key_or_letter
 from ..core.decision_files import find_decision_file
 from ..core.dynamic_layout import DynamicLayout
@@ -72,78 +72,73 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
         adapter.set_writer_worktrees(_get_cli_review_worktrees(judge_info.task_id, winner))
     
     parser = get_parser(cli_name)
+    from ..core.agent_logger import agent_logging_context
     
-    logs_dir = Path.home() / ".cube" / "logs"
-    logs_dir.mkdir(parents=True, exist_ok=True)
+    session_id = judge_info.session_id if resume else None
     
-    log_file = logs_dir / f"{judge_info.key}-{judge_info.task_id}-{judge_info.review_type}-{int(datetime.now().timestamp())}.json"
+    console.print(f"[dim]{judge_info.label}: Starting with model {judge_info.model} (CLI: {cli_name})...[/dim]")
     
-    session_file = get_sessions_dir() / f"{judge_info.key.upper()}_{judge_info.task_id}_{judge_info.review_type}_SESSION_ID.txt"
-    metadata = f"{judge_info.label} ({judge_info.key}) - {judge_info.task_id} - {judge_info.review_type} - {datetime.now()}"
+    run_dir = WORKTREE_BASE.parent if cli_name == "gemini" else PROJECT_ROOT
     
-    watcher = SessionWatcher(log_file, session_file, metadata)
-    watcher.start()
+    judge_specific_prompt = prompt.replace("{{judge_key}}", judge_info.key).replace("{judge_key}", judge_info.key)
     
-    line_count = 0
-    try:
-        with open(log_file, 'w') as f:
-            session_id = judge_info.session_id if resume else None
+    stream = adapter.run(
+        run_dir,
+        judge_info.model,
+        judge_specific_prompt,
+        session_id=session_id,
+        resume=resume
+    )
+    
+    # Use generic logging context
+    async with agent_logging_context(
+        agent_type="judge",
+        agent_name=judge_info.key,
+        task_id=judge_info.task_id,
+        suffix=judge_info.review_type,
+        session_key=judge_info.key.upper(),
+        session_task_key=f"{judge_info.task_id}_{judge_info.review_type}",
+        metadata=f"{judge_info.label} ({judge_info.key}) - {judge_info.task_id} - {judge_info.review_type} - {datetime.now()}"
+    ) as logger:
+        async for line in stream:
+            logger.write_line(line)
             
-            console.print(f"[dim]{judge_info.label}: Starting with model {judge_info.model} (CLI: {cli_name})...[/dim]")
-            
-            run_dir = WORKTREE_BASE.parent if cli_name == "gemini" else PROJECT_ROOT
-            
-            judge_specific_prompt = prompt.replace("{{judge_key}}", judge_info.key).replace("{judge_key}", judge_info.key)
-            
-            stream = adapter.run(
-                run_dir,
-                judge_info.model,
-                judge_specific_prompt,
-                session_id=session_id,
-                resume=resume
-            )
-            
-            async for line in stream:
-                line_count += 1
-                f.write(line + '\n')
-                f.flush()
+            msg = parser.parse(line)
+            if msg:
+                if msg.session_id and not judge_info.session_id:
+                    judge_info.session_id = msg.session_id
+                    # Save session immediately when captured
+                    save_session(
+                        judge_info.key.upper(),
+                        f"{judge_info.task_id}_{judge_info.review_type}",
+                        msg.session_id,
+                        f"{judge_info.label} ({judge_info.model})"
+                    )
                 
-                msg = parser.parse(line)
-                if msg:
-                    if msg.session_id and not judge_info.session_id:
-                        judge_info.session_id = msg.session_id
-                        # Save session immediately when captured
-                        save_session(
-                            judge_info.key.upper(),
-                            f"{judge_info.task_id}_{judge_info.review_type}",
-                            msg.session_id,
-                            f"{judge_info.label} ({judge_info.model})"
-                        )
-                    
-                    formatted = format_stream_message(msg, judge_info.label, judge_info.color)
-                    if formatted:
-                        if formatted.startswith("[thinking]"):
-                            # Thinking message -> thinking box (buffered)
-                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(judge_info.key, thinking_text)
-                        elif msg.type == "assistant" and msg.content:
-                            # Assistant message -> buffered per agent, no emoji logic
-                            layout.add_assistant_message(judge_info.key, msg.content, judge_info.label, judge_info.color)
-                        else:
-                            # Tool calls, errors, etc -> immediate
-                            layout.add_output(formatted)
-            
-            layout.flush_buffers()
-    finally:
-        watcher.stop()
-    
-    if line_count < 10:
-        raise RuntimeError(f"{judge_info.label} completed suspiciously quickly ({line_count} lines). Check {log_file}")
+                formatted = format_stream_message(msg, judge_info.label, judge_info.color)
+                if formatted:
+                    if formatted.startswith("[thinking]"):
+                        # Thinking message -> thinking box (buffered)
+                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                        layout.add_thinking(judge_info.key, thinking_text)
+                    elif msg.type == "assistant" and msg.content:
+                        # Assistant message -> buffered per agent, no emoji logic
+                        layout.add_assistant_message(judge_info.key, msg.content, judge_info.label, judge_info.color)
+                    else:
+                        # Tool calls, errors, etc -> immediate
+                        layout.add_output(formatted)
+        
+        layout.flush_buffers()
+        
+        if logger.line_count < 10:
+            raise RuntimeError(f"{judge_info.label} completed suspiciously quickly ({logger.line_count} lines). Check {logger.log_file}")
+        
+        final_line_count = logger.line_count
     
     status = _parse_decision_status(judge_info)
     layout.mark_complete(judge_info.key, status)
     console.print(f"[{judge_info.color}][{judge_info.label}][/{judge_info.color}] ✅ {status}")
-    return line_count
+    return final_line_count
 
 
 def _parse_decision_status(judge_info: JudgeInfo) -> str:

@@ -21,6 +21,7 @@ async def send_feedback_async(
     from ..core.user_config import load_config, get_writer_config
     from ..core.parsers.registry import get_parser
     from ..core.single_layout import SingleAgentLayout
+    from ..core.agent_logger import agent_logging_context
     
     if not worktree.exists():
         raise RuntimeError(f"Worktree not found: {worktree}")
@@ -28,6 +29,7 @@ async def send_feedback_async(
     wconfig = resolve_writer_alias(writer)
     writer_slug = wconfig.name
     model = wconfig.model
+    writer_letter = WRITER_LETTERS.get(writer_slug, "X")
     
     config = load_config()
     cli_name = config.cli_tools.get(model, "cursor-agent")
@@ -49,18 +51,29 @@ async def send_feedback_async(
     layout = SingleAgentLayout(title=writer_label)
     layout.start()
     
-    async for line in stream:
-        msg = parser.parse(line)
-        if msg:
-            formatted = format_stream_message(msg, writer_label, color)
-            if formatted:
-                if formatted.startswith("[thinking]"):
-                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                    layout.add_thinking(thinking_text)
-                elif msg.type == "assistant" and msg.content:
-                    layout.add_assistant_message("agent", msg.content, writer_label, color)
-                else:
-                    layout.add_output(formatted)
+    # Use generic logging context
+    async with agent_logging_context(
+        agent_type="feedback",
+        agent_name=writer_slug,
+        task_id=task_id,
+        session_key=f"WRITER_{writer_letter}",
+        session_task_key=task_id,
+        metadata=f"Feedback {writer_label} ({model}) - {task_id}"
+    ) as logger:
+        async for line in stream:
+            logger.write_line(line)  # Log every line
+            
+            msg = parser.parse(line)
+            if msg:
+                formatted = format_stream_message(msg, writer_label, color)
+                if formatted:
+                    if formatted.startswith("[thinking]"):
+                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                        layout.add_thinking(thinking_text)
+                    elif msg.type == "assistant" and msg.content:
+                        layout.add_assistant_message("agent", msg.content, writer_label, color)
+                    else:
+                        layout.add_output(formatted)
     
     layout.close()
 
