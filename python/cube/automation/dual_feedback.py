@@ -1,6 +1,7 @@
 """Dual writer feedback with shared layout."""
 
 import asyncio
+from datetime import datetime
 from pathlib import Path
 from ..core.agent import run_agent
 from ..core.dual_layout import get_dual_layout
@@ -34,24 +35,35 @@ async def send_dual_feedback(
     config = load_config()
     parser = get_parser("cursor-agent")
     
+    # Create log files for web UI
+    logs_dir = Path.home() / ".cube" / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = int(datetime.now().timestamp())
+    log_file_a = logs_dir / f"synth-{writer_a.name}-{task_id}-{timestamp}.json"
+    log_file_b = logs_dir / f"synth-{writer_b.name}-{task_id}-{timestamp}.json"
+    
     async def send_to_a():
         wconfig_a = get_writer_config("writer_a")
         feedback_a = feedback_a_path.read_text()
         
         stream = run_agent(worktree_a, wconfig_a.model, feedback_a, session_id=session_a, resume=True)
         
-        async for line in stream:
-            msg = parser.parse(line)
-            if msg:
-                formatted = format_stream_message(msg, "Prompter A", "green")
-                if formatted:
-                    if formatted.startswith("[thinking]"):
-                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking("prompter_a", thinking_text)
-                    elif msg.type == "assistant" and msg.content:
-                        layout.add_assistant_message("prompter_a", msg.content, "Prompter A", "green")
-                    else:
-                        layout.add_output(formatted)
+        with open(log_file_a, 'w') as f:
+            async for line in stream:
+                f.write(line + '\n')
+                f.flush()
+                
+                msg = parser.parse(line)
+                if msg:
+                    formatted = format_stream_message(msg, "Prompter A", "green")
+                    if formatted:
+                        if formatted.startswith("[thinking]"):
+                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                            layout.add_thinking("prompter_a", thinking_text)
+                        elif msg.type == "assistant" and msg.content:
+                            layout.add_assistant_message("prompter_a", msg.content, "Prompter A", "green")
+                        else:
+                            layout.add_output(formatted)
     
     async def send_to_b():
         wconfig_b = get_writer_config("writer_b")
@@ -59,18 +71,22 @@ async def send_dual_feedback(
         
         stream = run_agent(worktree_b, wconfig_b.model, feedback_b, session_id=session_b, resume=True)
         
-        async for line in stream:
-            msg = parser.parse(line)
-            if msg:
-                formatted = format_stream_message(msg, "Prompter B", "blue")
-                if formatted:
-                    if formatted.startswith("[thinking]"):
-                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking("prompter_b", thinking_text)
-                    elif msg.type == "assistant" and msg.content:
-                        layout.add_assistant_message("prompter_b", msg.content, "Prompter B", "blue")
-                    else:
-                        layout.add_output(formatted)
+        with open(log_file_b, 'w') as f:
+            async for line in stream:
+                f.write(line + '\n')
+                f.flush()
+                
+                msg = parser.parse(line)
+                if msg:
+                    formatted = format_stream_message(msg, "Prompter B", "blue")
+                    if formatted:
+                        if formatted.startswith("[thinking]"):
+                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                            layout.add_thinking("prompter_b", thinking_text)
+                        elif msg.type == "assistant" and msg.content:
+                            layout.add_assistant_message("prompter_b", msg.content, "Prompter B", "blue")
+                        else:
+                            layout.add_output(formatted)
     
     await asyncio.gather(send_to_a(), send_to_b())
     

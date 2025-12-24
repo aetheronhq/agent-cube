@@ -44,13 +44,13 @@ def show_task_status(task_id: str):
     judge_2_peer = load_session("JUDGE_2", f"{task_id}_peer-review")
     judge_3_peer = load_session("JUDGE_3", f"{task_id}_peer-review")
     
-    decision_1 = (decisions_dir / f"judge-1-{task_id}-decision.json").exists()
-    decision_2 = (decisions_dir / f"judge-2-{task_id}-decision.json").exists()
-    decision_3 = (decisions_dir / f"judge-3-{task_id}-decision.json").exists()
+    decision_1 = (decisions_dir / f"judge_1-{task_id}-decision.json").exists()
+    decision_2 = (decisions_dir / f"judge_2-{task_id}-decision.json").exists()
+    decision_3 = (decisions_dir / f"judge_3-{task_id}-decision.json").exists()
     
-    peer_1 = (decisions_dir / f"judge-1-{task_id}-peer-review.json").exists()
-    peer_2 = (decisions_dir / f"judge-2-{task_id}-peer-review.json").exists()
-    peer_3 = (decisions_dir / f"judge-3-{task_id}-peer-review.json").exists()
+    peer_1 = (decisions_dir / f"judge_1-{task_id}-peer-review.json").exists()
+    peer_2 = (decisions_dir / f"judge_2-{task_id}-peer-review.json").exists()
+    peer_3 = (decisions_dir / f"judge_3-{task_id}-peer-review.json").exists()
     
     aggregated = (decisions_dir / f"{task_id}-aggregated.json").exists()
     

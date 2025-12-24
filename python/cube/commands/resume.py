@@ -114,9 +114,9 @@ def resume_command(
         writer_cfg = None
     
     if judge_key:
-        session_id = load_session(f"JUDGE_{judge_key}", f"{task_id}_panel")
+        session_id = load_session(judge_key.upper(), f"{task_id}_panel")
         if not session_id:
-            session_id = load_session(f"JUDGE_{judge_key}", f"{task_id}_peer-review")
+            session_id = load_session(judge_key.upper(), f"{task_id}_peer-review")
         
         if not session_id:
             print_error(f"Session ID not found for {target}")

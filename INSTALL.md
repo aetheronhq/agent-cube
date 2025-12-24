@@ -230,6 +230,4 @@ Agent Cube uses your project's configuration:
 
 ## License
 
-Proprietary and Confidential - Copyright © 2025 Aetheron. All Rights Reserved.
-
-This is internal tooling for Aetheron projects only.
+MIT License - see [LICENSE](LICENSE) file.

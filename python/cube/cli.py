@@ -30,6 +30,18 @@ from .commands.ui import ui_command
 PHASE_ALIAS_SUMMARY = format_phase_aliases()
 
 
+def _print_error(e: Exception):
+    """Print error message safely, escaping markup and falling back to plain text."""
+    msg = str(e)
+    try:
+        from rich.markup import escape
+        from rich.console import Console
+        escaped_msg = escape(msg)
+        Console(stderr=True).print(f"\n[bold red]❌ Error:[/bold red] {escaped_msg}\n")
+    except Exception:
+        print(f"\n❌ Error: {msg}\n", file=sys.stderr)
+
+
 def _parse_resume_option(value: Optional[str]) -> Optional[int]:
     """Convert --resume-from input into a phase number if provided."""
     if value is None:
@@ -109,8 +121,7 @@ def writers(
     try:
         writers_command(resolved_task_id, prompt_file or "", resume)
     except Exception as e:
-        from .core.output import console_err
-        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        _print_error(e)
         sys.exit(1)
 
 @app.command(name="panel")
@@ -138,8 +149,7 @@ def panel(
     try:
         panel_command(resolved_task_id, panel_prompt_file, resume)
     except Exception as e:
-        from .core.output import console_err
-        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        _print_error(e)
         sys.exit(1)
 
 @app.command(name="feedback")
@@ -173,10 +183,18 @@ def resume(
 ):
     """Resume a writer or judge session with a message."""
     from .core.config import resolve_task_id, set_current_task_id
+    from .core.output import print_error, print_warning
+    
+    # Detect if task_id looks like a message (user forgot to include task_id)
+    if task_id and (' ' in task_id or len(task_id) > 50):
+        print_error(f"'{task_id[:40]}...' looks like a message, not a task ID")
+        print_warning("Usage: cube resume <target> <task-id> [message]")
+        print_warning("Example: cube resume writer-a my-task-id 'your message here'")
+        print_warning("Or set CUBE_TASK_ID: export CUBE_TASK_ID=my-task-id && cube resume writer-a 'message'")
+        raise typer.Exit(1)
     
     resolved_task_id = resolve_task_id(task_id)
     if not resolved_task_id:
-        from .core.output import print_error
         print_error("No task ID provided and CUBE_TASK_ID not set")
         raise typer.Exit(1)
     
@@ -187,7 +205,8 @@ def resume(
 def peer_review(
     task_id_or_prompt: Annotated[Optional[str], typer.Argument(help="Task ID or prompt message")] = None,
     peer_review_prompt_file: Annotated[Optional[str], typer.Argument(help="Path to prompt file or prompt message")] = None,
-    fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False
+    fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False,
+    judge: Annotated[Optional[str], typer.Option("--judge", "-j", help="Run only this judge (e.g., judge_4)")] = None
 ):
     """Resume judge panel for peer review of winner's implementation."""
     from .core.config import resolve_task_id, set_current_task_id
@@ -221,7 +240,7 @@ def peer_review(
         raise typer.Exit(1)
     
     set_current_task_id(resolved_task_id)
-    peer_review_command(resolved_task_id, prompt_arg, fresh)
+    peer_review_command(resolved_task_id, prompt_arg, fresh, judge)
 
 @app.command(name="status")
 def status(
@@ -296,8 +315,7 @@ def run(
     try:
         run_command(model, prompt, directory)
     except Exception as e:
-        from .core.output import console_err
-        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        _print_error(e)
         sys.exit(1)
 
 @app.command(name="decide")
@@ -324,10 +342,9 @@ def decide(
         review_type = "peer-review"
     
     try:
-        decide_command(task_id, review_type)
+        decide_command(resolved_task_id, review_type)
     except Exception as e:
-        from .core.output import console_err
-        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        _print_error(e)
         sys.exit(1)
 
 @app.command(name="logs")
@@ -395,13 +412,14 @@ def auto(
             Path(f"{task_id}.md"),
         ]
         task_file = next((str(p) for p in possible_paths if p.exists()), None)
+        force_skip_phase_1 = False
         if not task_file:
             # No task file found - must resume from phase > 1
-            if not resume_from:
-                resolved_resume_from = 2  # Skip Phase 1 which requires task file
+            force_skip_phase_1 = not resume_from
             task_file = f".prompts/{task_id}.md"
     else:
         task_id = extract_task_id_from_file(task_file)
+        force_skip_phase_1 = False
     
     set_current_task_id(task_id)
     
@@ -412,13 +430,14 @@ def auto(
         print_success(f"Cleared state for {task_id}")
     
     resolved_resume_from = _resolve_resume_from(task_id, resume, resume_from)
+    if force_skip_phase_1 and resolved_resume_from < 2:
+        resolved_resume_from = 2  # Skip Phase 1 which requires task file
     
     try:
         import asyncio
         asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from, task_id=task_id))
     except Exception as e:
-        from .core.output import console_err
-        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        _print_error(e)
         sys.exit(1)
 
 @app.command(name="continue")
@@ -453,8 +472,7 @@ def continue_task(
         import asyncio
         asyncio.run(orchestrate_auto_command(f"**/{resolved_task_id}.md", next_phase))
     except Exception as e:
-        from .core.output import console_err
-        console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
+        _print_error(e)
         sys.exit(1)
 
 if __name__ == "__main__":

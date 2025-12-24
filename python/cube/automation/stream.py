@@ -1,12 +1,90 @@
 """Real-time JSON stream parsing from cursor-agent."""
 
 import json
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, Optional, Dict
 import re
 
 from ..core.output import format_duration, truncate_path, colorize
 from ..models.types import StreamMessage
 from ..core.config import PROJECT_ROOT
+
+
+class ThinkingBuffer:
+    """Shared buffer for accumulating thinking/assistant tokens until sentence boundaries."""
+    
+    def __init__(self, max_line_len: int = 94):
+        self.buffers: Dict[str, str] = {}
+        self.max_line_len = max_line_len
+    
+    def add(self, box_id: str, content: str) -> Optional[str]:
+        """Add content to buffer, return flushed line if ready."""
+        if box_id not in self.buffers:
+            self.buffers[box_id] = ""
+        
+        self.buffers[box_id] += content
+        
+        # Flush on sentence-ending punctuation or force flush on length
+        buf = self.buffers[box_id]
+        ends_sentence = content.endswith(('.', '!', '?', '\n', ':'))
+        force_flush = len(buf) > 150
+        
+        if (ends_sentence or force_flush) and buf.strip():
+            line = buf.strip()
+            if len(line) > self.max_line_len:
+                line = line[:self.max_line_len - 3] + "..."
+            self.buffers[box_id] = ""
+            return line
+        
+        return None
+    
+    def flush(self, box_id: str) -> Optional[str]:
+        """Force flush a buffer, return content if any."""
+        if box_id in self.buffers and self.buffers[box_id].strip():
+            line = self.buffers[box_id].strip()
+            if len(line) > self.max_line_len:
+                line = line[:self.max_line_len - 3] + "..."
+            self.buffers[box_id] = ""
+            return line
+        return None
+    
+    def flush_all(self) -> Dict[str, str]:
+        """Flush all buffers, return dict of box_id -> content."""
+        results = {}
+        for box_id in list(self.buffers.keys()):
+            line = self.flush(box_id)
+            if line:
+                results[box_id] = line
+        return results
+
+
+def markdown_to_rich(text: str) -> str:
+    """Convert basic markdown to Rich markup for console display."""
+    try:
+        # Escape existing brackets first
+        text = text.replace("[", "\\[").replace("]", "\\]")
+        
+        # Bold: **text** or __text__ -> [bold]text[/bold]
+        text = re.sub(r'\*\*(.+?)\*\*', r'[bold]\1[/bold]', text)
+        text = re.sub(r'__(.+?)__', r'[bold]\1[/bold]', text)
+        
+        # Inline code: `code` -> [cyan]code[/cyan]
+        text = re.sub(r'`([^`]+)`', r'[cyan]\1[/cyan]', text)
+        
+        # Headers: ### text -> [bold]text[/bold]
+        text = re.sub(r'^#{1,6}\s+(.+)$', r'[bold]\1[/bold]', text, flags=re.MULTILINE)
+        
+        # Checkmarks and X marks (common in thinking)
+        text = text.replace("✅", "[green]✅[/green]")
+        text = text.replace("❌", "[red]❌[/red]")
+        
+        # Validate the markup is balanced before returning
+        from rich.text import Text
+        Text.from_markup(text)
+        return text
+    except Exception:
+        # If markup is invalid, return escaped plain text
+        from rich.markup import escape
+        return escape(text.replace("\\[", "[").replace("\\]", "]"))
 
 def strip_worktree_path(path: str) -> str:
     """Strip worktree path prefix from file paths, removing writer-sonnet/writer-codex dirs."""
@@ -77,8 +155,10 @@ def parse_stream_message(line: str) -> Optional[StreamMessage]:
             if msg.subtype == "started":
                 if "shellToolCall" in tool_call:
                     cmd = tool_call["shellToolCall"].get("args", {}).get("command", "unknown")
-                    cmd = re.sub(r'^cd [^ ]+ && ', '', cmd)
-                    cmd = strip_worktree_path(cmd)
+                    # Strip cd prefix and replace worktree paths
+                    cmd = re.sub(r'^cd /[^\s]*/\.cube/worktrees/[^/\s]+/[^/\s]+ && ', '', cmd)
+                    cmd = re.sub(r'/[^\s]*\.cube/worktrees/[^/\s]+/[^/\s]+/?', '~worktrees/', cmd)
+                    cmd = re.sub(r'/[^\s]*\.cursor/worktrees/[^/\s]+/[^/\s]+/?', '~worktrees/', cmd)
                     msg.tool_name = "shell"
                     msg.tool_args = {"command": cmd}
                     return msg
@@ -149,7 +229,7 @@ def get_max_path_width() -> int:
     try:
         term_width = os.get_terminal_size().columns
         return max(40, term_width - 30)
-    except:
+    except OSError:
         return 80
 
 def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Optional[str]:
@@ -163,17 +243,28 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
         session_safe = str(msg.session_id).replace("[", "\\[").replace("]", "\\]") if msg.session_id else ""
         return f"[{color}]{prefix}[/{color}] 🤖 {msg.model} | Session: {session_safe}"
     
+    if msg.type == "user" and msg.content:
+        content = msg.content[:60] + "..." if len(msg.content) > 60 else msg.content
+        content = content.replace("\n", " ").strip()
+        return f"[{color}]{prefix}[/{color}] 📨 Prompt sent"
+    
     if msg.type == "thinking" and msg.content:
-        return f"[thinking]{msg.content}[/thinking]"
+        formatted = markdown_to_rich(msg.content)
+        return f"[thinking]{formatted}[/thinking]"
     
     if msg.type == "assistant" and msg.content:
-            return f"[{color}]{prefix}[/{color}] 💭 {msg.content}"
+        formatted = markdown_to_rich(msg.content)
+        return f"[{color}]{prefix}[/{color}] 💭 {formatted}"
     
     max_width = get_max_path_width()
     
     if msg.type == "tool_call" and msg.subtype == "started":
         if msg.tool_name == "shell" and msg.tool_args:
-            cmd = strip_worktree_path(msg.tool_args.get("command", ""))
+            cmd = msg.tool_args.get("command", "")
+            # Strip cd prefix and shorten worktree paths
+            cmd = re.sub(r'^cd /[^\s]*/\.cube/worktrees/[^/\s]+/[^/\s]+ && ', '', cmd)
+            cmd = re.sub(r'/[^\s]*\.cube/worktrees/[^/\s]+/[^/\s]+/?', '~worktrees/', cmd)
+            cmd = re.sub(r'/[^\s]*\.cursor/worktrees/[^/\s]+/[^/\s]+/?', '~worktrees/', cmd)
             if len(cmd) > max_width:
                 cmd = cmd[:max_width - 3] + "..."
             return f"[{color}]{prefix}[/{color}] 🔧 {cmd}"
@@ -239,6 +330,16 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
     if msg.type == "result":
         duration = format_duration(msg.duration_ms or 0)
         return f"[{color}]{prefix}[/{color}] 🎯 Completed in {duration}"
+    
+    if msg.type == "error" and msg.content:
+        content = msg.content[:100] if len(msg.content) > 100 else msg.content
+        content = markdown_to_rich(content)
+        return f"[{color}]{prefix}[/{color}] ❌ {content}"
+
+    if msg.type == "unknown" and msg.content:
+        content = msg.content[:80] if len(msg.content) > 80 else msg.content
+        content = markdown_to_rich(content)
+        return f"[dim]{prefix}[/dim] ⚠️ {content}"
     
     return None
 

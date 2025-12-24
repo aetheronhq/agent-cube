@@ -48,8 +48,13 @@ class CLIReviewAdapter(CLIAdapter):
             yield json.dumps({"type": "assistant", "content": "ERROR: No writer worktrees configured for CLI review"})
             return
 
-        # Run tool in parallel for both writers with real-time streaming
-        yield json.dumps({"type": "assistant", "content": f"🔍 Running {self.tool_name} on both writers in parallel..."})
+        # Run tool on writers with real-time streaming
+        num_writers = len(self.writer_worktrees)
+        if num_writers == 1:
+            writer_name = list(self.writer_worktrees.keys())[0]
+            yield json.dumps({"type": "assistant", "content": f"🔍 Running {self.tool_name} on {writer_name}..."})
+        else:
+            yield json.dumps({"type": "assistant", "content": f"🔍 Running {self.tool_name} on {num_writers} writers in parallel..."})
         
         reviews = {}
         output_buffers = {writer: [] for writer in self.writer_worktrees}
@@ -123,13 +128,19 @@ class CLIReviewAdapter(CLIAdapter):
         # Extract task_id from prompt if possible
         # Handles: **Task:** `quick`, Task: rand, task_id: test-task
         task_match = re.search(r'\*?\*?[Tt]ask[_\s]*(?:[Ii][Dd])?:?\*?\*?\s*["\'\`]?([a-zA-Z0-9_-]+)', prompt)
+        if not task_match:
+            # Try extracting from decision filename pattern: judge_X-TASKID-peer-review.json
+            task_match = re.search(r'judge_\d+-([a-zA-Z0-9_-]+)-(?:peer-review|decision)', prompt)
+        if not task_match:
+            # Try matching a bare task-id (alphanumeric with hyphens) on its own line
+            task_match = re.search(r'^([a-zA-Z][a-zA-Z0-9_-]+)$', prompt.strip(), re.MULTILINE)
         task_id = task_match.group(1) if task_match else "review"
         
         for writer, lines in output_buffers.items():
             reviews[writer] = "\n".join(lines)
             
-            # Save raw output to file
-            writer_slug = "writer-a" if "A" in writer else "writer-b"
+            # Save raw output to file - create slug from writer name
+            writer_slug = writer.lower().replace(" ", "-")
             review_file = reviews_dir / f"{task_id}-{writer_slug}-{self.tool_name.lower()}.txt"
             review_file.write_text(reviews[writer])
             review_files[writer] = f".prompts/reviews/{review_file.name}"
@@ -152,8 +163,16 @@ class CLIReviewAdapter(CLIAdapter):
 
     def _build_synthesis_prompt(self, original_prompt: str, reviews: Dict[str, str], review_files: Dict[str, str]) -> str:
         """Construct the synthesis prompt."""
-        writer_a_file = review_files.get('Writer A', 'N/A')
-        writer_b_file = review_files.get('Writer B', 'N/A')
+        # Build dynamic review sections from whatever writers were reviewed
+        review_sections = []
+        file_sections = []
+        for writer_name, review_content in reviews.items():
+            review_sections.append(f"## Review: {writer_name}\n{review_content}")
+            file_path = review_files.get(writer_name, 'N/A')
+            file_sections.append(f"- **{writer_name}:** `{file_path}`")
+        
+        reviews_text = "\n\n".join(review_sections) if review_sections else "No reviews available."
+        files_text = "\n".join(file_sections) if file_sections else "- No review files available"
         
         return f"""
 You are a technical judge synthesizing results from a CLI review tool ({self.tool_name}).
@@ -162,55 +181,46 @@ You are a technical judge synthesizing results from a CLI review tool ({self.too
 {original_prompt}
 
 ## Review Output Files (IMPORTANT - reference these in your decision)
-- **Writer A:** `{writer_a_file}`
-- **Writer B:** `{writer_b_file}`
+{files_text}
 
 These files contain the FULL {self.tool_name} output including "Prompt for AI Agent" sections.
-The winning writer should read their file to address all issues.
+The writer should read their file to address all issues.
 
-## Review: Writer A
-{reviews.get('Writer A', 'No output')}
-
-## Review: Writer B
-{reviews.get('Writer B', 'No output')}
+{reviews_text}
 
 ## Your Job
-1. Analyze ALL issues found in the reviews above for BOTH writers.
-2. Determine which implementation is better based ONLY on the review output.
-3. Output a JSON decision file that includes the review file paths.
+1. Analyze ALL issues found in the review(s) above.
+2. Create a JSON decision file using write_file tool.
+
+**DECISION CRITERIA:**
+- APPROVED = Zero issues found in the review. Code is clean and ready to merge.
+- REQUEST_CHANGES = ANY issues found (blocking OR non-blocking). All issues must be fixed before merge.
+
+Do NOT approve if there are suggestions, warnings, or improvements to make. The writer should fix ALL issues first.
 
 **CRITICAL REQUIREMENTS:**
-- Do NOT use any tools (read_file, shell, etc.)
-- Make your decision SOLELY based on the review output provided above
-- Include the `review_output_files` field so the writer knows where to find full details
+- Do NOT use read_file or shell tools - make your decision SOLELY based on the review output above
+- If ANY issues exist, use REQUEST_CHANGES - even "minor" or "non-blocking" ones
+- You MUST use write_file to create the decision file (see Task Context above for the file path)
 
 **If reviews contain errors or are empty:**
-- Use decision: "REQUEST_CHANGES"  
-- Use winner: "TIE"
+- Use decision: "REQUEST_CHANGES"
 - Set blocker_issues to explain the tool failure
 
-## JSON Format
+## JSON Format (save this to the decision file path from Task Context)
 {{
+  "judge": "<your judge key from Task Context>",
+  "task_id": "<task id from Task Context>",
+  "review_type": "peer-review",
   "decision": "APPROVED" | "REQUEST_CHANGES",
-  "winner": "A" | "B" | "TIE",
-  "scores": {{
-    "writer_a": {{ "total_weighted": <0-100> }},
-    "writer_b": {{ "total_weighted": <0-100> }}
-  }},
-  "review_output_files": {{
-    "writer_a": "{writer_a_file}",
-    "writer_b": "{writer_b_file}"
-  }},
-  "blocker_issues": ["list", "of", "critical", "issues", "from", "the", "review"],
-  "recommendation": "Brief explanation. Tell winner to read their review file for full details."
+  "blocker_issues": ["ALL", "issues", "from", "the", "review", "that", "need", "fixing"],
+  "recommendation": "Brief explanation. Tell writer to read their review file and fix ALL issues listed."
 }}
 
 **IMPORTANT:** 
-- The `review_output_files` paths let the writer find the FULL {self.tool_name} output
-- The output includes "Prompt for AI Agent" sections with detailed fix instructions
-- Blocker issues should be a SHORT summary; full details are in the review files
-
-Output ONLY valid JSON.
+- The review output files let the writer find the FULL {self.tool_name} output
+- List ALL issues in blocker_issues, not just "critical" ones - everything must be addressed
+- Use write_file to save the decision JSON to the path specified in Task Context
 """
 
     def check_installed(self) -> bool:

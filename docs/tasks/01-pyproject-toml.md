@@ -75,4 +75,3 @@ packages = ["python/cube"]
 
 - Keep `install.sh` for development setup
 - Consider adding `[project.optional-dependencies]` for dev tools
-

@@ -38,6 +38,7 @@ class CubeConfig:
     judge_order: list[str]
     judge_alias_map: Dict[str, str]
     cli_tools: Dict[str, str]
+    prompter_model: str
     auto_commit: bool
     auto_push: bool
     auto_update: bool
@@ -211,6 +212,8 @@ def load_config() -> CubeConfig:
     
     cli_tools = data.get("cli_tools", {})
     behavior = data.get("behavior", {})
+    prompter = data.get("prompter", {})
+    prompter_model = prompter.get("model", "opus-4.5-thinking")
     
     _config_cache = CubeConfig(
         writers=writers,
@@ -221,6 +224,7 @@ def load_config() -> CubeConfig:
         judge_order=judge_order,
         judge_alias_map=judge_alias_map,
         cli_tools=cli_tools,
+        prompter_model=prompter_model,
         auto_commit=behavior.get("auto_commit", True),
         auto_push=behavior.get("auto_push", True),
         auto_update=behavior.get("auto_update", True),
@@ -233,6 +237,11 @@ def get_cli_tool_for_model(model: str) -> str:
     """Get the CLI tool to use for a given model."""
     config = load_config()
     return config.cli_tools.get(model, "cursor-agent")
+
+def get_prompter_model() -> str:
+    """Get the model to use for prompter agents."""
+    config = load_config()
+    return config.prompter_model
 
 def get_writer_config(writer_key: str) -> WriterConfig:
     """Get writer configuration."""

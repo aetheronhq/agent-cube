@@ -27,13 +27,23 @@ class CursorParser(ParserAdapter):
             if msg.type == "system" and msg.subtype == "init":
                 return msg
             
+            if msg.type == "user":
+                message_data = data.get("message", {})
+                content_list = message_data.get("content", [])
+                if content_list and len(content_list) > 0:
+                    text = content_list[0].get("text", "")
+                    if text:
+                        msg.content = text[:100] + "..." if len(text) > 100 else text
+                        return msg
+            
             if msg.type == "thinking":
                 # Try "text" field first (standard cursor format), then use pre-set content
                 text = data.get("text")
                 if text:
                     msg.content = text
-                if msg.content:
                     return msg
+                # Empty thinking deltas are heartbeats - silently ignore
+                return None
             
             if msg.type == "assistant":
                 # Skip messages with model_call_id - they're summaries of already-streamed content
@@ -53,6 +63,10 @@ class CursorParser(ParserAdapter):
             
             if msg.type == "tool_call":
                 tool_call = data.get("tool_call", {})
+                
+                # If no tool_call data, ignore silently
+                if not tool_call:
+                    return None
                 
                 if msg.subtype == "started":
                     if "readToolCall" in tool_call:
@@ -94,6 +108,12 @@ class CursorParser(ParserAdapter):
                         todos = tool_call["updateTodosToolCall"].get("args", {}).get("todos", [])
                         msg.tool_name = "todos"
                         msg.tool_args = {"count": len(todos)}
+                        return msg
+                    else:
+                        # Unknown tool type - show generic
+                        tool_type = list(tool_call.keys())[0] if tool_call else "unknown"
+                        msg.tool_name = tool_type.replace("ToolCall", "")
+                        msg.tool_args = {}
                         return msg
                 
                 elif msg.subtype == "completed":
@@ -138,15 +158,37 @@ class CursorParser(ParserAdapter):
                         msg.tool_name = "todos"
                         msg.tool_args = {}
                         return msg
+                    else:
+                        # Unknown tool completion - ignore
+                        return None
+                
+                # Unrecognized subtype - ignore
+                return None
             
             if msg.type == "result":
                 msg.duration_ms = data.get("duration_ms", 0)
                 return msg
             
-            return None
+            if msg.type == "error":
+                msg.content = data.get("message", line[:200])
+                return msg
             
-        except (json.JSONDecodeError, Exception):
-            return None
+            # Known types that we intentionally ignore (heartbeats, internal messages)
+            if msg.type in ("thinking", "user", "tool_call"):
+                return None  # Already handled above if they had content
+            
+            # Return unknown types so they can be logged
+            msg.type = "unknown"
+            msg.content = line[:500]
+            return msg
+            
+        except json.JSONDecodeError:
+            # Non-JSON line - return as unknown
+            msg = StreamMessage(type="unknown", content=line[:500])
+            return msg
+        except Exception as e:
+            msg = StreamMessage(type="error", content=f"Parse error: {e}"[:200])
+            return msg
     
     def supports_resume(self) -> bool:
         """Cursor-agent supports resume."""

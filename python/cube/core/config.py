@@ -186,7 +186,7 @@ def _get_current_tty() -> Optional[str]:
         if tty and tty.startswith('/dev/'):
             return tty.split('/')[-1]
         return None
-    except:
+    except (OSError, IOError):
         return None
 
 
@@ -206,7 +206,7 @@ def get_current_task_id() -> Optional[str]:
     if tty_file.exists():
         try:
             return tty_file.read_text().strip()
-        except:
+        except (OSError, IOError):
             return None
     
     return None

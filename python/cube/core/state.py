@@ -21,6 +21,7 @@ class WorkflowState:
     synthesis_complete: bool = False
     peer_review_complete: bool = False
     updated_at: str = ""
+    project_root: Optional[str] = None  # Project root where task was run
     
     def __post_init__(self):
         if not self.updated_at:
@@ -54,7 +55,8 @@ def load_state(task_id: str) -> Optional[WorkflowState]:
             panel_complete=data.get("panel_complete", False),
             synthesis_complete=data.get("synthesis_complete", False),
             peer_review_complete=data.get("peer_review_complete", False),
-            updated_at=data.get("updated_at", "")
+            updated_at=data.get("updated_at", ""),
+            project_root=data.get("project_root")
         )
     except Exception as exc:
         from .output import console_err
@@ -84,6 +86,8 @@ def save_state(state: WorkflowState) -> None:
 
 def update_phase(task_id: str, phase: int, **kwargs) -> WorkflowState:
     """Update workflow to a new phase."""
+    from .config import PROJECT_ROOT
+    
     state = load_state(task_id)
     
     if not state:
@@ -91,8 +95,13 @@ def update_phase(task_id: str, phase: int, **kwargs) -> WorkflowState:
             task_id=task_id,
             current_phase=phase,
             path=kwargs.get("path", "UNKNOWN"),
-            completed_phases=[]
+            completed_phases=[],
+            project_root=str(PROJECT_ROOT)
         )
+    
+    # Ensure project_root is set (backfill for existing states)
+    if not state.project_root:
+        state.project_root = str(PROJECT_ROOT)
     
     if phase not in state.completed_phases:
         state.completed_phases.append(phase)

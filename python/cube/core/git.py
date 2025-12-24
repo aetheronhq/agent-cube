@@ -133,3 +133,34 @@ def branch_exists(branch: str) -> bool:
     except Exception:
         return False
 
+
+def sync_worktree(worktree_path: Path, branch: str) -> Optional[str]:
+    """Fetch and reset a worktree to match remote branch.
+    
+    Returns commit hash on success, None on failure.
+    """
+    if not worktree_path.exists():
+        return None
+    
+    try:
+        subprocess.run(
+            ["git", "fetch", "origin", branch],
+            cwd=worktree_path, capture_output=True, timeout=30, check=False
+        )
+        
+        result = subprocess.run(
+            ["git", "reset", "--hard", f"origin/{branch}"],
+            cwd=worktree_path, capture_output=True, timeout=30
+        )
+        
+        if result.returncode != 0:
+            return None
+        
+        commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=worktree_path, capture_output=True, text=True, timeout=10
+        )
+        return commit.stdout.strip() if commit.returncode == 0 else "unknown"
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError):
+        return None
+

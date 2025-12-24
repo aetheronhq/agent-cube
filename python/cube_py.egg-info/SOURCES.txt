@@ -33,10 +33,13 @@ cube/core/config.py
 cube/core/decision_files.py
 cube/core/decision_parser.py
 cube/core/dual_layout.py
+cube/core/dynamic_layout.py
 cube/core/gemini_config.py
 cube/core/git.py
+cube/core/master_log.py
 cube/core/output.py
 cube/core/parser_adapter.py
+cube/core/phases.py
 cube/core/session.py
 cube/core/single_layout.py
 cube/core/state.py
@@ -45,10 +48,12 @@ cube/core/triple_layout.py
 cube/core/updater.py
 cube/core/user_config.py
 cube/core/adapters/__init__.py
+cube/core/adapters/cli_review_adapter.py
 cube/core/adapters/cursor_adapter.py
 cube/core/adapters/gemini_adapter.py
 cube/core/adapters/registry.py
 cube/core/parsers/__init__.py
+cube/core/parsers/cli_review_parser.py
 cube/core/parsers/cursor_parser.py
 cube/core/parsers/gemini_parser.py
 cube/core/parsers/registry.py

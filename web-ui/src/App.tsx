@@ -8,14 +8,16 @@ import { Decisions } from "./pages/Decisions";
 function App(): JSX.Element {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-cube-dark text-white">
+      <div className="h-screen flex flex-col bg-cube-dark text-white overflow-hidden">
         <Navigation />
-        <main className="container mx-auto px-4 py-8">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/tasks/:id" element={<TaskDetail />} />
-            <Route path="/tasks/:id/decisions" element={<Decisions />} />
-          </Routes>
+        <main className="flex-1 overflow-auto">
+          <div className="container mx-auto px-4 py-6 h-full">
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/tasks/:id" element={<TaskDetail />} />
+              <Route path="/tasks/:id/decisions" element={<Decisions />} />
+            </Routes>
+          </div>
         </main>
       </div>
     </BrowserRouter>

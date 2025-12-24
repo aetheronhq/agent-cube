@@ -2,8 +2,32 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, Optional, Set
 import asyncio
+import atexit
+import signal
+
+# Track active subprocesses for cleanup on exit
+_active_processes: Set[asyncio.subprocess.Process] = set()
+
+def _cleanup_processes():
+    """Kill all tracked subprocesses on exit."""
+    for proc in list(_active_processes):
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+
+atexit.register(_cleanup_processes)
+
+def _signal_handler(signum, frame):
+    """Handle SIGINT/SIGTERM by killing child processes."""
+    _cleanup_processes()
+    raise KeyboardInterrupt()
+
+# Install signal handlers
+signal.signal(signal.SIGINT, _signal_handler)
+signal.signal(signal.SIGTERM, _signal_handler)
 
 class CLIAdapter(ABC):
     """Interface for agent CLI tools."""
@@ -135,6 +159,9 @@ async def run_subprocess_streaming(
         limit=1024 * 1024 * 10
     )
     
+    # Track process for cleanup on Ctrl+C
+    _active_processes.add(process)
+    
     # Track last output time for stall detection
     last_output_time = [time.time()]  # Mutable list so monitor can read it
     
@@ -158,6 +185,15 @@ async def run_subprocess_streaming(
             await health_monitor
         except (asyncio.CancelledError, RuntimeError):
             pass
+        # Remove from tracking
+        _active_processes.discard(process)
+        # Ensure process is terminated
+        if process.returncode is None:
+            try:
+                process.terminate()
+                await asyncio.wait_for(process.wait(), timeout=2.0)
+            except Exception:
+                process.kill()
     
     exit_code = await process.wait()
     if exit_code != 0:

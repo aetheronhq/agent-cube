@@ -44,10 +44,41 @@ class BaseThinkingLayout:
         except Exception:
             return 40
     
-    def _truncate(self, text: str, max_len: int) -> str:
-        if len(text) <= max_len:
-            return text
-        return text[:max_len - 3] + "..."
+    def _truncate_plain(self, text: str, max_len: int) -> str:
+        """Truncate text to max_len, stripping markup and converting to plain text.
+        Used for thinking boxes where markup would be shown literally."""
+        from rich.errors import MarkupError
+        try:
+            rich_text = Text.from_markup(text)
+            plain = rich_text.plain
+        except MarkupError:
+            # Invalid markup - strip common Rich tags manually
+            plain = text
+            for tag in ["bold", "cyan", "green", "red", "dim", "thinking"]:
+                plain = plain.replace(f"[{tag}]", "").replace(f"[/{tag}]", "")
+            plain = plain.replace("\\[", "[").replace("\\]", "]")
+        
+        if len(plain) <= max_len:
+            return plain
+        return plain[:max_len - 1] + "…"
+    
+    def _truncate_markup(self, text: str, max_len: int) -> str:
+        """Truncate text with markup, escaping if truncation breaks tags.
+        Used for output lines where markup should be preserved."""
+        from rich.markup import escape
+        from rich.errors import MarkupError
+        try:
+            rich_text = Text.from_markup(text)
+            if len(rich_text.plain) <= max_len:
+                return text
+            # Must truncate - convert to plain and escape
+            return escape(rich_text.plain[:max_len - 1]) + "…"
+        except MarkupError:
+            # Invalid markup - escape everything
+            escaped = escape(text)
+            if len(escaped) <= max_len:
+                return escaped
+            return escaped[:max_len - 1] + "…"
     
     def start(self):
         with self.lock:
@@ -104,7 +135,7 @@ class BaseThinkingLayout:
         # Take last N lines, truncate each to terminal width
         width = self._term_width() - 2
         recent = list(self.output_lines)[-available:]
-        lines = [self._truncate(line, width) for line in recent]
+        lines = [self._truncate_markup(line, width) for line in recent]
         
         self.layout["output"].update(Text.from_markup("\n".join(lines)))
     
@@ -123,13 +154,13 @@ class BaseThinkingLayout:
             while '\n' in buf:
                 line, buf = buf.split('\n', 1)
                 if line.strip():
-                    self.thinking_buffers[box_id].append(self._truncate(line.strip(), width))
+                    self.thinking_buffers[box_id].append(self._truncate_plain(line.strip(), width))
                 self.thinking_current[box_id] = buf
             
             # Flush remaining buffer on sentence end or length limit
             ends = buf.rstrip().endswith(('.', '!', '?', ':'))
             if (len(buf) > 40 and ends) or len(buf) > 150:
-                self.thinking_buffers[box_id].append(self._truncate(buf.strip(), width))
+                self.thinking_buffers[box_id].append(self._truncate_plain(buf.strip(), width))
                 self.thinking_current[box_id] = ""
             
             self._refresh()
@@ -153,14 +184,14 @@ class BaseThinkingLayout:
             while '\n' in buf:
                 line, buf = buf.split('\n', 1)
                 if line.strip():
-                    truncated = self._truncate(line.strip(), width)
+                    truncated = self._truncate_markup(line.strip(), width)
                     self.output_lines.append(f"[{color}]{label}[/{color}] 💭 {truncated}")
                 self.assistant_buf[key] = buf
             
             # Flush remaining buffer on sentence end or length limit
             ends = buf.rstrip().endswith(('.', '!', '?', ':'))
             if (len(buf) > 50 and ends) or len(buf) > 300:
-                truncated = self._truncate(buf.strip(), width)
+                truncated = self._truncate_markup(buf.strip(), width)
                 self.output_lines.append(f"[{color}]{label}[/{color}] 💭 {truncated}")
                 self.assistant_buf[key] = ""
             
@@ -186,14 +217,14 @@ class BaseThinkingLayout:
                 if buf.strip():
                     label, color = self.assistant_meta.get(key, (key, "white"))
                     width = self._term_width() - len(label) - 10
-                    truncated = self._truncate(buf.strip(), width)
+                    truncated = self._truncate_markup(buf.strip(), width)
                     self.output_lines.append(f"[{color}]{label}[/{color}] 💭 {truncated}")
                     self.assistant_buf[key] = ""
             
             for box_id, buf in self.thinking_current.items():
                 if buf.strip():
                     width = self._term_width() - 10
-                    self.thinking_buffers[box_id].append(self._truncate(buf.strip(), width))
+                    self.thinking_buffers[box_id].append(self._truncate_plain(buf.strip(), width))
                     self.thinking_current[box_id] = ""
             self._refresh()
     

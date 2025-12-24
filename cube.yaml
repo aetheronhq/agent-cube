@@ -1,12 +1,5 @@
 # Agent Cube Project Configuration
 
-writers:
-  writer_b:
-    name: "gemini"
-    model: "gemini-3-pro-preview"
-    label: "Writer B"
-    color: "magenta"
-
 judges:
   judge_4:
     type: "cli-review"
@@ -14,4 +7,4 @@ judges:
     model: "composer-1"
     label: "CodeRabbit"
     color: "magenta"
-    peer_review_only: true  # Uncomment to save rate limits (skip panel, run in peer-review only)
+    peer_review_only: true

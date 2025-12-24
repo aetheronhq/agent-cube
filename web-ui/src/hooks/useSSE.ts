@@ -15,7 +15,7 @@ interface UseSSEResult {
 }
 
 const DEFAULT_RECONNECT_DELAY = 3000;
-const DEFAULT_MAX_MESSAGES = 1000;
+const DEFAULT_MAX_MESSAGES = 15000;
 
 export function useSSE(
   url: string | null,
@@ -28,13 +28,29 @@ export function useSSE(
   const eventSourceRef = useRef<EventSource | null>(null);
   const normalizedUrl = useMemo(() => (url ? url.replace(/\s+/g, "") : null), [url]);
   const previousUrlRef = useRef<string | null>(null);
+  const previousInitialMessagesLengthRef = useRef<number>(0);
 
+  // Reset messages when URL changes
   useEffect(() => {
     if (normalizedUrl !== previousUrlRef.current) {
       previousUrlRef.current = normalizedUrl;
+      previousInitialMessagesLengthRef.current = initialMessages.length;
       setMessages(initialMessages);
     }
   }, [normalizedUrl, initialMessages]);
+
+  // Update messages when initialMessages are loaded (e.g., historical logs)
+  useEffect(() => {
+    if (initialMessages.length > 0 && previousInitialMessagesLengthRef.current === 0) {
+      previousInitialMessagesLengthRef.current = initialMessages.length;
+      setMessages((prev) => {
+        // Merge: put initial messages first, then any new messages from SSE
+        const initialTimestamps = new Set(initialMessages.map(m => m.timestamp));
+        const newMessages = prev.filter(m => !initialTimestamps.has(m.timestamp));
+        return [...initialMessages, ...newMessages];
+      });
+    }
+  }, [initialMessages]);
 
   useEffect(() => {
     if (!normalizedUrl || !enabled) {
