@@ -27,6 +27,7 @@ cube/commands/version.py
 cube/commands/writers.py
 cube/core/__init__.py
 cube/core/agent.py
+cube/core/agent_logger.py
 cube/core/base_layout.py
 cube/core/cli_adapter.py
 cube/core/config.py
