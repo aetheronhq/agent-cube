@@ -42,106 +42,97 @@ judge_alias_map: Dict[str, str]   # alias -> key
 
 ---
 
-## Solution: Single `id` Architecture
+## Solution: Simplify Internal Code (Keep Config Format)
 
-### New Config Format
+### Config Format - NO CHANGE
 ```yaml
-# cube.yaml - BEFORE
+# cube.yaml - stays the same!
 writers:
   writer_a:
     name: opus
     model: opus-4.5-thinking
     label: Writer Opus
     color: cyan
-    letter: A
 
 judges:
   judge_1:
     model: sonnet-4.5-thinking
     label: Judge Sonnet
     color: green
-
-# cube.yaml - AFTER
-agents:
-  opus:
-    model: opus-4.5-thinking
-    label: Opus
-    color: cyan
-    role: writer
-    
-  codex:
-    model: gpt-5.1-codex-max
-    label: Codex
-    color: yellow
-    role: writer
-    
-  sonnet:
-    model: sonnet-4.5-thinking
-    label: Sonnet
-    color: green
-    role: judge
-    
-  gemini:
-    model: gemini-2.5-pro
-    label: Gemini
-    color: blue
-    role: judge
-    
-  coderabbit:
+  
+  judge_4:
     type: cli-review
-    cmd: "coderabbit review --plain --type all --cwd {{worktree}}"
+    cmd: "coderabbit review ..."
     label: CodeRabbit
-    color: magenta
-    role: judge
     peer_review_only: true
 ```
 
-### New Unified Model
+### Internal Simplification
+The config key (`writer_a`, `judge_1`) becomes the single `id` used everywhere internally.
+No more separate `name`, `letter`, or alias maps.
+
+### Simplified Internal Model
 ```python
 @dataclass
-class AgentConfig:
-    """Single unified agent configuration."""
-    id: str           # Primary key: "opus", "codex", "sonnet", "coderabbit"
-    model: str        # Model name for LLM agents
-    label: str        # Short display name: "Opus", "Codex", "CodeRabbit"
-    color: str        # Rich color for terminal
-    role: str         # "writer" or "judge"
-    
-    # Judge-specific (optional)
-    type: str = "llm"           # "llm" or "cli-review"
-    cmd: Optional[str] = None   # Command for cli-review
-    peer_review_only: bool = False
-    
-    @property
-    def display_name(self) -> str:
-        """Full display name: 'Writer Opus', 'Judge CodeRabbit'"""
-        return f"{self.role.title()} {self.label}"
+class WriterConfig:
+    """Simplified writer configuration."""
+    key: str          # Config key: "writer_a", "writer_b" (THE id)
+    name: str         # Short name: "opus", "codex" (for paths)
+    model: str        # Model name
+    label: str        # Display: "Writer Opus"
+    color: str        # Rich color
+    # REMOVED: letter - derive from position or key
     
     def session_key(self, task_id: str) -> str:
-        """Session file key: 'OPUS_my-task'"""
-        return f"{self.id.upper()}_{task_id}"
+        """Session file key - use config key directly."""
+        return f"{self.key.upper()}_{task_id}"
     
     def worktree_name(self, task_id: str) -> str:
-        """Worktree directory name: 'opus-my-task'"""
-        return f"{self.id}-{task_id}"
+        """Worktree directory name."""
+        return f"writer-{self.name}-{task_id}"
+
+@dataclass  
+class JudgeConfig:
+    """Simplified judge configuration."""
+    key: str          # Config key: "judge_1", "judge_4" (THE id)
+    model: str
+    label: str
+    color: str
+    type: str = "llm"
+    cmd: Optional[str] = None
+    peer_review_only: bool = False
     
-    def log_prefix(self, task_id: str) -> str:
-        """Log file prefix: 'opus-my-task'"""
-        return f"{self.id}-{task_id}"
-    
-    def branch_name(self, task_id: str) -> str:
-        """Git branch: 'opus/my-task'"""
-        return f"{self.id}/{task_id}"
+    def session_key(self, task_id: str, review_type: str) -> str:
+        """Session file key."""
+        return f"{self.key.upper()}_{task_id}_{review_type}"
 ```
 
-### Derived Patterns (No Maps Needed)
-| Pattern | Format | Example |
-|---------|--------|---------|
-| Display | `{role.title()} {label}` | "Writer Opus" |
-| Worktree | `{id}-{task}` | `opus-my-task` |
-| Branch | `{id}/{task}` | `opus/my-task` |
-| Log file | `{id}-{task}-{ts}.json` | `opus-my-task-123.json` |
-| Session | `{ID}_{task}` | `OPUS_my-task` |
+### What Gets Removed
+- `WRITER_LETTERS` hardcoded dict
+- `writer_slug_map` 
+- `writer_alias_map`
+- `judge_alias_map`
+- `WriterInfo.letter` field
+- Multiple redundant lookup functions
+
+### Keep Simple Alias Resolution
+```python
+def resolve_writer(alias: str) -> WriterConfig:
+    """Simple alias resolution without complex maps."""
+    config = load_config()
+    alias_lower = alias.lower()
+    
+    # Try direct key match first
+    if alias_lower in config.writers:
+        return config.writers[alias_lower]
+    
+    # Try by name
+    for w in config.writers.values():
+        if w.name.lower() == alias_lower:
+            return w
+    
+    raise KeyError(f"Unknown writer: {alias}")
+```
 
 ---
 
@@ -266,25 +257,25 @@ Files to update (in order):
 ## Breaking Changes
 
 ### Config Format
-Old format will be supported with deprecation warning for 1-2 releases.
+**NO CHANGE** - existing `cube.yaml` files continue to work as-is.
 
 ### Session Files
-Existing sessions will need migration or manual cleanup:
+Keep existing format but derive consistently:
 ```bash
-# Old: ~/.agent-sessions/WRITER_A_my-task_SESSION_ID.txt
-# New: ~/.agent-sessions/OPUS_my-task_SESSION_ID.txt
+# Use config key directly: WRITER_A, JUDGE_1
+~/.agent-sessions/WRITER_A_my-task_SESSION_ID.txt
 ```
 
 ### Worktree Paths
-Existing worktrees will need migration:
+Keep existing naming but use `name` field consistently:
 ```bash
-# Old: ~/.cube/worktrees/project/writer-opus-task
-# New: ~/.cube/worktrees/project/opus-task
+# writer-{name}-{task}
+~/.cube/worktrees/project/writer-opus-my-task
 ```
 
 ### CLI Arguments
-Users using `writer-a`, `writer-b` will need to use `opus`, `codex` instead.
-Provide alias support during transition.
+Keep supporting existing aliases (`opus`, `codex`, `a`, `b`, etc.)
+but simplify the resolution code internally.
 
 ---
 
