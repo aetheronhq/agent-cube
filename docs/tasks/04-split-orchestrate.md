@@ -1,93 +1,73 @@
-# Task: Split orchestrate.py into Modules
-
-**Priority:** P1 (Major)
-**Complexity:** High
-**Files:** Split 1 file (1,020 lines) into 4-5 modules
+# Task 04: Split orchestrate.py
 
 ## Problem
 
-`orchestrate.py` is 1,020 lines doing everything:
-- Prompt generation for writers
-- Writer launch orchestration
-- Judge panel orchestration
-- Synthesis workflow
-- Peer review workflow
-- Feedback generation
-- Minor fixes workflow
+`python/cube/commands/orchestrate.py` is 1,196 lines and growing. It contains the entire autonomous orchestration workflow plus prompt generation, making it hard to maintain and test.
 
-This violates single responsibility and makes the code hard to maintain.
+## Goal
 
-## Proposed Structure
+Split the file into logical modules while maintaining all functionality. Target: no single file over 400 lines.
+
+## Current Structure
 
 ```
-python/cube/commands/orchestrate/
-├── __init__.py          # Re-export main functions
-├── prompts.py           # generate_writer_prompt, generate_panel_prompt, etc.
-├── phases.py            # Phase execution logic (orchestrate_auto_command)
-├── synthesis.py         # run_synthesis, run_peer_review
-├── feedback.py          # generate_dual_feedback, run_minor_fixes
-└── utils.py             # extract_task_id_from_file, helpers
+orchestrate.py (1,196 lines)
+├── extract_task_id_from_file()     # Utility
+├── orchestrate_prompt_command()     # CLI command  
+├── generate_orchestrator_prompt()   # 125-line string template
+├── orchestrate_auto_command()       # CLI entry point
+├── _orchestrate_auto_impl()         # Main workflow (~350 lines)
+├── generate_writer_prompt()         # Prompt generation
+├── generate_panel_prompt()          # Prompt generation
+├── run_decide_and_get_result()      # Decision handling
+├── run_decide_peer_review()         # Decision handling
+├── run_synthesis()                  # Phase handler
+├── run_peer_review()                # Phase handler
+├── run_minor_fixes()                # Phase handler
+├── generate_dual_feedback()         # Phase handler
+├── create_pr()                      # PR creation
 ```
 
-## Requirements
+## Proposed Split
 
-### Module Breakdown
+### 1. `orchestrate.py` - Main entry points only (~100 lines)
+- `orchestrate_prompt_command()`
+- `orchestrate_auto_command()` 
+- Keep as thin wrappers that delegate to other modules
 
-1. **`prompts.py`** (~200 lines)
-   - `generate_orchestrator_prompt()`
-   - `generate_writer_prompt()`
-   - `generate_panel_prompt()`
-   - All the prompt template strings
+### 2. `workflow.py` - Main workflow logic (~400 lines)
+- `_orchestrate_auto_impl()` - the main phase orchestration
+- Phase routing logic (SYNTHESIS vs MERGE vs FEEDBACK paths)
 
-2. **`phases.py`** (~300 lines)
-   - `orchestrate_auto_command()` - main entry point
-   - Phase 1-10 execution logic
-   - State management calls
+### 3. `phases.py` (or extend existing) - Individual phase handlers (~300 lines)
+- `run_synthesis()`
+- `run_peer_review()`
+- `run_minor_fixes()`
+- `generate_dual_feedback()`
 
-3. **`synthesis.py`** (~200 lines)
-   - `run_synthesis()`
-   - `run_peer_review()`
-   - Decision aggregation
+### 4. `prompts.py` - Prompt generation (~250 lines)
+- `generate_orchestrator_prompt()` - the big meta-prompt
+- `generate_writer_prompt()`
+- `generate_panel_prompt()`
 
-4. **`feedback.py`** (~200 lines)
-   - `generate_dual_feedback()`
-   - `run_minor_fixes()`
-   - Feedback prompt generation
+### 5. `decisions.py` - Decision handling (~100 lines)
+- `run_decide_and_get_result()`
+- `run_decide_peer_review()`
 
-5. **`utils.py`** (~50 lines)
-   - `extract_task_id_from_file()`
-   - Other helpers
+### 6. `pr.py` - PR creation (~50 lines)
+- `create_pr()`
 
-### Maintain Exports
+## Constraints
 
-```python
-# orchestrate/__init__.py
-from .phases import orchestrate_auto_command
-from .prompts import orchestrate_prompt_command
-from .utils import extract_task_id_from_file
+1. **No behavior changes** - pure refactor, all tests must pass
+2. **Maintain imports** - external code imports from `cube.commands.orchestrate`
+3. **Keep `__all__` exports** - preserve public API
+4. **No circular imports** - be careful with dependency order
 
-__all__ = ['orchestrate_auto_command', 'orchestrate_prompt_command', 'extract_task_id_from_file']
-```
+## Success Criteria
 
-### Update CLI Imports
-
-```python
-# cli.py - should still work:
-from .commands.orchestrate import orchestrate_auto_command, extract_task_id_from_file
-```
-
-## Verification
-
-- [ ] `cube auto task.md` works end-to-end
-- [ ] `cube orchestrate prompt task.md` works
-- [ ] All phases execute correctly
-- [ ] No circular import errors
-- [ ] Tests pass
-
-## Notes
-
-- Keep the same function signatures for backward compatibility
-- Move imports to module level where possible
-- Consider adding `__all__` to each module
-- This is a large refactor - do it carefully with tests
-
+- [ ] `orchestrate.py` under 150 lines
+- [ ] No file over 400 lines
+- [ ] All existing functionality works
+- [ ] `cube auto` workflow completes successfully
+- [ ] Clean imports (no circular dependencies)
