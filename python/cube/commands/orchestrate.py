@@ -212,13 +212,14 @@ Begin orchestration now!"""
     
     return prompt
 
-async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id: str | None = None) -> None:
+async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id: str | None = None, resume_alias: str | None = None) -> None:
     """Fully autonomous orchestration - runs entire workflow.
     
     Args:
         task_file: Path to task file (can be None if resuming from phase > 1)
         resume_from: Phase number to resume from (1-10)
         task_id: Optional task ID (if not provided, extracted from task_file)
+        resume_alias: Original alias used (e.g., "peer-review") to handle special cases
     """
     from ..core.state import validate_resume, update_phase, load_state, get_progress
     from ..core.master_log import master_log_context, get_master_log
@@ -229,9 +230,9 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id
     
     # Wrap entire orchestration in master log context
     with master_log_context(task_id):
-        await _orchestrate_auto_impl(task_file, resume_from, task_id)
+        await _orchestrate_auto_impl(task_file, resume_from, task_id, resume_alias)
 
-async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str) -> None:
+async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str, resume_alias: str | None = None) -> None:
     """Internal implementation of orchestrate_auto_command."""
     from ..core.state import validate_resume, update_phase, load_state, get_progress
     from ..core.master_log import get_master_log
@@ -492,7 +493,10 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str)
         from ..core.user_config import get_judge_configs
         peer_only_judges = [j for j in get_judge_configs() if j.peer_review_only]
         
-        if peer_only_judges and resume_from <= 6:
+        # If user explicitly asked for peer-review, run it even if resume_from > 6
+        wants_peer_review = resume_alias in ("peer-review", "peer", "peer-panel")
+        
+        if peer_only_judges and (resume_from <= 6 or wants_peer_review):
             console.print()
             console.print("[yellow]═══ Phase 6: Automated Review ═══[/yellow]")
             log_phase(6, "Automated Review")
