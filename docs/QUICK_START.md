@@ -169,8 +169,8 @@ cube continue task  # Even simpler!
 - Panel metrics: `aetheron-connect-v2/implementation/panel/panel-metrics.md`
 
 **Get help:**
-- GitHub issues: https://github.com/aetheronhq/agent-cube/issues
-- Slack: DM Jacob
+- GitHub Issues: https://github.com/aetheronhq/agent-cube/issues
+- GitHub Discussions: https://github.com/aetheronhq/agent-cube/discussions
 
 ---
 

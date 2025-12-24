@@ -244,45 +244,64 @@ router = APIRouter(prefix="/tasks", tags=["stream"])
 
 @router.get("/{task_id}/stream")
 async def stream_task(task_id: str) -> StreamingResponse:
-    """Stream task events by tailing log files in real-time."""
+    """Stream task events by tailing log files in real-time (sorted by mtime for chronological order)."""
     from pathlib import Path
-    from cube.automation.stream import format_stream_message
+    from cube.automation.stream import format_stream_message, ThinkingBuffer
     from cube.core.parsers.registry import get_parser
+    from cube.core.user_config import load_config
     
     logs_dir = Path.home() / ".cube" / "logs"
     parser = get_parser("cursor-agent")
+    
+    # Load config for agent labels
+    try:
+        config = load_config()
+        writers = list(config.writers.values())
+        judges = list(config.judges.values())
+    except Exception:
+        writers = []
+        judges = []
 
     async def event_stream() -> AsyncGenerator[str, None]:
         yield _format_sse({"type": "heartbeat", "taskId": task_id, "timestamp": _now_iso()})
         
         file_positions: dict[str, int] = {}
-        current_lines: dict[str, str] = {}  # Accumulate thinking per box
+        thinking_buffer = ThinkingBuffer(max_line_len=94)
         
         try:
             while True:
-                current_logs = sorted(logs_dir.glob(f"*{task_id}*.json")) if logs_dir.exists() else []
+                # Sort by modification time to preserve chronological order
+                current_logs = sorted(logs_dir.glob(f"*{task_id}*.json"), key=lambda f: f.stat().st_mtime) if logs_dir.exists() else []
                 
                 for log_file in current_logs:
                     if not log_file.exists():
                         continue
                     
-                    # Detect agent info from filename
+                    # Detect agent info from filename with config-based labels
                     filename = str(log_file.name)
-                    if "writer-sonnet" in filename:
-                        box_id, agent_label, color = "writer-a", "Writer A", "green"
+                    if "writer-sonnet" in filename or "writer-opus" in filename:
+                        w = writers[0] if len(writers) > 0 else None
+                        box_id, agent_label, color = "writer-a", w.label if w else "Writer A", w.color if w else "green"
                     elif "writer-codex" in filename:
-                        box_id, agent_label, color = "writer-b", "Writer B", "blue"
-                    elif "judge-1" in filename:
-                        box_id, agent_label, color = "judge-1", "Judge 1", "yellow"
-                    elif "judge-2" in filename:
-                        box_id, agent_label, color = "judge-2", "Judge 2", "yellow"
-                    elif "judge-3" in filename:
-                        box_id, agent_label, color = "judge-3", "Judge 3", "yellow"
+                        w = writers[1] if len(writers) > 1 else None
+                        box_id, agent_label, color = "writer-b", w.label if w else "Writer B", w.color if w else "blue"
+                    elif "synth-opus" in filename or "synth-sonnet" in filename:
+                        w = writers[0] if len(writers) > 0 else None
+                        box_id, agent_label, color = "synth-a", f"Synth {w.label}" if w else "Synth A", w.color if w else "green"
+                    elif "synth-codex" in filename:
+                        w = writers[1] if len(writers) > 1 else None
+                        box_id, agent_label, color = "synth-b", f"Synth {w.label}" if w else "Synth B", w.color if w else "blue"
+                    elif "judge_1" in filename or "judge-1" in filename:
+                        j = judges[0] if len(judges) > 0 else None
+                        box_id, agent_label, color = "judge-1", j.label if j else "Judge 1", j.color if j else "green"
+                    elif "judge_2" in filename or "judge-2" in filename:
+                        j = judges[1] if len(judges) > 1 else None
+                        box_id, agent_label, color = "judge-2", j.label if j else "Judge 2", j.color if j else "yellow"
+                    elif "judge_3" in filename or "judge-3" in filename:
+                        j = judges[2] if len(judges) > 2 else None
+                        box_id, agent_label, color = "judge-3", j.label if j else "Judge 3", j.color if j else "magenta"
                     else:
                         continue
-                    
-                    if box_id not in current_lines:
-                        current_lines[box_id] = ""
                     
                     pos = file_positions.get(str(log_file), 0)
                     
@@ -299,24 +318,19 @@ async def stream_task(task_id: str) -> StreamingResponse:
                                 if not msg:
                                     continue
                                 
-                                # Handle thinking directly (accumulate tokens like CLI)
-                                if msg.type == "thinking" and msg.content:
-                                    current_lines[box_id] += msg.content
-                                    
-                                    # Only send when we hit punctuation (exactly like BaseThinkingLayout)
-                                    if msg.content.endswith(('.', '!', '?', '\n')) and current_lines[box_id].strip():
-                                        complete_line = current_lines[box_id].strip()
-                                        if len(complete_line) > 94:
-                                            complete_line = complete_line[:91] + "..."
-                                        
+                                # Handle thinking/assistant content using shared buffer
+                                if msg.type in ("thinking", "assistant") and msg.content:
+                                    flushed = thinking_buffer.add(box_id, msg.content)
+                                    if flushed:
                                         yield _format_sse({
                                             "type": "thinking",
                                             "box": box_id,
-                                            "text": complete_line,
+                                            "agent": agent_label,
+                                            "agentColor": color,
+                                            "text": flushed,
                                             "timestamp": _now_iso()
                                         })
-                                        current_lines[box_id] = ""
-                                else:
+                                elif msg.type not in ("thinking", "assistant"):
                                     # Use CLI formatter for output
                                     formatted = format_stream_message(msg, agent_label, color)
                                     if formatted and not formatted.startswith("[thinking]"):
@@ -331,7 +345,7 @@ async def stream_task(task_id: str) -> StreamingResponse:
                                         })
                             
                             file_positions[str(log_file)] = f.tell()
-                    except:
+                    except (IOError, json.JSONDecodeError):
                         pass
                 
                 await asyncio.sleep(0.5)

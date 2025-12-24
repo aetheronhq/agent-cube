@@ -68,7 +68,7 @@ class GeminiParser(ParserAdapter):
             
             return None
             
-        except (json.JSONDecodeError, Exception):
+        except (json.JSONDecodeError, KeyError, TypeError):
             return None
     
     def supports_resume(self) -> bool:

@@ -1,12 +1,60 @@
 """Real-time JSON stream parsing from cursor-agent."""
 
 import json
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, Optional, Dict
 import re
 
 from ..core.output import format_duration, truncate_path, colorize
 from ..models.types import StreamMessage
 from ..core.config import PROJECT_ROOT
+
+
+class ThinkingBuffer:
+    """Shared buffer for accumulating thinking/assistant tokens until sentence boundaries."""
+    
+    def __init__(self, max_line_len: int = 94):
+        self.buffers: Dict[str, str] = {}
+        self.max_line_len = max_line_len
+    
+    def add(self, box_id: str, content: str) -> Optional[str]:
+        """Add content to buffer, return flushed line if ready."""
+        if box_id not in self.buffers:
+            self.buffers[box_id] = ""
+        
+        self.buffers[box_id] += content
+        
+        # Flush on sentence-ending punctuation or force flush on length
+        buf = self.buffers[box_id]
+        ends_sentence = content.endswith(('.', '!', '?', '\n', ':'))
+        force_flush = len(buf) > 150
+        
+        if (ends_sentence or force_flush) and buf.strip():
+            line = buf.strip()
+            if len(line) > self.max_line_len:
+                line = line[:self.max_line_len - 3] + "..."
+            self.buffers[box_id] = ""
+            return line
+        
+        return None
+    
+    def flush(self, box_id: str) -> Optional[str]:
+        """Force flush a buffer, return content if any."""
+        if box_id in self.buffers and self.buffers[box_id].strip():
+            line = self.buffers[box_id].strip()
+            if len(line) > self.max_line_len:
+                line = line[:self.max_line_len - 3] + "..."
+            self.buffers[box_id] = ""
+            return line
+        return None
+    
+    def flush_all(self) -> Dict[str, str]:
+        """Flush all buffers, return dict of box_id -> content."""
+        results = {}
+        for box_id in list(self.buffers.keys()):
+            line = self.flush(box_id)
+            if line:
+                results[box_id] = line
+        return results
 
 
 def markdown_to_rich(text: str) -> str:
@@ -107,8 +155,10 @@ def parse_stream_message(line: str) -> Optional[StreamMessage]:
             if msg.subtype == "started":
                 if "shellToolCall" in tool_call:
                     cmd = tool_call["shellToolCall"].get("args", {}).get("command", "unknown")
-                    cmd = re.sub(r'^cd [^ ]+ && ', '', cmd)
-                    cmd = strip_worktree_path(cmd)
+                    # Strip cd prefix and replace worktree paths
+                    cmd = re.sub(r'^cd /[^\s]*/\.cube/worktrees/[^/\s]+/[^/\s]+ && ', '', cmd)
+                    cmd = re.sub(r'/[^\s]*\.cube/worktrees/[^/\s]+/[^/\s]+/?', '~worktrees/', cmd)
+                    cmd = re.sub(r'/[^\s]*\.cursor/worktrees/[^/\s]+/[^/\s]+/?', '~worktrees/', cmd)
                     msg.tool_name = "shell"
                     msg.tool_args = {"command": cmd}
                     return msg
@@ -179,7 +229,7 @@ def get_max_path_width() -> int:
     try:
         term_width = os.get_terminal_size().columns
         return max(40, term_width - 30)
-    except:
+    except OSError:
         return 80
 
 def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Optional[str]:
@@ -210,7 +260,11 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
     
     if msg.type == "tool_call" and msg.subtype == "started":
         if msg.tool_name == "shell" and msg.tool_args:
-            cmd = strip_worktree_path(msg.tool_args.get("command", ""))
+            cmd = msg.tool_args.get("command", "")
+            # Strip cd prefix and shorten worktree paths
+            cmd = re.sub(r'^cd /[^\s]*/\.cube/worktrees/[^/\s]+/[^/\s]+ && ', '', cmd)
+            cmd = re.sub(r'/[^\s]*\.cube/worktrees/[^/\s]+/[^/\s]+/?', '~worktrees/', cmd)
+            cmd = re.sub(r'/[^\s]*\.cursor/worktrees/[^/\s]+/[^/\s]+/?', '~worktrees/', cmd)
             if len(cmd) > max_width:
                 cmd = cmd[:max_width - 3] + "..."
             return f"[{color}]{prefix}[/{color}] 🔧 {cmd}"

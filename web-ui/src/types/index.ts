@@ -21,11 +21,13 @@ export interface AgentInfo {
   color: "green" | "blue" | "gray";
 }
 
+export type BoxColor = "green" | "blue" | "gray" | "yellow" | "magenta";
+
 export interface ThinkingBoxProps {
   title: string;
   lines: string[];
   icon: string;
-  color?: "green" | "blue" | "gray";
+  color?: BoxColor;
 }
 
 export interface AgentThinkingSnapshot extends AgentInfo {
@@ -36,19 +38,30 @@ export interface AgentThinkingSnapshot extends AgentInfo {
 export interface DualLayoutProps {
   writerALines: string[];
   writerBLines: string[];
+  writerATitle?: string;
+  writerBTitle?: string;
 }
 
 export interface TripleLayoutProps {
   judge1Lines: string[];
   judge2Lines: string[];
   judge3Lines: string[];
+  judge1Title?: string;
+  judge2Title?: string;
+  judge3Title?: string;
 }
 
 export interface JudgeVote {
-  judge: number;
+  judge: string;
+  label?: string;
   model: string;
   vote: "A" | "B" | "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
   rationale: string;
+  blockers?: string[];
+  scores?: {
+    a: number;
+    b: number;
+  };
 }
 
 export interface SynthesisInfo {

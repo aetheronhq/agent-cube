@@ -323,8 +323,8 @@ implementation/
 ## 📞 **Support**
 
 - **Documentation:** Start with [docs/QUICK_START.md](docs/QUICK_START.md)
-- **Issues:** GitHub Issues
-- **Questions:** Slack @jacob (internal) or GitHub Discussions
+- **Issues:** [GitHub Issues](https://github.com/aetheronhq/agent-cube/issues)
+- **Questions:** [GitHub Discussions](https://github.com/aetheronhq/agent-cube/discussions)
 
 ---
 

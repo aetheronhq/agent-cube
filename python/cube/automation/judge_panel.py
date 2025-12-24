@@ -1,60 +1,78 @@
 """Parallel judge panel execution."""
 
 import asyncio
+import json
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional, Tuple
 
 from ..core.agent import run_agent
-from ..core.git import fetch_branches, get_commit_hash, branch_exists
+from ..core.git import fetch_branches, get_commit_hash, branch_exists, sync_worktree
 from ..core.session import save_session, load_session, SessionWatcher
 from ..core.output import print_info, print_success, print_warning, print_error, console
-from ..core.config import PROJECT_ROOT, get_sessions_dir
-from ..core.user_config import get_judge_config
+from ..core.config import PROJECT_ROOT, get_sessions_dir, WORKTREE_BASE, get_worktree_path, get_project_root
+from ..core.user_config import get_judge_config, get_writer_config, load_config, get_judge_configs, get_writer_by_key_or_letter
+from ..core.decision_files import find_decision_file
+from ..core.dynamic_layout import DynamicLayout
+from ..core.adapters.registry import get_adapter
+from ..core.parsers.registry import get_parser
 from ..models.types import JudgeInfo
+from .stream import format_stream_message
+
+
+async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
+    """Fetch and sync writer worktrees to latest remote commits before judge review."""
+    config = load_config()
+    project_name = Path(PROJECT_ROOT).name
+    
+    if winner:
+        winner_cfg = get_writer_by_key_or_letter(winner)
+        writers = [(winner_cfg.name, f"writer-{winner_cfg.name}/{task_id}")]
+    else:
+        writers = [
+            (cfg.name, f"writer-{cfg.name}/{task_id}")
+            for cfg in (config.writers[k] for k in config.writer_order)
+        ]
+    
+    print_info("Fetching latest commits from writer branches...")
+    
+    for writer_name, branch in writers:
+        worktree = WORKTREE_BASE / project_name / f"writer-{writer_name}-{task_id}"
+        commit = sync_worktree(worktree, branch)
+        console.print(f"  {'✅' if commit else '⚠️ '} {branch}: {commit or 'sync failed'}")
+    
+    console.print()
+
+def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
+    """Get worktree paths for CLI review adapters."""
+    project_name = Path(get_project_root()).name
+    
+    if winner:
+        winner_cfg = get_writer_by_key_or_letter(winner)
+        return {winner_cfg.label: get_worktree_path(project_name, winner_cfg.name, task_id)}
+    
+    writers = [get_writer_config("writer_a"), get_writer_config("writer_b")]
+    return {
+        "Writer A": get_worktree_path(project_name, writers[0].name, task_id),
+        "Writer B": get_worktree_path(project_name, writers[1].name, task_id)
+    }
+
 
 async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, winner: str = None) -> int:
     """Run a single judge agent and return line count."""
-    from .stream import format_stream_message
-    from ..core.user_config import load_config as load_user_config
-    from ..core.parsers.registry import get_parser
-    from ..core.adapters.registry import get_adapter
-    
-    config = load_user_config()
+    config = load_config()
     
     # Determine CLI tool based on judge type or model mapping
-    if judge_info.adapter_config and judge_info.adapter_config.get("type") == "cli-review":
-        cli_name = "cli-review"
-    else:
-        cli_name = config.cli_tools.get(judge_info.model, "cursor-agent")
+    is_cli_review = judge_info.adapter_config and judge_info.adapter_config.get("type") == "cli-review"
+    cli_name = "cli-review" if is_cli_review else config.cli_tools.get(judge_info.model, "cursor-agent")
         
     adapter = get_adapter(cli_name, judge_info.adapter_config)
     
-    # For CLI review adapters, set writer worktree paths programmatically
-    if cli_name == "cli-review":
-        from ..core.user_config import get_writer_config, get_writer_by_key_or_letter
-        from ..core.config import get_worktree_path, get_project_root
-        from pathlib import Path
-        
-        project_name = Path(get_project_root()).name
-        
-        # For peer review with a winner, only review the winner's branch
-        if winner:
-            winner_cfg = get_writer_by_key_or_letter(winner)
-            worktrees = {
-                winner_cfg.label: get_worktree_path(project_name, winner_cfg.name, judge_info.task_id)
-            }
-        else:
-            writers = [get_writer_config("writer_a"), get_writer_config("writer_b")]
-            worktrees = {
-                "Writer A": get_worktree_path(project_name, writers[0].name, judge_info.task_id),
-                "Writer B": get_worktree_path(project_name, writers[1].name, judge_info.task_id)
-            }
-        adapter.set_writer_worktrees(worktrees)
+    if is_cli_review:
+        adapter.set_writer_worktrees(_get_cli_review_worktrees(judge_info.task_id, winner))
     
     parser = get_parser(cli_name)
     
-    from pathlib import Path
     logs_dir = Path.home() / ".cube" / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     
@@ -73,7 +91,6 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
             
             console.print(f"[dim]{judge_info.label}: Starting with model {judge_info.model} (CLI: {cli_name})...[/dim]")
             
-            from ..core.config import WORKTREE_BASE
             run_dir = WORKTREE_BASE.parent if cli_name == "gemini" else PROJECT_ROOT
             
             judge_specific_prompt = prompt.replace("{{judge_key}}", judge_info.key).replace("{judge_key}", judge_info.key)
@@ -116,7 +133,6 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
                             # Tool calls, errors, etc -> immediate
                             layout.add_output(formatted)
             
-            # Flush any remaining buffered content
             layout.flush_buffers()
     finally:
         watcher.stop()
@@ -124,105 +140,111 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
     if line_count < 10:
         raise RuntimeError(f"{judge_info.label} completed suspiciously quickly ({line_count} lines). Check {log_file}")
     
-    from ..core.decision_files import find_decision_file
-    import json
-    
-    status = "Review complete"
-    decision_file = find_decision_file(judge_info.key, judge_info.task_id, 
-                                       "peer-review" if judge_info.review_type == "peer-review" else "decision")
-    
-    if decision_file and decision_file.exists():
-        try:
-            with open(decision_file) as f:
-                data = json.load(f)
-                decision = data.get("decision", "")
-                winner = data.get("winner", "")
-                scores = data.get("scores", {})
-                remaining_issues = data.get("remaining_issues", [])
-                blocker_issues = data.get("blocker_issues", [])
-                
-                score_a = None
-                score_b = None
-                if scores:
-                    writer_a_scores = scores.get("writer_a", {})
-                    writer_b_scores = scores.get("writer_b", {})
-                    score_a = writer_a_scores.get("total_weighted") or writer_a_scores.get("total")
-                    score_b = writer_b_scores.get("total_weighted") or writer_b_scores.get("total")
-                
-                if judge_info.review_type == "peer-review":
-                    if decision == "APPROVED":
-                        status = "✓ APPROVED → Ready to merge"
-                    elif decision == "REQUEST_CHANGES":
-                        issue_count = len(remaining_issues)
-                        status = f"⚠ REQUEST_CHANGES → {issue_count} issue{'s' if issue_count != 1 else ''}"
-                    elif decision == "REJECTED":
-                        status = "✗ REJECTED → Major issues"
-                    else:
-                        status = f"Review complete → {decision}"
-                else:
-                    from ..core.user_config import get_writer_config
-                    winner_text = ""
-                    if winner == "TIE":
-                        winner_text = "TIE"
-                    elif winner in ["A", "writer_a", "Writer A"]:
-                        try:
-                            wcfg = get_writer_config("writer_a")
-                            winner_text = f"{wcfg.label} wins"
-                        except:
-                            winner_text = "Writer A wins"
-                    elif winner in ["B", "writer_b", "Writer B"]:
-                        try:
-                            wcfg = get_writer_config("writer_b")
-                            winner_text = f"{wcfg.label} wins"
-                        except:
-                            winner_text = "Writer B wins"
-                    else:
-                        winner_text = f"Winner: {winner}"
-                    
-                    score_text = ""
-                    if score_a is not None and score_b is not None:
-                        score_text = f" ({score_a:.0f}/{score_b:.0f})"
-                    
-                    if decision == "APPROVED":
-                        if blocker_issues:
-                            blocker_count = len(blocker_issues)
-                            status = f"✓ APPROVED → {winner_text}{score_text} → {blocker_count} blocker{'s' if blocker_count != 1 else ''}"
-                        else:
-                            status = f"✓ APPROVED → {winner_text}{score_text}"
-                    elif decision == "REQUEST_CHANGES":
-                        status = f"⚠ REQUEST_CHANGES → {winner_text}{score_text}"
-                    elif decision == "REJECTED":
-                        status = f"✗ REJECTED → {winner_text}{score_text}"
-                    else:
-                        status = f"{winner_text}{score_text}"
-                        
-        except (json.JSONDecodeError, KeyError, FileNotFoundError):
-            pass
-    
+    status = _parse_decision_status(judge_info)
     layout.mark_complete(judge_info.key, status)
     console.print(f"[{judge_info.color}][{judge_info.label}][/{judge_info.color}] ✅ {status}")
     return line_count
+
+
+def _parse_decision_status(judge_info: JudgeInfo) -> str:
+    """Parse decision file and return status string."""
+    decision_type = "peer-review" if judge_info.review_type == "peer-review" else "decision"
+    decision_file = find_decision_file(judge_info.key, judge_info.task_id, decision_type)
+    
+    if not decision_file or not decision_file.exists():
+        return "Review complete"
+    
+    try:
+        with open(decision_file) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        return "Review complete"
+    
+    decision = data.get("decision", "")
+    winner = data.get("winner", "")
+    remaining_issues = data.get("remaining_issues", [])
+    blocker_issues = data.get("blocker_issues", [])
+    
+    scores = data.get("scores", {})
+    score_a = scores.get("writer_a", {}).get("total_weighted") or scores.get("writer_a", {}).get("total")
+    score_b = scores.get("writer_b", {}).get("total_weighted") or scores.get("writer_b", {}).get("total")
+    
+    if judge_info.review_type == "peer-review":
+        return _format_peer_review_status(decision, remaining_issues)
+    return _format_panel_status(decision, winner, score_a, score_b, blocker_issues)
+
+
+def _format_peer_review_status(decision: str, remaining_issues: list) -> str:
+    """Format status for peer review decisions."""
+    if decision == "APPROVED":
+        return "✓ APPROVED → Ready to merge"
+    if decision == "REQUEST_CHANGES":
+        count = len(remaining_issues)
+        return f"⚠ REQUEST_CHANGES → {count} issue{'s' if count != 1 else ''}"
+    if decision == "REJECTED":
+        return "✗ REJECTED → Major issues"
+    return f"Review complete → {decision}"
+
+
+def _format_panel_status(decision: str, winner: str, score_a: Optional[float], score_b: Optional[float], blocker_issues: list) -> str:
+    """Format status for panel decisions."""
+    winner_text = _get_winner_text(winner)
+    score_text = f" ({score_a:.0f}/{score_b:.0f})" if score_a is not None and score_b is not None else ""
+    
+    if decision == "APPROVED":
+        if blocker_issues:
+            return f"✓ APPROVED → {winner_text}{score_text} → {len(blocker_issues)} blocker{'s' if len(blocker_issues) != 1 else ''}"
+        return f"✓ APPROVED → {winner_text}{score_text}"
+    if decision == "REQUEST_CHANGES":
+        return f"⚠ REQUEST_CHANGES → {winner_text}{score_text}"
+    if decision == "REJECTED":
+        return f"✗ REJECTED → {winner_text}{score_text}"
+    return f"{winner_text}{score_text}"
+
+
+def _get_winner_text(winner: str) -> str:
+    """Get human-readable winner text."""
+    if winner == "TIE":
+        return "TIE"
+    if winner in ["A", "writer_a", "Writer A"]:
+        try:
+            return f"{get_writer_config('writer_a').label} wins"
+        except Exception:
+            return "Writer A wins"
+    if winner in ["B", "writer_b", "Writer B"]:
+        try:
+            return f"{get_writer_config('writer_b').label} wins"
+        except Exception:
+            return "Writer B wins"
+    return f"Winner: {winner}"
 
 async def launch_judge_panel(
     task_id: str,
     prompt_file: Path,
     review_type: str = "initial",
     resume_mode: bool = False,
-    winner: str = None
+    winner: str = None,
+    single_judge: str = None
 ) -> None:
-    """Launch judge panel in parallel."""
+    """Launch judge panel in parallel.
+    
+    Args:
+        single_judge: If provided, only run this specific judge (e.g., "judge_4")
+    """
     
     if not prompt_file.exists():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
     
-    # Create fresh layout for judges (closes previous if exists)
-    from ..core.dynamic_layout import DynamicLayout
-    from ..core.user_config import get_judge_configs
+    await _prefetch_worktrees(task_id, winner)
     
     all_judges = get_judge_configs()
     
-    # Filter judges based on review type
-    if review_type == "panel":
+    # Filter by single_judge if specified
+    if single_judge:
+        judge_configs = [j for j in all_judges if j.key == single_judge]
+        if not judge_configs:
+            raise ValueError(f"Judge not found: {single_judge}. Available: {[j.key for j in all_judges]}")
+    elif review_type == "panel":
         judge_configs = [j for j in all_judges if not j.peer_review_only]
     else:
         judge_configs = all_judges
@@ -232,8 +254,6 @@ async def launch_judge_panel(
     panel_layout = DynamicLayout
     
     base_prompt = prompt_file.read_text()
-    
-    from ..core.config import WORKTREE_BASE
     project_name = Path(PROJECT_ROOT).name
     
     judge_assignments = f"""# YOUR JUDGE KEY
@@ -253,8 +273,32 @@ When creating your decision file, use judge key {{judge_key}}.
 
 The winning writer's code is at:
 **Location:** `{WORKTREE_BASE}/{project_name}/writer-{{winner}}-{task_id}/`
+**Branch:** `writer-{{winner}}/{task_id}`
 
-Use read_file or git commands to review the updated code.
+## ⚠️ CRITICAL: Fetch Latest Code First
+
+**BEFORE reviewing, you MUST run these commands to get the latest code:**
+
+```bash
+cd {WORKTREE_BASE}/{project_name}/writer-{{winner}}-{task_id}/
+git fetch origin
+git reset --hard origin/writer-{{winner}}/{task_id}
+```
+
+Then verify you have the latest:
+```bash
+git log --oneline -5
+```
+
+## Review Scope
+
+Review ALL commits since branching from main:
+```bash
+git log --oneline main..HEAD
+git diff main...HEAD --stat
+```
+
+Use read_file or git commands to review the actual code changes.
 
 ---
 
@@ -263,7 +307,9 @@ Use read_file or git commands to review the updated code.
 **You MUST create this JSON file at the end of your review:**
 
 **File:** `.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`
-(Replace underscores with hyphens in your judge key for the filename)
+
+⚠️ **EXACT FILENAME REQUIRED** - Use your judge key exactly as shown (e.g., `judge_1`, `judge_2`).
+Example: If you are `judge_1`, create `.prompts/decisions/judge_1-{task_id}-peer-review.json`
 
 **REQUIRED FORMAT (TOP-LEVEL FIELDS MANDATORY):**
 ```json
@@ -301,23 +347,52 @@ Use read_file or git commands to review the updated code.
 
 """
     else:
-        from ..core.user_config import get_writer_config
         writer_a = get_writer_config("writer_a")
         writer_b = get_writer_config("writer_b")
         
         review_instructions = f"""# Code Review Locations
+
+## ⚠️ CRITICAL: Fetch Latest Code First
+
+**BEFORE reviewing either writer, you MUST fetch the latest commits:**
+
+```bash
+# Fetch Writer A's latest
+cd {WORKTREE_BASE}/{project_name}/writer-{writer_a.name}-{task_id}/
+git fetch origin
+git reset --hard origin/writer-{writer_a.name}/{task_id}
+
+# Fetch Writer B's latest  
+cd {WORKTREE_BASE}/{project_name}/writer-{writer_b.name}-{task_id}/
+git fetch origin
+git reset --hard origin/writer-{writer_b.name}/{task_id}
+```
 
 ## Writer A ({writer_a.label}) Implementation
 
 **Branch:** `writer-{writer_a.name}/{task_id}`  
 **Location:** `{WORKTREE_BASE}/{project_name}/writer-{writer_a.name}-{task_id}/`
 
+Review commits since main:
+```bash
+cd {WORKTREE_BASE}/{project_name}/writer-{writer_a.name}-{task_id}/
+git log --oneline main..HEAD
+git diff main...HEAD --stat
+```
+
 ## Writer B ({writer_b.label}) Implementation
 
 **Branch:** `writer-{writer_b.name}/{task_id}`  
 **Location:** `{WORKTREE_BASE}/{project_name}/writer-{writer_b.name}-{task_id}/`
 
-Use read_file or git commands to view their code.
+Review commits since main:
+```bash
+cd {WORKTREE_BASE}/{project_name}/writer-{writer_b.name}-{task_id}/
+git log --oneline main..HEAD
+git diff main...HEAD --stat
+```
+
+Use read_file or git commands to view their actual code changes.
 
 ---
 
@@ -326,12 +401,13 @@ Use read_file or git commands to view their code.
 **You MUST create this JSON file at the end of your review:**
 
 **File:** `.prompts/decisions/{{judge_key}}-{task_id}-decision.json`
-(Replace underscores with hyphens in your judge key for the filename)
+
+⚠️ **EXACT FILENAME REQUIRED** - Use your judge key exactly as shown (e.g., `judge_1`, `judge_2`).
+Example: If you are `judge_1`, create `.prompts/decisions/judge_1-{task_id}-decision.json`
 
 **CRITICAL for Gemini users:**
 You're running from `~/.cube`. You MUST write your decision to:
 - `{PROJECT_ROOT}/.prompts/decisions/{{judge_key}}-{task_id}-decision.json`
-(Replace underscores with hyphens in your judge key for the filename)
 
 Use absolute path when writing the file. The project root is available in your workspace context.
 
@@ -374,14 +450,14 @@ Use absolute path when writing the file. The project root is available in your w
     
     prompt = judge_assignments + review_instructions + base_prompt
     
-    from ..core.user_config import load_config as load_user_config, get_judge_configs
+    # Substitute {winner} placeholder for peer-review prompts
+    if review_type == "peer-review" and winner:
+        winner_cfg = get_writer_by_key_or_letter(winner)
+        prompt = prompt.replace("{winner}", winner_cfg.name)
     
-    judge_configs = get_judge_configs()
-    
-    # Filter judges based on review type and peer_review_only flag
-    if review_type == "panel":
-        # Skip peer-review-only judges in panel
-        judge_configs = [j for j in judge_configs if not j.peer_review_only]
+    # Don't re-filter if single_judge was specified (already filtered above)
+    if not single_judge:
+        judge_configs = [j for j in all_judges if not j.peer_review_only] if review_type == "panel" else all_judges
     
     judges: List[JudgeInfo] = []
     for jconfig in judge_configs:
@@ -436,7 +512,7 @@ Use absolute path when writing the file. The project root is available in your w
     print_info("Fetching latest changes from writer branches...")
     fetch_branches()
     
-    config = load_user_config()
+    config = load_config()
     
     for writer_key in config.writer_order:
         writer_cfg = config.writers[writer_key]
@@ -458,8 +534,6 @@ Use absolute path when writing the file. The project root is available in your w
     console.print("Use your native tools (read_file, git commands, etc.)")
     console.print("━" * 60)
     console.print()
-    
-    from ..core.adapters.registry import get_adapter
     
     for judge in judges:
         cli_name = config.cli_tools.get(judge.model, "cursor-agent")

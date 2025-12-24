@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 
 from .config import PROJECT_ROOT
 
@@ -20,19 +20,31 @@ class JudgeDecision:
     recommendation: str
     timestamp: str
 
-def get_decision_file_path(judge_key: str, task_id: str) -> Path:
+def get_decision_file_path(
+    judge_key: str, 
+    task_id: str,
+    project_root: Optional[Union[str, Path]] = None,
+    review_type: str = "decision"
+) -> Path:
     """Get the path to a judge's decision JSON file."""
     from .decision_files import find_decision_file
     
-    found = find_decision_file(judge_key, task_id, "decision")
+    root = Path(project_root) if project_root else PROJECT_ROOT
+    
+    found = find_decision_file(judge_key, task_id, review_type, project_root=root)
     if found:
         return found
     
-    return PROJECT_ROOT / ".prompts" / "decisions" / f"{judge_key.replace('_', '-')}-{task_id}-decision.json"
+    return root / ".prompts" / "decisions" / f"{judge_key.replace('_', '-')}-{task_id}-{review_type}.json"
 
-def parse_judge_decision(judge_key: str, task_id: str) -> Optional[JudgeDecision]:
+def parse_judge_decision(
+    judge_key: str, 
+    task_id: str,
+    project_root: Optional[Union[str, Path]] = None,
+    review_type: str = "decision"
+) -> Optional[JudgeDecision]:
     """Parse a single judge's decision JSON file with flexible format support."""
-    decision_file = get_decision_file_path(judge_key, task_id)
+    decision_file = get_decision_file_path(judge_key, task_id, project_root=project_root, review_type=review_type)
     
     if not decision_file.exists():
         return None
@@ -116,6 +128,10 @@ def parse_judge_decision(judge_key: str, task_id: str) -> Optional[JudgeDecision
         
         # Extract blocker issues (try multiple locations)
         blockers = data.get("blocker_issues", [])
+        # Also check remaining_issues (used in peer-review)
+        remaining = data.get("remaining_issues", [])
+        if remaining and isinstance(remaining, list):
+            blockers = blockers + remaining
         if not blockers and "reviews" in data:
             blockers_a = data["reviews"].get("writer_a", {}).get("critical_issues", [])
             blockers_b = data["reviews"].get("writer_b", {}).get("critical_issues", [])
@@ -129,6 +145,19 @@ def parse_judge_decision(judge_key: str, task_id: str) -> Optional[JudgeDecision
             recommendation = data["panel_recommendation"].get("reasoning", "No recommendation provided")
         if not recommendation and "comparison" in data:
             recommendation = data["comparison"].get("rationale", "No recommendation provided")
+        if not recommendation and "summary" in data:
+            recommendation = data.get("summary")
+        if not recommendation and "rationale" in data:
+            recommendation = data.get("rationale")
+        
+        # If recommendation is too short and we have blockers, include them
+        if (not recommendation or len(recommendation) < 50) and blockers:
+            issues_text = "\n".join(f"• {b}" for b in blockers[:5])
+            if recommendation:
+                recommendation = f"{recommendation}\n\nIssues:\n{issues_text}"
+            else:
+                recommendation = f"Issues to address:\n{issues_text}"
+        
         if not recommendation:
             recommendation = "No recommendation provided"
         
@@ -140,21 +169,31 @@ def parse_judge_decision(judge_key: str, task_id: str) -> Optional[JudgeDecision
             scores_a=float(total_a),
             scores_b=float(total_b),
             blocker_issues=blockers,
-            recommendation=recommendation[:200],  # Truncate long recommendations
+            recommendation=recommendation,
             timestamp=data.get("timestamp", "")
         )
     except (json.JSONDecodeError, Exception) as e:
         raise RuntimeError(f"Invalid decision file for Judge {judge_key}: {e}\nFile: {decision_file}")
 
-def parse_all_decisions(task_id: str) -> List[JudgeDecision]:
-    """Parse all judge decisions for a task."""
+def parse_all_decisions(
+    task_id: str,
+    project_root: Optional[Union[str, Path]] = None,
+    review_type: str = "decision"
+) -> List[JudgeDecision]:
+    """Parse all judge decisions for a task.
+    
+    Args:
+        task_id: Task identifier
+        project_root: Optional project root path
+        review_type: 'decision' for panel, 'peer-review' for peer review
+    """
     from .user_config import get_judge_configs
     
     decisions = []
     judge_configs = get_judge_configs()
     
     for jconfig in judge_configs:
-        decision = parse_judge_decision(jconfig.key, task_id)
+        decision = parse_judge_decision(jconfig.key, task_id, project_root=project_root, review_type=review_type)
         if decision:
             decisions.append(decision)
     

@@ -97,7 +97,7 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
                     from ..core.user_config import get_judge_config
                     jconfig = get_judge_config(j)
                     missing_labels.append(jconfig.label)
-                except:
+                except (KeyError, ValueError):
                     missing_labels.append(j)
             print_warning(f"Only {len(decisions)}/{total_judges} decisions found. Missing: {', '.join(missing_labels)}")
         console.print()
@@ -110,13 +110,13 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
             # Try as-is first
             jconfig = get_judge_config(judge_label)
             judge_label = jconfig.label
-        except:
+        except (KeyError, ValueError):
             # Try adding judge_ prefix if it's just a number
             try:
                 if judge_label.isdigit():
                     jconfig = get_judge_config(f"judge_{judge_label}")
                     judge_label = jconfig.label
-            except:
+            except (KeyError, ValueError):
                 pass
         
         color = "green" if d.decision == "APPROVED" else ("yellow" if d.decision == "REQUEST_CHANGES" else "red")

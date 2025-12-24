@@ -92,7 +92,7 @@ def clean_command(
     for f in to_remove:
         try:
             f.unlink()
-        except:
+        except OSError:
             pass
     
     print_success(f"Removed {len(to_remove)} file(s)")

@@ -4,6 +4,8 @@ import { useParams, Link } from "react-router-dom";
 import { DualLayout } from "../components/DualLayout";
 import { TripleLayout } from "../components/TripleLayout";
 import { OutputStream } from "../components/OutputStream";
+import { WorkflowTimeline } from "../components/WorkflowTimeline";
+import { PromptsPanel } from "../components/PromptsPanel";
 import { useSSE } from "../hooks/useSSE";
 import type {
   OutputMessage,
@@ -66,7 +68,25 @@ export default function TaskDetail(): JSX.Element {
         const data = await res.json();
         const parsed: SSEMessage[] = [];
         
+        const inferBoxFromFilename = (filename: string): string => {
+          if (filename.startsWith('writer-opus')) return 'writer-a';
+          if (filename.startsWith('writer-codex')) return 'writer-b';
+          // Judge files can be: judge-1-01-task-panel.json OR judge_1-task-panel.json
+          const judgeMatch = filename.match(/^judge[-_](\d+)[-_]/);
+          if (judgeMatch) return `judge-${judgeMatch[1]}`;
+          return 'unknown';
+        };
+        
+        const boxToAgent = (box: string): string | undefined => {
+          if (box === 'writer-a') return 'Writer A';
+          if (box === 'writer-b') return 'Writer B';
+          const match = box.match(/^judge-(\d+)$/);
+          if (match) return `Judge ${match[1]}`;
+          return undefined;
+        };
+        
         for (const logEntry of data.logs || []) {
+          const inferredBox = inferBoxFromFilename(logEntry.file || '');
           const lines = logEntry.content.split('\n');
           for (const line of lines) {
             if (!line.trim()) continue;
@@ -75,13 +95,16 @@ export default function TaskDetail(): JSX.Element {
               if (msg.type === 'thinking' && msg.text) {
                 parsed.push({
                   type: 'thinking',
-                  box: msg.box || 'unknown',
+                  box: msg.box || inferredBox,
                   text: msg.text,
                   timestamp: msg.timestamp || new Date().toISOString()
                 });
               } else if (msg.type === 'tool_call' || msg.type === 'result') {
+                const box = msg.box || inferredBox;
+                const agent = boxToAgent(box);
                 parsed.push({
                   type: 'output',
+                  agent,
                   content: `${msg.type}: ${JSON.stringify(msg).substring(0, 100)}...`,
                   timestamp: msg.timestamp || new Date().toISOString()
                 });
@@ -170,8 +193,8 @@ export default function TaskDetail(): JSX.Element {
   const showTripleLayout = currentPhase >= 3;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="h-full flex flex-col gap-4 min-h-0">
+      <div className="flex flex-wrap items-center justify-between gap-4 shrink-0">
         <div>
           <div className="flex items-center gap-4 mb-2">
             <h1 className="text-2xl font-bold">Task {taskId || "Unknown Task"}</h1>
@@ -189,11 +212,16 @@ export default function TaskDetail(): JSX.Element {
           </div>
         </div>
         <div className="flex flex-col items-end text-sm text-gray-300">
-          <div className="flex items-center gap-2">
-            <span
-              className={`h-2.5 w-2.5 rounded-full ${connected ? "bg-emerald-400" : "bg-red-500"} transition-colors`}
-            />
-            <span>{connected ? "Connected" : "Disconnected"}</span>
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-gray-500">
+              {outputMessages.length} events • {thinkingMessages.length} thoughts
+            </span>
+            <div className="flex items-center gap-2">
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${connected ? "bg-emerald-400" : "bg-red-500"} transition-colors`}
+              />
+              <span>{connected ? "Live" : "Offline"}</span>
+            </div>
           </div>
           {streamError && <span className="text-xs text-red-400 mt-1">Stream error: {streamError}</span>}
           {latestStatus && (
@@ -204,40 +232,36 @@ export default function TaskDetail(): JSX.Element {
         </div>
       </div>
 
+      <div className="shrink-0">
+        <WorkflowTimeline currentPhase={currentPhase} path={task?.path} />
+      </div>
+
       {loading ? (
         <div className="rounded border border-gray-700 bg-gray-900/80 p-6 text-gray-400">Loading task details…</div>
       ) : error ? (
         <div className="rounded border border-red-700/60 bg-red-950/40 p-6 text-red-300">Error: {error}</div>
       ) : task ? (
         <>
-          {showTripleLayout ? (
-            <TripleLayout judge1Lines={judge1Lines} judge2Lines={judge2Lines} judge3Lines={judge3Lines} />
-          ) : (
-            <DualLayout writerALines={writerALines} writerBLines={writerBLines} />
-          )}
-
-          <div className="space-y-3">
-            <div>
-              <h2 className="text-lg font-semibold">Output Stream</h2>
-              <p className="text-xs text-gray-500">Live tool calls and agent events stream here in real time.</p>
-            </div>
-            <OutputStream messages={outputMessages} />
+          <div className="shrink-0">
+            {showTripleLayout ? (
+              <TripleLayout judge1Lines={judge1Lines} judge2Lines={judge2Lines} judge3Lines={judge3Lines} />
+            ) : (
+              <DualLayout writerALines={writerALines} writerBLines={writerBLines} />
+            )}
           </div>
 
-          {statusMessages.length > 0 && (
-            <div>
-              <h2 className="text-lg font-semibold mb-2">Recent Status</h2>
-              <ul className="space-y-1 text-xs text-gray-400">
-                {statusMessages.slice(-6).map((status) => (
-                  <li key={`${status.status}-${status.timestamp}`}>
-                    <span className="text-gray-500 mr-2">[{formatUpdatedAt(status.timestamp)}]</span>
-                    <span className="capitalize">{status.status.replace(/-/g, " ")}</span>
-                    {status.error && <span className="text-red-400 ml-2">({status.error})</span>}
-                  </li>
-                ))}
-              </ul>
+          <div className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="shrink-0 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Output Stream</h2>
+                <p className="text-xs text-gray-500">Live tool calls and agent events stream here in real time.</p>
+              </div>
             </div>
-          )}
+            <OutputStream messages={outputMessages} className="flex-1 min-h-0" />
+          </div>
+
+          {/* Floating Prompts Panel */}
+          <PromptsPanel taskId={taskId || ""} />
         </>
       ) : (
         <div className="rounded border border-gray-700 bg-gray-900/80 p-6 text-gray-400">

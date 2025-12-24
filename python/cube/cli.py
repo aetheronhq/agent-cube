@@ -182,10 +182,18 @@ def resume(
 ):
     """Resume a writer or judge session with a message."""
     from .core.config import resolve_task_id, set_current_task_id
+    from .core.output import print_error, print_warning
+    
+    # Detect if task_id looks like a message (user forgot to include task_id)
+    if task_id and (' ' in task_id or len(task_id) > 50):
+        print_error(f"'{task_id[:40]}...' looks like a message, not a task ID")
+        print_warning("Usage: cube resume <target> <task-id> [message]")
+        print_warning("Example: cube resume writer-a my-task-id 'your message here'")
+        print_warning("Or set CUBE_TASK_ID: export CUBE_TASK_ID=my-task-id && cube resume writer-a 'message'")
+        raise typer.Exit(1)
     
     resolved_task_id = resolve_task_id(task_id)
     if not resolved_task_id:
-        from .core.output import print_error
         print_error("No task ID provided and CUBE_TASK_ID not set")
         raise typer.Exit(1)
     
@@ -196,7 +204,8 @@ def resume(
 def peer_review(
     task_id_or_prompt: Annotated[Optional[str], typer.Argument(help="Task ID or prompt message")] = None,
     peer_review_prompt_file: Annotated[Optional[str], typer.Argument(help="Path to prompt file or prompt message")] = None,
-    fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False
+    fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False,
+    judge: Annotated[Optional[str], typer.Option("--judge", "-j", help="Run only this judge (e.g., judge_4)")] = None
 ):
     """Resume judge panel for peer review of winner's implementation."""
     from .core.config import resolve_task_id, set_current_task_id
@@ -230,7 +239,7 @@ def peer_review(
         raise typer.Exit(1)
     
     set_current_task_id(resolved_task_id)
-    peer_review_command(resolved_task_id, prompt_arg, fresh)
+    peer_review_command(resolved_task_id, prompt_arg, fresh, judge)
 
 @app.command(name="status")
 def status(

@@ -33,9 +33,9 @@ def backfill_state_from_artifacts(task_id: str) -> WorkflowState:
         completed_phases.extend([3, 4])
         current_phase = 4
     
-    decision_1 = (decisions_dir / f"judge-1-{task_id}-decision.json").exists()
-    decision_2 = (decisions_dir / f"judge-2-{task_id}-decision.json").exists()
-    decision_3 = (decisions_dir / f"judge-3-{task_id}-decision.json").exists()
+    decision_1 = (decisions_dir / f"judge_1-{task_id}-decision.json").exists()
+    decision_2 = (decisions_dir / f"judge_2-{task_id}-decision.json").exists()
+    decision_3 = (decisions_dir / f"judge_3-{task_id}-decision.json").exists()
     
     aggregated_file = decisions_dir / f"{task_id}-aggregated.json"
     

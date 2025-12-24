@@ -161,13 +161,105 @@ async def get_task_logs(task_id: str) -> TaskLogsResponse:
 
 
 @router.get(
+    "/{task_id}/prompts",
+    status_code=status.HTTP_200_OK,
+)
+async def get_task_prompts(task_id: str) -> dict[str, Any]:
+    """Return prompts generated for a task."""
+    state = load_state(task_id)
+    prompts_dir = Path(state.project_root) / ".prompts" if state and state.project_root else PROMPTS_DIR
+    
+    prompts = {}
+    
+    # Known prompt files with semantic keys
+    known_prompts = {
+        "writer": f"writer-prompt-{task_id}.md",
+        "panel": f"panel-prompt-{task_id}.md",
+        "synthesis": f"synthesis-{task_id}.md",
+        "peer_review": f"peer-review-{task_id}.md",
+        "feedback_a": f"feedback/writer-a-{task_id}.md",
+        "feedback_b": f"feedback/writer-b-{task_id}.md",
+    }
+    
+    for key, filename in known_prompts.items():
+        filepath = prompts_dir / filename
+        if filepath.exists():
+            try:
+                prompts[key] = {
+                    "filename": filename,
+                    "content": filepath.read_text()[:10000],
+                    "truncated": filepath.stat().st_size > 10000,
+                }
+            except (OSError, IOError):
+                pass
+    
+    # Also scan for any other .md files containing the task_id
+    if prompts_dir.exists():
+        for filepath in prompts_dir.glob(f"*{task_id}*.md"):
+            if not filepath.is_file():
+                continue
+            filename = filepath.name
+            # Skip if already captured as a known prompt
+            if filename in known_prompts.values():
+                continue
+            # Generate a key from the filename
+            key = filepath.stem.replace(f"-{task_id}", "").replace(task_id, "").strip("-_") or "custom"
+            if key in prompts:
+                key = f"{key}_{filepath.stem[:8]}"
+            try:
+                prompts[key] = {
+                    "filename": filename,
+                    "content": filepath.read_text()[:10000],
+                    "truncated": filepath.stat().st_size > 10000,
+                }
+            except (OSError, IOError):
+                pass
+        
+        # Check feedback subdirectory for any matching files
+        feedback_dir = prompts_dir / "feedback"
+        if feedback_dir.exists():
+            for filepath in feedback_dir.glob(f"*{task_id}*.md"):
+                if not filepath.is_file():
+                    continue
+                filename = f"feedback/{filepath.name}"
+                if filename in known_prompts.values():
+                    continue
+                key = f"feedback_{filepath.stem.replace(f'-{task_id}', '').replace(task_id, '').strip('-_')}"
+                try:
+                    prompts[key] = {
+                        "filename": filename,
+                        "content": filepath.read_text()[:10000],
+                        "truncated": filepath.stat().st_size > 10000,
+                    }
+                except (OSError, IOError):
+                    pass
+    
+    return {"prompts": prompts}
+
+
+@router.get(
     "/{task_id}/decisions",
     status_code=status.HTTP_200_OK,
 )
 async def get_task_decisions(task_id: str) -> dict[str, Any]:
-    """Return decision data for a task."""
+    """Return decision data for a task (panel + peer-review)."""
+    # Get project_root from task state if available
+    state = load_state(task_id)
+    project_root = state.project_root if state else None
+    
+    all_decisions = []
+    
     try:
-        judge_decisions = parse_all_decisions(task_id)
+        # Get panel decisions
+        panel_decisions = parse_all_decisions(task_id, project_root=project_root, review_type="decision")
+        if panel_decisions:
+            all_decisions.append(_build_single_decision_payload(panel_decisions, "panel"))
+        
+        # Get peer-review decisions
+        peer_decisions = parse_all_decisions(task_id, project_root=project_root, review_type="peer-review")
+        if peer_decisions:
+            all_decisions.append(_build_single_decision_payload(peer_decisions, "peer-review"))
+            
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.exception("Failed to read decisions for task %s", task_id)
         raise HTTPException(
@@ -175,14 +267,13 @@ async def get_task_decisions(task_id: str) -> dict[str, Any]:
             detail=f"Error reading decisions: {exc}",
         ) from exc
 
-    if not judge_decisions:
+    if not all_decisions:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No decisions found for task '{task_id}'",
         )
 
-    response = _build_decision_payload(judge_decisions)
-    return {"decisions": response}
+    return {"decisions": all_decisions}
 
 
 @router.post("/{task_id}/writers")
@@ -359,12 +450,11 @@ def _parse_timestamp(value: str | None) -> datetime:
         return datetime.min
 
 
-def _build_decision_payload(
+def _build_single_decision_payload(
     judge_decisions: list[JudgeDecision],
-) -> list[dict[str, Any]]:
-    if not judge_decisions:
-        return []
-
+    decision_type: str = "panel"
+) -> dict[str, Any]:
+    """Build a single decision payload from judge decisions."""
     serialized_votes = [_serialize_judge_decision(decision) for decision in judge_decisions]
 
     summary = aggregate_decisions(judge_decisions)
@@ -375,7 +465,7 @@ def _build_decision_payload(
     latest_timestamp = max(timestamps) if timestamps else datetime.utcnow().isoformat()
 
     decision_payload: dict[str, Any] = {
-        "type": "panel",
+        "type": decision_type,
         "judges": serialized_votes,
         "timestamp": latest_timestamp,
     }
@@ -383,18 +473,43 @@ def _build_decision_payload(
     if winner_letter:
         decision_payload["winner"] = winner_letter
 
-    return [decision_payload]
+    return decision_payload
+
+
+def _build_decision_payload(
+    judge_decisions: list[JudgeDecision],
+) -> list[dict[str, Any]]:
+    """Legacy wrapper for backward compatibility."""
+    if not judge_decisions:
+        return []
+    return [_build_single_decision_payload(judge_decisions, "panel")]
 
 
 def _serialize_judge_decision(decision: JudgeDecision) -> dict[str, Any]:
-    model_name = JUDGE_MODELS.get(decision.judge, f"judge-{decision.judge}")
+    from cube.core.user_config import get_judge_config
+    
     vote_value = _resolve_vote(decision)
+    
+    # Get proper label and model from config
+    try:
+        judge_cfg = get_judge_config(decision.judge)
+        label = judge_cfg.label
+        model_name = judge_cfg.model
+    except (KeyError, ValueError, AttributeError):
+        label = decision.judge.replace("_", " ").title()
+        model_name = JUDGE_MODELS.get(decision.judge, f"judge-{decision.judge}")
 
     return {
         "judge": decision.judge,
+        "label": label,
         "model": model_name,
         "vote": vote_value,
         "rationale": decision.recommendation,
+        "blockers": decision.blocker_issues or [],
+        "scores": {
+            "a": decision.scores_a,
+            "b": decision.scores_b,
+        },
     }
 
 

@@ -9,6 +9,7 @@ from ..core.output import print_error, print_success, print_warning, print_info,
 from ..core.config import PROJECT_ROOT, resolve_path
 from ..core.agent import run_agent
 from ..core.parsers.registry import get_parser
+from ..core.user_config import get_prompter_model
 from ..automation.stream import format_stream_message
 from ..automation.dual_writers import launch_dual_writers
 from ..automation.judge_panel import launch_judge_panel
@@ -23,11 +24,16 @@ def extract_task_id_from_file(task_file: str) -> str:
     if not name:
         raise ValueError(f"Cannot extract task ID from: {task_file}")
     
-    if name.startswith("writer-prompt-"):
-        task_id = name.replace("writer-prompt-", "")
-    elif name.startswith("task-"):
-        task_id = name.replace("task-", "")
-    else:
+    # Strip common prefixes used by the orchestrator
+    prefixes = ["writer-prompt-", "task-", "synthesis-", "panel-prompt-", "peer-review-", "minor-fixes-", "feedback-"]
+    task_id = name
+    for prefix in prefixes:
+        if task_id.startswith(prefix):
+            task_id = task_id[len(prefix):]
+            break
+    
+    # Handle numeric prefix (e.g., "01-task-name")
+    if not task_id:
         parts = name.split("-")
         if len(parts) > 0 and parts[0].isdigit():
             task_id = name
@@ -274,7 +280,7 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str)
             raise typer.Exit(1)
         task_path = resolve_path(task_file)
         writer_prompt_path = await generate_writer_prompt(task_id, task_path.read_text(), prompts_dir)
-        update_phase(task_id, 1, path="INIT")
+        update_phase(task_id, 1, path="INIT", project_root=str(PROJECT_ROOT))
     
     if resume_from <= 2:
         console.print()
@@ -294,7 +300,8 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str)
         console.print()
         console.print("[yellow]═══ Phase 4: Judge Panel Review ═══[/yellow]")
         log_phase(4, "Judge Panel Review")
-        await launch_judge_panel(task_id, panel_prompt_path, "panel", resume_mode=False)
+        should_resume = resume_from == 4
+        await launch_judge_panel(task_id, panel_prompt_path, "panel", resume_mode=should_resume)
         update_phase(task_id, 4, panel_complete=True)
     
     if resume_from <= 5:
@@ -342,6 +349,19 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str)
             final_result = run_decide_peer_review(task_id)
             update_phase(task_id, 8)
             
+            # Check if all judges ran
+            from ..core.user_config import get_judge_configs
+            total_judges = len(get_judge_configs())
+            decisions_found = final_result.get("decisions_found", 0)
+            
+            if decisions_found < total_judges:
+                print_warning(f"Only {decisions_found}/{total_judges} judges have decisions")
+                print_warning("Run peer-review to get all judge decisions before proceeding")
+                console.print()
+                console.print("[cyan]To run missing judges:[/cyan]")
+                console.print(f"  cube peer-review {task_id}")
+                return
+            
             if final_result["approved"] and not final_result["remaining_issues"]:
                 await create_pr(task_id, result["winner"])
                 return
@@ -354,15 +374,36 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str)
                     console.print(f"  • {issue}")
                 console.print()
         
-        # Phase 9: Address minor issues
+        # Phase 9: Address minor issues (skip if all approved with no issues)
         if resume_from <= 9:
             console.print("[yellow]═══ Phase 9: Address Minor Issues ═══[/yellow]")
             log_phase(9, "Address Minor Issues")
             # Load issues from decision files if resuming
             if resume_from > 8:
                 final_result = run_decide_peer_review(task_id)
-            await run_minor_fixes(task_id, result, final_result["remaining_issues"], prompts_dir)
-            update_phase(task_id, 9)
+            
+            # Check if all judges ran
+            from ..core.user_config import get_judge_configs
+            total_judges = len(get_judge_configs())
+            decisions_found = final_result.get("decisions_found", 0)
+            
+            if decisions_found < total_judges:
+                print_warning(f"Only {decisions_found}/{total_judges} judges have decisions")
+                print_warning("Run peer-review to get all judge decisions before proceeding")
+                console.print()
+                console.print("[cyan]To run missing judges:[/cyan]")
+                console.print(f"  cube peer-review {task_id}")
+                return
+            
+            if final_result["approved"] and not final_result["remaining_issues"]:
+                print_success("All judges approved with no issues - skipping minor fixes")
+                update_phase(task_id, 9)
+            elif not final_result["remaining_issues"]:
+                print_warning("No specific issues listed - skipping minor fixes")
+                update_phase(task_id, 9)
+            else:
+                await run_minor_fixes(task_id, result, final_result["remaining_issues"], prompts_dir)
+                update_phase(task_id, 9)
         
         # Phase 10: Final peer review after fixes
         if resume_from <= 10:
@@ -392,8 +433,8 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str)
             judge_nums = [j.key for j in judge_configs]
             total_judges = len(judge_nums)
             
-            decisions_count = final_result.get("decisions_found", 0)
-            approvals_count = final_result.get("approvals", 0)
+            decisions_count = final_check.get("decisions_found", 0)
+            approvals_count = final_check.get("approvals", 0)
             
             if decisions_count < total_judges:
                 print_warning(f"Missing peer review decisions ({decisions_count}/{total_judges})")
@@ -426,13 +467,13 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str)
                 console.print(f"  2. Fix issues in winner's worktree:")
                 console.print(f"     cd ~/.cube/worktrees/*/writer-*-{task_id}")
                 console.print(f"  3. Commit and push, then re-run peer review:")
-                console.print(f"     cube auto .prompts/synthesis-{task_id}.md --resume-from 10")
+                console.print(f"     cube auto --resume-from 10")
                 console.print()
                 console.print("[cyan]Option 2:[/cyan] Run another round of minor fixes")
-                console.print(f"  cube auto .prompts/synthesis-{task_id}.md --resume-from 9")
+                console.print(f"  cube auto --resume-from 9")
                 console.print()
                 console.print("[cyan]Option 3:[/cyan] Start fresh from synthesis")
-                console.print(f"  cube auto ./docs/tasks/{task_id}.md --resume-from 6")
+                console.print(f"  cube auto --resume-from 6")
     
     elif result["next_action"] == "FEEDBACK":
         if resume_from <= 6:
@@ -447,12 +488,51 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str)
         console.print(f"  cube panel {task_id} .prompts/panel-prompt-{task_id}.md")
     
     elif result["next_action"] == "MERGE":
-        if resume_from <= 6:
+        # Check if there are peer_review_only judges (like CodeRabbit) that haven't run yet
+        from ..core.user_config import get_judge_configs
+        peer_only_judges = [j for j in get_judge_configs() if j.peer_review_only]
+        
+        if peer_only_judges and resume_from <= 6:
             console.print()
-            console.print("[yellow]═══ Phase 6: Create PR ═══[/yellow]")
-            log_phase(6, "Create PR")
+            console.print("[yellow]═══ Phase 6: Automated Review ═══[/yellow]")
+            log_phase(6, "Automated Review")
+            print_info(f"Running {len(peer_only_judges)} automated reviewer(s) before PR: {', '.join(j.label for j in peer_only_judges)}")
+            
+            # Create a minimal temp prompt for peer-review-only judges
+            temp_prompt = prompts_dir / f"temp-peer-review-{task_id}.md"
+            temp_prompt.write_text(task_id)
+            
+            # Run only the peer_review_only judges
+            await launch_judge_panel(task_id, temp_prompt, "peer-review", resume_mode=False, winner=result["winner"])
+            
+            # Check their decisions
+            auto_result = run_decide_peer_review(task_id)
+            
+            if auto_result.get("all_approved"):
+                print_info("✅ Automated review passed!")
+            else:
+                issues = auto_result.get("all_issues", [])
+                if issues:
+                    console.print()
+                    print_warning(f"Automated review found {len(issues)} issue(s):")
+                    for issue in issues[:5]:
+                        console.print(f"  • {issue[:100]}")
+                    if len(issues) > 5:
+                        console.print(f"  ... and {len(issues) - 5} more")
+                    console.print()
+                    console.print("Fix these issues, then resume:")
+                    console.print(f"  cube auto {task_id} --resume-from 6")
+                    update_phase(task_id, 6, path="MERGE")
+                    return
+            
+            update_phase(task_id, 6, path="MERGE", peer_review_complete=True)
+        
+        if resume_from <= 7:
+            console.print()
+            console.print("[yellow]═══ Phase 7: Create PR ═══[/yellow]")
+            log_phase(7, "Create PR")
             await create_pr(task_id, result["winner"])
-            update_phase(task_id, 6, path="MERGE")
+            update_phase(task_id, 7, path="MERGE")
     
     else:
         console.print()
@@ -495,7 +575,7 @@ Include: context, requirements, steps, constraints, anti-patterns, success crite
     layout = SingleAgentLayout(title="Prompter")
     layout.start()
     
-    stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
+    stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
     
     async for line in stream:
         msg = parser.parse(line)
@@ -540,7 +620,7 @@ Include evaluation criteria, scoring rubric, and decision JSON format."""
     layout = SingleAgentLayout(title="Prompter")
     layout.start()
     
-    stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
+    stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
     
     async for line in stream:
         msg = parser.parse(line)
@@ -604,21 +684,24 @@ def run_decide_peer_review(task_id: str) -> dict:
             with open(peer_file) as f:
                 data = json.load(f)
                 decision = data.get("decision", "UNKNOWN")
+                # Collect issues from both remaining_issues AND blocker_issues
                 remaining = data.get("remaining_issues", [])
+                blockers = data.get("blocker_issues", [])
+                issues = remaining + blockers
                 
                 judge_decisions[f"{judge_key}_decision"] = decision
                 
                 judge_label = judge_key.replace("_", "-")
                 console.print(f"Judge {judge_label}: {decision}")
-                if remaining:
-                    console.print(f"  Issues: {len(remaining)}")
-                    all_issues.extend(remaining)
+                if issues:
+                    console.print(f"  Issues: {len(issues)}")
+                    all_issues.extend(issues)
                 
                 if decision == "APPROVED":
                     approvals += 1
                 elif decision == "REQUEST_CHANGES":
                     has_request_changes = True
-                    if not remaining:
+                    if not issues:
                         console.print(f"  [yellow]⚠️  No issues listed (malformed decision)[/yellow]")
                         all_issues.append(f"Judge {judge_label} requested changes but didn't specify issues")
     
@@ -731,7 +814,7 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
         layout = SingleAgentLayout(title="Prompter")
         layout.start()
         
-        stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
+        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
         
         async for line in stream:
             msg = parser.parse(line)
@@ -806,7 +889,7 @@ Include the worktree location and git commands for reviewing."""
         layout = SingleAgentLayout(title="Prompter")
         layout.start()
         
-        stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
+        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
         
         async for line in stream:
             msg = parser.parse(line)
@@ -841,6 +924,10 @@ async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir:
     
     minor_fixes_path = prompts_dir / f"minor-fixes-{task_id}.md"
     
+    # Delete old file to ensure we regenerate with current issues
+    if minor_fixes_path.exists():
+        minor_fixes_path.unlink()
+    
     prompt = f"""Generate a minor fixes prompt for the winning writer.
 
 ## Context
@@ -859,7 +946,7 @@ Keep their implementation intact, just fix these specific points.
 Save to: `.prompts/minor-fixes-{task_id}.md`"""
     
     parser = get_parser("cursor-agent")
-    stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt, session_id=None, resume=False)
+    stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
     
     async for line in stream:
         if minor_fixes_path.exists():
@@ -891,9 +978,9 @@ async def generate_dual_feedback(task_id: str, result: dict, prompts_dir: Path):
     prompt_base = """## Available Information
 
 **Judge Decisions (JSON):**
-- `.prompts/decisions/judge-1-{task_id}-decision.json`
-- `.prompts/decisions/judge-2-{task_id}-decision.json`
-- `.prompts/decisions/judge-3-{task_id}-decision.json`
+- `.prompts/decisions/judge_1-{task_id}-decision.json`
+- `.prompts/decisions/judge_2-{task_id}-decision.json`
+- `.prompts/decisions/judge_3-{task_id}-decision.json`
 
 Read these to see what issues judges found for Writer {writer}.
 
@@ -946,7 +1033,7 @@ Both writers need changes based on judge reviews.
     parser = get_parser("cursor-agent")
     
     async def generate_feedback_a():
-        stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt_a, session_id=None, resume=False)
+        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt_a, session_id=None, resume=False)
         async for line in stream:
             msg = parser.parse(line)
             if msg:
@@ -964,7 +1051,7 @@ Both writers need changes based on judge reviews.
                 return
     
     async def generate_feedback_b():
-        stream = run_agent(PROJECT_ROOT, "sonnet-4.5-thinking", prompt_b, session_id=None, resume=False)
+        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt_b, session_id=None, resume=False)
         async for line in stream:
             msg = parser.parse(line)
             if msg:
