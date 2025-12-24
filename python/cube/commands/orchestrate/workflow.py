@@ -1,0 +1,346 @@
+"""Main workflow orchestration logic."""
+
+import json
+from pathlib import Path
+
+import typer
+
+from ...core.config import PROJECT_ROOT, resolve_path
+from ...core.output import console, print_error, print_info, print_success, print_warning
+from ...core.state import validate_resume, update_phase, load_state, get_progress
+from ...core.master_log import get_master_log
+from ...core.user_config import get_judge_configs
+from ...automation.dual_writers import launch_dual_writers
+from ...automation.judge_panel import launch_judge_panel
+
+from .decisions import run_decide_and_get_result, run_decide_peer_review
+from .phases import run_synthesis, run_peer_review, run_minor_fixes, generate_dual_feedback
+from .prompts import generate_writer_prompt, generate_panel_prompt
+from .pr import create_pr
+
+
+async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str, resume_alias: str | None = None) -> None:
+    """Internal implementation of orchestrate_auto_command."""
+
+    master_log = get_master_log()
+
+    prompts_dir = PROJECT_ROOT / ".prompts"
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+
+    console.print(f"[bold cyan]🤖 Agent Cube Autonomous Orchestration[/bold cyan]")
+    console.print(f"Task: {task_id}")
+
+    existing_state = load_state(task_id)
+
+    if not existing_state and resume_from > 1:
+        from ...core.state_backfill import backfill_state_from_artifacts
+        console.print("[dim]Backfilling state from existing artifacts...[/dim]")
+        existing_state = backfill_state_from_artifacts(task_id)
+        console.print(f"[dim]Detected: {get_progress(task_id)}[/dim]")
+
+    if existing_state:
+        console.print(f"[dim]Progress: {get_progress(task_id)}[/dim]")
+
+    if resume_from > 1:
+        valid, msg = validate_resume(task_id, resume_from)
+        if not valid:
+            print_error(msg)
+            raise typer.Exit(1)
+        console.print(f"[yellow]Resuming from Phase {resume_from}[/yellow]")
+
+    console.print()
+
+    writer_prompt_path = prompts_dir / f"writer-prompt-{task_id}.md"
+    panel_prompt_path = prompts_dir / f"panel-prompt-{task_id}.md"
+
+    def log_phase(phase_num: int, phase_name: str):
+        if master_log:
+            master_log.write_phase_start(phase_num, phase_name)
+
+    if resume_from <= 1:
+        console.print("[yellow]═══ Phase 1: Generate Writer Prompt ═══[/yellow]")
+        log_phase(1, "Generate Writer Prompt")
+        if not task_file:
+            print_error("Task file required for Phase 1. Provide a task.md path.")
+            raise typer.Exit(1)
+        task_path = resolve_path(task_file)
+        writer_prompt_path = await generate_writer_prompt(task_id, task_path.read_text(), prompts_dir)
+        update_phase(task_id, 1, path="INIT", project_root=str(PROJECT_ROOT))
+
+    if resume_from <= 2:
+        console.print()
+        console.print("[yellow]═══ Phase 2: Dual Writers Execute ═══[/yellow]")
+        log_phase(2, "Dual Writers Execute")
+        await launch_dual_writers(task_id, writer_prompt_path, resume_mode=False)
+        update_phase(task_id, 2, writers_complete=True)
+
+    if resume_from <= 3:
+        console.print()
+        console.print("[yellow]═══ Phase 3: Generate Panel Prompt ═══[/yellow]")
+        log_phase(3, "Generate Panel Prompt")
+        panel_prompt_path = await generate_panel_prompt(task_id, prompts_dir)
+        update_phase(task_id, 3)
+
+    if resume_from <= 4:
+        console.print()
+        console.print("[yellow]═══ Phase 4: Judge Panel Review ═══[/yellow]")
+        log_phase(4, "Judge Panel Review")
+        should_resume = resume_from == 4
+        await launch_judge_panel(task_id, panel_prompt_path, "panel", resume_mode=should_resume)
+        update_phase(task_id, 4, panel_complete=True)
+
+    if resume_from <= 5:
+        console.print()
+        console.print("[yellow]═══ Phase 5: Aggregate Decisions ═══[/yellow]")
+        log_phase(5, "Aggregate Decisions")
+        result = run_decide_and_get_result(task_id)
+        update_phase(task_id, 5, path=result["next_action"], winner=result["winner"], next_action=result["next_action"])
+    else:
+        result_file = prompts_dir / "decisions" / f"{task_id}-aggregated.json"
+        if result_file.exists():
+            try:
+                with open(result_file) as f:
+                    result = json.load(f)
+
+                if "next_action" not in result:
+                    raise RuntimeError(f"Aggregated decision missing 'next_action'. Re-run Phase 5.")
+            except json.JSONDecodeError:
+                raise RuntimeError(f"Corrupt aggregated decision file: {result_file}. Re-run Phase 5.")
+        else:
+            raise RuntimeError(f"Cannot resume from phase {resume_from}: No aggregated decision found. Run Phase 5 first.")
+
+    peer_status = run_decide_peer_review(task_id)
+    has_peer_review_issues = not peer_status.get("approved") and peer_status.get("decisions_found", 0) > 0
+
+    effective_path = result["next_action"]
+    if has_peer_review_issues and effective_path == "MERGE":
+        print_info("Peer review found issues - switching to SYNTHESIS path")
+        effective_path = "SYNTHESIS"
+
+    if effective_path == "SYNTHESIS":
+        if resume_from <= 6:
+            console.print()
+            console.print("[yellow]═══ Phase 6: Synthesis ═══[/yellow]")
+            log_phase(6, "Synthesis")
+            await run_synthesis(task_id, result, prompts_dir)
+            update_phase(task_id, 6, synthesis_complete=True)
+
+        if resume_from <= 7:
+            console.print()
+            console.print("[yellow]═══ Phase 7: Peer Review ═══[/yellow]")
+            log_phase(7, "Peer Review")
+            await run_peer_review(task_id, result, prompts_dir)
+            update_phase(task_id, 7, peer_review_complete=True)
+
+        if resume_from <= 8:
+            console.print()
+            console.print("[yellow]═══ Phase 8: Final Decision ═══[/yellow]")
+            log_phase(8, "Final Decision")
+
+            final_result = run_decide_peer_review(task_id)
+            update_phase(task_id, 8)
+
+            total_judges = len(get_judge_configs())
+            decisions_found = final_result.get("decisions_found", 0)
+
+            if decisions_found < total_judges:
+                print_warning(f"Only {decisions_found}/{total_judges} judges have decisions")
+                print_warning("Run peer-review to get all judge decisions before proceeding")
+                console.print()
+                console.print("[cyan]To run missing judges:[/cyan]")
+                console.print(f"  cube peer-review {task_id}")
+                return
+
+            if final_result["approved"] and not final_result["remaining_issues"]:
+                await create_pr(task_id, result["winner"])
+                return
+            elif not final_result["approved"] or final_result["remaining_issues"]:
+                console.print()
+                print_warning(f"Peer review has {len(final_result['remaining_issues'])} issue(s) to address")
+                console.print()
+                console.print("Issues to address:")
+                for issue in final_result["remaining_issues"]:
+                    console.print(f"  • {issue}")
+                console.print()
+
+        if resume_from <= 9:
+            console.print("[yellow]═══ Phase 9: Address Minor Issues ═══[/yellow]")
+            log_phase(9, "Address Minor Issues")
+            if resume_from > 8:
+                final_result = run_decide_peer_review(task_id)
+
+            total_judges = len(get_judge_configs())
+            decisions_found = final_result.get("decisions_found", 0)
+
+            if decisions_found < total_judges:
+                print_warning(f"Only {decisions_found}/{total_judges} judges have decisions")
+                print_warning("Run peer-review to get all judge decisions before proceeding")
+                console.print()
+                console.print("[cyan]To run missing judges:[/cyan]")
+                console.print(f"  cube peer-review {task_id}")
+                return
+
+            if final_result["approved"] and not final_result["remaining_issues"]:
+                print_success("All judges approved with no issues - skipping minor fixes")
+                update_phase(task_id, 9)
+            elif not final_result["remaining_issues"]:
+                print_warning("No specific issues listed - skipping minor fixes")
+                update_phase(task_id, 9)
+            else:
+                await run_minor_fixes(task_id, result, final_result["remaining_issues"], prompts_dir)
+                update_phase(task_id, 9)
+
+        if resume_from <= 10:
+            console.print()
+            console.print("[yellow]═══ Phase 10: Final Peer Review ═══[/yellow]")
+            log_phase(10, "Final Peer Review")
+            await run_peer_review(task_id, result, prompts_dir)
+            update_phase(task_id, 10)
+
+        final_check = run_decide_peer_review(task_id)
+        if final_check["approved"] and not final_check["remaining_issues"]:
+            await create_pr(task_id, result["winner"])
+        elif final_check["approved"]:
+            print_warning(f"Approved but still has {len(final_check['remaining_issues'])} issue(s) after minor fixes")
+            console.print()
+            console.print("Issues remaining:")
+            for issue in final_check["remaining_issues"]:
+                console.print(f"  • {issue}")
+            console.print()
+            console.print("Creating PR anyway (all judges approved)...")
+            await create_pr(task_id, result["winner"])
+        else:
+            judge_configs = get_judge_configs()
+            judge_nums = [j.key for j in judge_configs]
+            total_judges = len(judge_nums)
+
+            decisions_count = final_check.get("decisions_found", 0)
+            approvals_count = final_check.get("approvals", 0)
+
+            if decisions_count < total_judges:
+                print_warning(f"Missing peer review decisions ({decisions_count}/{total_judges})")
+                console.print()
+                console.print("Options:")
+                console.print(f"  1. Get missing judge(s) to file decisions:")
+                for judge_key in judge_nums:
+                    judge_label = judge_key.replace("_", "-")
+                    peer_file = PROJECT_ROOT / ".prompts" / "decisions" / f"{judge_label}-{task_id}-peer-review.json"
+                    if not peer_file.exists():
+                        console.print(f"     cube resume {judge_label} {task_id} \"Write peer review decision\"")
+                console.print()
+                console.print(f"  2. Continue with {decisions_count}/{total_judges} decisions:")
+                console.print(f"     cube auto task.md --resume-from 8")
+            else:
+                console.print()
+                console.print("[bold red]🔄 Fix Loop Detected[/bold red]")
+                console.print()
+                console.print(f"Minor fixes were applied but {decisions_count - approvals_count} judge(s) still request changes.")
+                console.print("This usually means:")
+                console.print("  • The writer didn't fully address all issues")
+                console.print("  • New issues were introduced while fixing others")
+                console.print("  • The judge found additional problems on re-review")
+                console.print()
+                console.print("[yellow]To avoid infinite loops, manual intervention is required:[/yellow]")
+                console.print()
+                console.print("[cyan]Option 1:[/cyan] Review and fix manually")
+                console.print(f"  1. Check remaining issues in peer-review decisions:")
+                console.print(f"     ls .prompts/decisions/*{task_id}*peer-review*")
+                console.print(f"  2. Fix issues in winner's worktree:")
+                console.print(f"     cd ~/.cube/worktrees/*/writer-*-{task_id}")
+                console.print(f"  3. Commit and push, then re-run peer review:")
+                console.print(f"     cube auto --resume-from 10")
+                console.print()
+                console.print("[cyan]Option 2:[/cyan] Run another round of minor fixes")
+                console.print(f"  cube auto --resume-from 9")
+                console.print()
+                console.print("[cyan]Option 3:[/cyan] Start fresh from synthesis")
+                console.print(f"  cube auto --resume-from 6")
+
+    elif result["next_action"] == "FEEDBACK":
+        if resume_from <= 6:
+            console.print()
+            console.print("[yellow]═══ Phase 6: Generate Feedback for Both Writers ═══[/yellow]")
+            log_phase(6, "Generate Feedback")
+            await generate_dual_feedback(task_id, result, prompts_dir)
+            update_phase(task_id, 6, path="FEEDBACK")
+
+        console.print()
+        print_warning("Both writers need major changes. Re-run panel after they complete:")
+        console.print(f"  cube panel {task_id} .prompts/panel-prompt-{task_id}.md")
+
+    elif effective_path == "MERGE":
+        peer_only_judges = [j for j in get_judge_configs() if j.peer_review_only]
+
+        wants_peer_review = resume_alias in ("peer-review", "peer", "peer-panel")
+
+        if peer_only_judges and (resume_from <= 6 or wants_peer_review):
+            console.print()
+            console.print("[yellow]═══ Phase 6: Automated Review ═══[/yellow]")
+            log_phase(6, "Automated Review")
+            print_info(f"Running {len(peer_only_judges)} automated reviewer(s) before PR: {', '.join(j.label for j in peer_only_judges)}")
+
+            temp_prompt = prompts_dir / f"temp-peer-review-{task_id}.md"
+            temp_prompt.write_text(task_id)
+
+            await launch_judge_panel(task_id, temp_prompt, "peer-review", resume_mode=False, winner=result["winner"])
+
+            auto_result = run_decide_peer_review(task_id)
+
+            if auto_result.get("approved") and auto_result.get("decisions_found", 0) > 0:
+                print_info("✅ Automated review passed!")
+            else:
+                issues = auto_result.get("remaining_issues", [])
+                decisions_found = auto_result.get("decisions_found", 0)
+                approvals = auto_result.get("approvals", 0)
+
+                console.print()
+                if issues:
+                    print_warning(f"Automated review found {len(issues)} issue(s):")
+                    for issue in issues[:5]:
+                        console.print(f"  • {issue[:100]}")
+                    if len(issues) > 5:
+                        console.print(f"  ... and {len(issues) - 5} more")
+                elif decisions_found == 0:
+                    print_warning("No automated review decisions found!")
+                else:
+                    print_warning(f"Automated review not approved ({approvals}/{decisions_found} approved)")
+
+                console.print()
+                console.print("Fix issues or wait for decisions, then resume:")
+                console.print(f"  cube auto {task_id} --resume-from 6")
+                update_phase(task_id, 6, path="MERGE")
+                return
+
+            update_phase(task_id, 6, path="MERGE", peer_review_complete=True)
+
+        if resume_from <= 7:
+            console.print()
+            console.print("[yellow]═══ Phase 7: Create PR ═══[/yellow]")
+            log_phase(7, "Create PR")
+
+            pr_check = run_decide_peer_review(task_id)
+            if not pr_check.get("approved") or pr_check.get("remaining_issues"):
+                issues = pr_check.get("remaining_issues", [])
+                print_warning(f"Cannot create PR - {len(issues)} issue(s) outstanding")
+                if issues:
+                    for issue in issues[:3]:
+                        console.print(f"  • {issue[:80]}")
+                console.print()
+                console.print("Fix issues first, then resume:")
+                console.print(f"  cube auto {task_id} --resume-from peer-review")
+                return
+
+            await create_pr(task_id, result["winner"])
+            update_phase(task_id, 7, path="MERGE")
+
+    else:
+        console.print()
+        print_warning(f"Unexpected next action: {result['next_action']}")
+        console.print()
+        console.print("This shouldn't happen. Possible causes:")
+        console.print("  - Corrupted aggregated decision file")
+        console.print("  - Unknown decision path")
+        console.print()
+        console.print("Try:")
+        console.print(f"  cube decide {task_id}  # Re-aggregate decisions")
+        console.print(f"  cube status {task_id}  # Check current state")
