@@ -10,9 +10,9 @@ from ..core.git import (
     create_worktree, has_uncommitted_changes, has_unpushed_commits, 
     commit_and_push
 )
-from ..core.session import save_session, load_session, SessionWatcher
+from ..core.session import save_session, load_session
 from ..core.output import print_info, print_success, print_warning, print_error, console
-from ..core.config import PROJECT_ROOT, get_sessions_dir
+from ..core.config import PROJECT_ROOT
 from ..core.user_config import get_writer_config
 from ..models.types import WriterInfo
 
@@ -22,6 +22,7 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     from ..core.user_config import load_config as load_user_config
     from ..core.parsers.registry import get_parser
     from ..core.dual_layout import get_dual_layout
+    from ..core.agent_logger import agent_logging_context
     
     config = load_user_config()
     cli_name = config.cli_tools.get(writer_info.model, "cursor-agent")
@@ -31,62 +32,52 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     layout = get_dual_layout()
     layout.start()
     
-    box_id = f"writer_{writer_info.letter.lower()}"
+    session_id = writer_info.session_id if resume else None
     
-    from pathlib import Path
-    logs_dir = Path.home() / ".cube" / "logs"
-    logs_dir.mkdir(parents=True, exist_ok=True)
+    stream = run_agent(
+        writer_info.worktree,
+        writer_info.model,
+        prompt,
+        session_id=session_id,
+        resume=resume
+    )
     
-    log_file = logs_dir / f"writer-{writer_info.name}-{writer_info.task_id}-{int(datetime.now().timestamp())}.json"
+    # Box key for layout operations
+    box_key = "writer_a" if writer_info.letter == "A" else "writer_b"
     
-    session_file = get_sessions_dir() / f"WRITER_{writer_info.letter}_{writer_info.task_id}_SESSION_ID.txt"
-    metadata = f"Writer {writer_info.letter} ({writer_info.model}) - {writer_info.task_id} - {datetime.now()}"
-    
-    watcher = SessionWatcher(log_file, session_file, metadata)
-    watcher.start()
-    
-    line_count = 0
-    try:
-        with open(log_file, 'w') as f:
-            session_id = writer_info.session_id if resume else None
+    # Use generic logging context
+    async with agent_logging_context(
+        agent_type="writer",
+        agent_name=writer_info.name,
+        task_id=writer_info.task_id,
+        session_key=f"WRITER_{writer_info.letter}",
+        session_task_key=writer_info.task_id,
+        metadata=f"Writer {writer_info.letter} ({writer_info.model}) - {writer_info.task_id} - {datetime.now()}"
+    ) as logger:
+        async for line in stream:
+            logger.write_line(line)
             
-            stream = run_agent(
-                writer_info.worktree,
-                writer_info.model,
-                prompt,
-                session_id=session_id,
-                resume=resume
-            )
-            
-            async for line in stream:
-                line_count += 1
-                f.write(line + '\n')
-                f.flush()
+            msg = parser.parse(line)
+            if msg:
+                if msg.session_id and not writer_info.session_id:
+                    writer_info.session_id = msg.session_id
                 
-                msg = parser.parse(line)
-                if msg:
-                    if msg.session_id and not writer_info.session_id:
-                        writer_info.session_id = msg.session_id
-                    
-                    formatted = format_stream_message(msg, writer_info.label, writer_info.color)
-                    if formatted:
-                        if formatted.startswith("[thinking]"):
-                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            # Use writer_a/writer_b as box keys, not letter
-                            box_key = "writer_a" if writer_info.letter == "A" else "writer_b"
-                            layout.add_thinking(box_key, thinking_text)
-                        elif msg.type == "assistant" and msg.content:
-                            box_key = "writer_a" if writer_info.letter == "A" else "writer_b"
-                            layout.add_assistant_message(box_key, msg.content, writer_info.label, writer_info.color)
-                        else:
-                            layout.add_output(formatted)
-    finally:
-        watcher.stop()
+                formatted = format_stream_message(msg, writer_info.label, writer_info.color)
+                if formatted:
+                    if formatted.startswith("[thinking]"):
+                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                        layout.add_thinking(box_key, thinking_text)
+                    elif msg.type == "assistant" and msg.content:
+                        layout.add_assistant_message(box_key, msg.content, writer_info.label, writer_info.color)
+                    else:
+                        layout.add_output(formatted)
+        
+        if logger.line_count < 10:
+            raise RuntimeError(f"{writer_info.label} completed suspiciously quickly ({logger.line_count} lines). Check {logger.log_file} for errors.")
+        
+        final_line_count = logger.line_count
     
-    if line_count < 10:
-        raise RuntimeError(f"{writer_info.label} completed suspiciously quickly ({line_count} lines). Check {log_file} for errors.")
-    
-    status = f"{line_count} events"
+    status = f"{final_line_count} events"
     
     try:
         import subprocess
@@ -106,7 +97,7 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     except (subprocess.TimeoutExpired, subprocess.SubprocessError):
         pass
     
-    layout.mark_complete(box_id, status)
+    layout.mark_complete(box_key, status)
     console.print(f"[{writer_info.color}][{writer_info.label}][/{writer_info.color}] ✅ Completed")
 
 async def launch_dual_writers(
