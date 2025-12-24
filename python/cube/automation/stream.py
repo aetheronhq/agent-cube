@@ -333,10 +333,12 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
     
     if msg.type == "error" and msg.content:
         content = msg.content[:100] if len(msg.content) > 100 else msg.content
+        content = markdown_to_rich(content)
         return f"[{color}]{prefix}[/{color}] ❌ {content}"
-    
+
     if msg.type == "unknown" and msg.content:
         content = msg.content[:80] if len(msg.content) > 80 else msg.content
+        content = markdown_to_rich(content)
         return f"[dim]{prefix}[/dim] ⚠️ {content}"
     
     return None

@@ -467,10 +467,8 @@ Use absolute path when writing the file. The project root is available in your w
         needs_resume = resume_mode and jconfig.type != "cli-review" and not jconfig.peer_review_only
         
         if needs_resume:
-            if review_type == "peer-review":
-                session_id = load_session(jconfig.key.upper(), f"{task_id}_panel")
-            else:
-                session_id = load_session(jconfig.key.upper(), f"{task_id}_{review_type}")
+            # Session suffix must match what's used in save_session (line 118)
+            session_id = load_session(jconfig.key.upper(), f"{task_id}_{review_type}")
             
             if not session_id:
                 raise RuntimeError(f"No session found for {jconfig.label}")

@@ -8,17 +8,6 @@ from typing_extensions import Annotated
 
 from .core.config import VERSION
 from .core.output import console
-
-def _print_error(e: Exception):
-    """Print error message safely, escaping markup and falling back to plain text."""
-    msg = str(e)
-    try:
-        from rich.markup import escape
-        from rich.console import Console
-        escaped_msg = escape(msg)
-        Console(stderr=True).print(f"\n[bold red]❌ Error:[/bold red] {escaped_msg}\n")
-    except Exception:
-        print(f"\n❌ Error: {msg}\n", file=sys.stderr)
 from .core.phases import format_phase_aliases, resolve_phase_identifier
 from .core.updater import auto_update
 from .commands.version import version_command
@@ -39,6 +28,18 @@ from .commands.orchestrate import extract_task_id_from_file
 from .commands.ui import ui_command
 
 PHASE_ALIAS_SUMMARY = format_phase_aliases()
+
+
+def _print_error(e: Exception):
+    """Print error message safely, escaping markup and falling back to plain text."""
+    msg = str(e)
+    try:
+        from rich.markup import escape
+        from rich.console import Console
+        escaped_msg = escape(msg)
+        Console(stderr=True).print(f"\n[bold red]❌ Error:[/bold red] {escaped_msg}\n")
+    except Exception:
+        print(f"\n❌ Error: {msg}\n", file=sys.stderr)
 
 
 def _parse_resume_option(value: Optional[str]) -> Optional[int]:
@@ -341,7 +342,7 @@ def decide(
         review_type = "peer-review"
     
     try:
-        decide_command(task_id, review_type)
+        decide_command(resolved_task_id, review_type)
     except Exception as e:
         _print_error(e)
         sys.exit(1)

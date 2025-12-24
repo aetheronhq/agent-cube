@@ -87,10 +87,12 @@ def master_log_context(task_id: str):
     with _master_log_lock:
         if _master_log_instance is None:
             _master_log_instance = MasterLog(task_id)
+        elif _master_log_instance.task_id != task_id:
+            raise RuntimeError(f"MasterLog already active for task {_master_log_instance.task_id}")
         current_instance = _master_log_instance
-    
-    with current_instance as log:
-        yield log
+        # Hold lock while entering context to prevent race condition
+        with current_instance as log:
+            yield log
 
 
 def get_master_log() -> Optional[MasterLog]:
