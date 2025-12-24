@@ -212,7 +212,7 @@ Begin orchestration now!"""
     
     return prompt
 
-async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id: str = None) -> None:
+async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id: str | None = None) -> None:
     """Fully autonomous orchestration - runs entire workflow.
     
     Args:

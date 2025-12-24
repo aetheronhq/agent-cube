@@ -412,11 +412,14 @@ def auto(
             Path(f"{task_id}.md"),
         ]
         task_file = next((str(p) for p in possible_paths if p.exists()), None)
+        force_skip_phase_1 = False
         if not task_file:
-            # Create a minimal task reference
+            # No task file found - must resume from phase > 1
+            force_skip_phase_1 = not resume_from
             task_file = f".prompts/{task_id}.md"
     else:
         task_id = extract_task_id_from_file(task_file)
+        force_skip_phase_1 = False
     
     set_current_task_id(task_id)
     
@@ -427,6 +430,8 @@ def auto(
         print_success(f"Cleared state for {task_id}")
     
     resolved_resume_from = _resolve_resume_from(task_id, resume, resume_from)
+    if force_skip_phase_1 and resolved_resume_from < 2:
+        resolved_resume_from = 2  # Skip Phase 1 which requires task file
     
     try:
         import asyncio
