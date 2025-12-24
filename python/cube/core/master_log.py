@@ -84,15 +84,18 @@ class MasterLog:
 def master_log_context(task_id: str):
     """Context manager for master logging during a task."""
     global _master_log_instance
+    
+    # Acquire lock only to set up the instance
     with _master_log_lock:
         if _master_log_instance is None:
             _master_log_instance = MasterLog(task_id)
         elif _master_log_instance.task_id != task_id:
             raise RuntimeError(f"MasterLog already active for task {_master_log_instance.task_id}")
         current_instance = _master_log_instance
-        # Hold lock while entering context to prevent race condition
-        with current_instance as log:
-            yield log
+    
+    # Enter context WITHOUT holding the global lock (allows get_master_log to work)
+    with current_instance as log:
+        yield log
 
 
 def get_master_log() -> Optional[MasterLog]:
