@@ -552,8 +552,8 @@ Use absolute path when writing the file. The project root is available in your w
         return_exceptions=True
     )
     
-    from ..core.triple_layout import get_triple_layout
-    get_triple_layout().close()
+    from ..core.dynamic_layout import DynamicLayout
+    DynamicLayout.close()
     
     errors = []
     for i, result in enumerate(results):
