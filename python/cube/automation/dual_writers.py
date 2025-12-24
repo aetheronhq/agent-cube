@@ -21,7 +21,7 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     from ..automation.stream import format_stream_message
     from ..core.user_config import load_config as load_user_config
     from ..core.parsers.registry import get_parser
-    from ..core.dual_layout import get_dual_layout
+    from ..core.dynamic_layout import DynamicLayout
     from ..core.agent_logger import agent_logging_context
     
     config = load_user_config()
@@ -29,7 +29,7 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     parser = get_parser(cli_name)
     
     # Get layout (initialize done in launch_dual_writers)
-    layout = get_dual_layout()
+    layout = DynamicLayout
     layout.start()
     
     session_id = writer_info.session_id if resume else None
@@ -190,8 +190,8 @@ async def launch_dual_writers(
         return_exceptions=True
     )
     
-    from ..core.dual_layout import get_dual_layout
-    get_dual_layout().close()
+    from ..core.dynamic_layout import DynamicLayout
+    DynamicLayout.close()
     
     errors = []
     for i, result in enumerate(results):

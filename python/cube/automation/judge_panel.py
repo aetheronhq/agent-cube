@@ -12,7 +12,6 @@ from ..core.session import save_session, load_session
 from ..core.output import print_info, print_success, print_warning, print_error, console
 from ..core.config import PROJECT_ROOT, WORKTREE_BASE, get_worktree_path, get_project_root
 from ..core.user_config import get_judge_config, get_writer_config, load_config, get_judge_configs, get_writer_by_key_or_letter
-from ..core.decision_files import find_decision_file
 from ..core.dynamic_layout import DynamicLayout
 from ..core.adapters.registry import get_adapter
 from ..core.parsers.registry import get_parser
@@ -143,10 +142,12 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
 
 def _parse_decision_status(judge_info: JudgeInfo) -> str:
     """Parse decision file and return status string."""
-    decision_type = "peer-review" if judge_info.review_type == "peer-review" else "decision"
-    decision_file = find_decision_file(judge_info.key, judge_info.task_id, decision_type)
+    from ..core.decision_parser import get_decision_file_path
     
-    if not decision_file or not decision_file.exists():
+    decision_type = "peer-review" if judge_info.review_type == "peer-review" else "decision"
+    decision_file = get_decision_file_path(judge_info.key, judge_info.task_id, review_type=decision_type)
+    
+    if not decision_file.exists():
         return "Review complete"
     
     try:
@@ -551,8 +552,8 @@ Use absolute path when writing the file. The project root is available in your w
         return_exceptions=True
     )
     
-    from ..core.triple_layout import get_triple_layout
-    get_triple_layout().close()
+    from ..core.dynamic_layout import DynamicLayout
+    DynamicLayout.close()
     
     errors = []
     for i, result in enumerate(results):

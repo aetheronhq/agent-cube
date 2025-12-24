@@ -326,7 +326,17 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
         else:
             raise RuntimeError(f"Cannot resume from phase {resume_from}: No aggregated decision found. Run Phase 5 first.")
     
-    if result["next_action"] == "SYNTHESIS":
+    # Determine actual path: check peer review decisions first (they override aggregated decision)
+    peer_status = run_decide_peer_review(task_id)
+    has_peer_review_issues = not peer_status.get("approved") and peer_status.get("decisions_found", 0) > 0
+    
+    # If peer review already ran and found issues, we need synthesis path regardless of original decision
+    effective_path = result["next_action"]
+    if has_peer_review_issues and effective_path == "MERGE":
+        print_info("Peer review found issues - switching to SYNTHESIS path")
+        effective_path = "SYNTHESIS"
+    
+    if effective_path == "SYNTHESIS":
         if resume_from <= 6:
             console.print()
             console.print("[yellow]═══ Phase 6: Synthesis ═══[/yellow]")
@@ -488,7 +498,7 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
         print_warning("Both writers need major changes. Re-run panel after they complete:")
         console.print(f"  cube panel {task_id} .prompts/panel-prompt-{task_id}.md")
     
-    elif result["next_action"] == "MERGE":
+    elif effective_path == "MERGE":
         # Check if there are peer_review_only judges (like CodeRabbit) that haven't run yet
         from ..core.user_config import get_judge_configs
         peer_only_judges = [j for j in get_judge_configs() if j.peer_review_only]
@@ -512,22 +522,30 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
             # Check their decisions
             auto_result = run_decide_peer_review(task_id)
             
-            if auto_result.get("all_approved"):
+            if auto_result.get("approved") and auto_result.get("decisions_found", 0) > 0:
                 print_info("✅ Automated review passed!")
             else:
-                issues = auto_result.get("all_issues", [])
+                issues = auto_result.get("remaining_issues", [])
+                decisions_found = auto_result.get("decisions_found", 0)
+                approvals = auto_result.get("approvals", 0)
+                
+                console.print()
                 if issues:
-                    console.print()
                     print_warning(f"Automated review found {len(issues)} issue(s):")
                     for issue in issues[:5]:
                         console.print(f"  • {issue[:100]}")
                     if len(issues) > 5:
                         console.print(f"  ... and {len(issues) - 5} more")
-                    console.print()
-                    console.print("Fix these issues, then resume:")
-                    console.print(f"  cube auto {task_id} --resume-from 6")
-                    update_phase(task_id, 6, path="MERGE")
-                    return
+                elif decisions_found == 0:
+                    print_warning("No automated review decisions found!")
+                else:
+                    print_warning(f"Automated review not approved ({approvals}/{decisions_found} approved)")
+                
+                console.print()
+                console.print("Fix issues or wait for decisions, then resume:")
+                console.print(f"  cube auto {task_id} --resume-from 6")
+                update_phase(task_id, 6, path="MERGE")
+                return
             
             update_phase(task_id, 6, path="MERGE", peer_review_complete=True)
         
@@ -535,6 +553,20 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
             console.print()
             console.print("[yellow]═══ Phase 7: Create PR ═══[/yellow]")
             log_phase(7, "Create PR")
+            
+            # Always check review status before creating PR
+            pr_check = run_decide_peer_review(task_id)
+            if not pr_check.get("approved") or pr_check.get("remaining_issues"):
+                issues = pr_check.get("remaining_issues", [])
+                print_warning(f"Cannot create PR - {len(issues)} issue(s) outstanding")
+                if issues:
+                    for issue in issues[:3]:
+                        console.print(f"  • {issue[:80]}")
+                console.print()
+                console.print("Fix issues first, then resume:")
+                console.print(f"  cube auto {task_id} --resume-from peer-review")
+                return
+            
             await create_pr(task_id, result["winner"])
             update_phase(task_id, 7, path="MERGE")
     
@@ -673,7 +705,7 @@ def run_decide_peer_review(task_id: str) -> dict:
     console.print(f"[cyan]📊 Checking peer review decisions for: {task_id}[/cyan]")
     console.print()
     
-    from ..core.decision_files import find_decision_file
+    from ..core.decision_parser import get_decision_file_path
     
     has_request_changes = False
     judge_configs = get_judge_configs()
@@ -681,9 +713,9 @@ def run_decide_peer_review(task_id: str) -> dict:
     total_judges = len(judge_nums)
     
     for judge_key in judge_nums:
-        peer_file = find_decision_file(judge_key, task_id, "peer-review")
+        peer_file = get_decision_file_path(judge_key, task_id, review_type="peer-review")
         
-        if peer_file and peer_file.exists():
+        if peer_file.exists():
             decisions_found += 1
             with open(peer_file) as f:
                 data = json.load(f)
