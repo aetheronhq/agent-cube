@@ -326,7 +326,17 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
         else:
             raise RuntimeError(f"Cannot resume from phase {resume_from}: No aggregated decision found. Run Phase 5 first.")
     
-    if result["next_action"] == "SYNTHESIS":
+    # Determine actual path: check peer review decisions first (they override aggregated decision)
+    peer_status = run_decide_peer_review(task_id)
+    has_peer_review_issues = not peer_status.get("approved") and peer_status.get("decisions_found", 0) > 0
+    
+    # If peer review already ran and found issues, we need synthesis path regardless of original decision
+    effective_path = result["next_action"]
+    if has_peer_review_issues and effective_path == "MERGE":
+        print_info("Peer review found issues - switching to SYNTHESIS path")
+        effective_path = "SYNTHESIS"
+    
+    if effective_path == "SYNTHESIS":
         if resume_from <= 6:
             console.print()
             console.print("[yellow]═══ Phase 6: Synthesis ═══[/yellow]")
@@ -488,7 +498,7 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
         print_warning("Both writers need major changes. Re-run panel after they complete:")
         console.print(f"  cube panel {task_id} .prompts/panel-prompt-{task_id}.md")
     
-    elif result["next_action"] == "MERGE":
+    elif effective_path == "MERGE":
         # Check if there are peer_review_only judges (like CodeRabbit) that haven't run yet
         from ..core.user_config import get_judge_configs
         peer_only_judges = [j for j in get_judge_configs() if j.peer_review_only]
