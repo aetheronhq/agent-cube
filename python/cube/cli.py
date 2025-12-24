@@ -358,7 +358,7 @@ def clean(
 
 @app.command(name="auto")
 def auto(
-    task_file: Annotated[str, typer.Argument(help="Path to the task file")],
+    task_file: Annotated[Optional[str], typer.Argument(help="Path to the task file (optional if --resume)")] = None,
     resume_from: Annotated[
         Optional[str],
         typer.Option("--resume-from", help=f"Resume from phase number or alias ({PHASE_ALIAS_SUMMARY})")
@@ -366,10 +366,43 @@ def auto(
     resume: Annotated[bool, typer.Option("--resume", help="Auto-resume from last checkpoint")] = False,
     reset: Annotated[bool, typer.Option("--reset", help="Clear state and start fresh")] = False
 ):
-    """Shortcut for: cube orchestrate auto <task-file>"""
-    from .core.config import set_current_task_id
+    """Shortcut for: cube orchestrate auto <task-file>
     
-    task_id = extract_task_id_from_file(task_file)
+    If --resume is passed without a task file, resumes the last task from this terminal.
+    """
+    from .core.config import set_current_task_id, get_current_task_id
+    from .core.output import print_error, print_info
+    
+    # If no task file provided, try to get from saved state
+    if not task_file:
+        if not resume and not resume_from:
+            print_error("Task file required. Use --resume to continue last task, or provide a task.md path.")
+            raise typer.Exit(1)
+        
+        saved_task_id = get_current_task_id()
+        if not saved_task_id:
+            print_error("No saved task ID. Please provide a task file path.")
+            raise typer.Exit(1)
+        
+        task_id = saved_task_id
+        print_info(f"Resuming task: {task_id}")
+        
+        # Try to find the task file
+        from pathlib import Path
+        possible_paths = [
+            Path(f".prompts/{task_id}.md"),
+            Path(f".prompts/task-{task_id}.md"),
+            Path(f"{task_id}.md"),
+        ]
+        task_file = next((str(p) for p in possible_paths if p.exists()), None)
+        if not task_file:
+            # No task file found - must resume from phase > 1
+            if not resume_from:
+                resolved_resume_from = 2  # Skip Phase 1 which requires task file
+            task_file = f".prompts/{task_id}.md"
+    else:
+        task_id = extract_task_id_from_file(task_file)
+    
     set_current_task_id(task_id)
     
     if reset:
@@ -382,7 +415,7 @@ def auto(
     
     try:
         import asyncio
-        asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from))
+        asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from, task_id=task_id))
     except Exception as e:
         from .core.output import console_err
         console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
