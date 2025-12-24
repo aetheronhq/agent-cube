@@ -42,7 +42,8 @@ From scanning imports:
 - `typer` - CLI framework
 - `rich` - Terminal UI
 - `pyyaml` - Config parsing
-- `aiohttp` - Async HTTP (for web UI)
+- `fastapi` - Web framework (for web UI)
+- `uvicorn[standard]` - ASGI server
 - `aiofiles` - Async file ops
 
 ### Entry Points

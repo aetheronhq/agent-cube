@@ -396,7 +396,9 @@ def auto(
         ]
         task_file = next((str(p) for p in possible_paths if p.exists()), None)
         if not task_file:
-            # Create a minimal task reference
+            # No task file found - must resume from phase > 1
+            if not resume_from:
+                resolved_resume_from = 2  # Skip Phase 1 which requires task file
             task_file = f".prompts/{task_id}.md"
     else:
         task_id = extract_task_id_from_file(task_file)
