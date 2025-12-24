@@ -40,7 +40,6 @@ class CursorAdapter(CLIAdapter):
         
         cmd = [
             "cursor-agent",
-            "--print",
             "--force",
             "--output-format", "stream-json",
             "--stream-partial-output",
