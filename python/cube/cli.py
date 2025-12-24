@@ -42,33 +42,36 @@ def _print_error(e: Exception):
         print(f"\n❌ Error: {msg}\n", file=sys.stderr)
 
 
-def _parse_resume_option(value: Optional[str]) -> Optional[int]:
-    """Convert --resume-from input into a phase number if provided."""
+def _parse_resume_option(value: Optional[str]) -> tuple[Optional[int], Optional[str]]:
+    """Convert --resume-from input into a phase number and original alias if provided."""
     if value is None:
-        return None
+        return None, None
     try:
-        return resolve_phase_identifier(value)
+        phase = resolve_phase_identifier(value)
+        # Return both the phase number and the original alias (normalized)
+        normalized = value.strip().lower().replace("_", "-").replace(" ", "-")
+        return phase, normalized if not normalized.isdigit() else None
     except ValueError as exc:
         raise typer.BadParameter(str(exc), param_hint="--resume-from") from exc
 
 
-def _resolve_resume_from(task_id: str, resume_flag: bool, resume_from_value: Optional[str]) -> int:
-    """Determine final phase number to resume from."""
-    parsed = _parse_resume_option(resume_from_value)
+def _resolve_resume_from(task_id: str, resume_flag: bool, resume_from_value: Optional[str]) -> tuple[int, Optional[str]]:
+    """Determine final phase number to resume from. Returns (phase, original_alias)."""
+    parsed_phase, original_alias = _parse_resume_option(resume_from_value)
 
-    if resume_flag and parsed is None:
+    if resume_flag and parsed_phase is None:
         from .core.state import load_state
 
         state = load_state(task_id)
         if state:
-            parsed = state.current_phase + 1 if state.current_phase < 10 else state.current_phase
-            console.print(f"[cyan]Auto-resuming from Phase {parsed}[/cyan]")
+            parsed_phase = state.current_phase + 1 if state.current_phase < 10 else state.current_phase
+            console.print(f"[cyan]Auto-resuming from Phase {parsed_phase}[/cyan]")
         else:
-            parsed = 1
-    elif parsed is None:
-        parsed = 1
+            parsed_phase = 1
+    elif parsed_phase is None:
+        parsed_phase = 1
 
-    return parsed
+    return parsed_phase, original_alias
 
 
 app = typer.Typer(
@@ -281,11 +284,11 @@ def orchestrate(
             from .core.output import print_success
             print_success(f"Cleared state for {task_id}")
         
-        resolved_resume_from = _resolve_resume_from(task_id, resume, resume_from)
+        resolved_resume_from, resume_alias = _resolve_resume_from(task_id, resume, resume_from)
         
         try:
             import asyncio
-            asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from))
+            asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from, resume_alias=resume_alias))
         except Exception as e:
             from .core.output import console_err
             console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
@@ -429,13 +432,13 @@ def auto(
         from .core.output import print_success
         print_success(f"Cleared state for {task_id}")
     
-    resolved_resume_from = _resolve_resume_from(task_id, resume, resume_from)
+    resolved_resume_from, resume_alias = _resolve_resume_from(task_id, resume, resume_from)
     if force_skip_phase_1 and resolved_resume_from < 2:
         resolved_resume_from = 2  # Skip Phase 1 which requires task file
     
     try:
         import asyncio
-        asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from, task_id=task_id))
+        asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from, task_id=task_id, resume_alias=resume_alias))
     except Exception as e:
         _print_error(e)
         sys.exit(1)
