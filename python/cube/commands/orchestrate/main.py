@@ -53,14 +53,23 @@ def orchestrate_prompt_command(
         console.print(prompt)
 
 
-async def orchestrate_auto_command(task_file: str | None, resume_from: int = 1, task_id: str | None = None, resume_alias: str | None = None) -> None:
+async def orchestrate_auto_command(
+    task_file: str | None, 
+    resume_from: int = 1, 
+    task_id: str | None = None, 
+    resume_alias: str | None = None,
+    single_mode: bool = False,
+    writer_key: str | None = None
+) -> None:
     """Fully autonomous orchestration - runs entire workflow.
 
     Args:
         task_file: Path to task file (can be None if resuming from phase > 1)
-        resume_from: Phase number to resume from (1-10)
+        resume_from: Phase number to resume from (1-10 for dual, 1-5 for single)
         task_id: Optional task ID (if not provided, extracted from task_file)
         resume_alias: Original alias used (e.g., "peer-review") to handle special cases
+        single_mode: If True, use single-writer mode (simplified 5-phase workflow)
+        writer_key: For single mode, which writer to use (e.g., "writer_a")
     """
     from ...core.master_log import master_log_context
 
@@ -68,4 +77,10 @@ async def orchestrate_auto_command(task_file: str | None, resume_from: int = 1, 
         task_id = extract_task_id_from_file(task_file)
 
     with master_log_context(task_id):
-        await _orchestrate_auto_impl(task_file, resume_from, task_id, resume_alias)
+        if single_mode:
+            from .workflow import _orchestrate_single_writer_impl
+            await _orchestrate_single_writer_impl(
+                task_file, resume_from, task_id, writer_key, resume_alias
+            )
+        else:
+            await _orchestrate_auto_impl(task_file, resume_from, task_id, resume_alias)

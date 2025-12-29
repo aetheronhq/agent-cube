@@ -1,5 +1,9 @@
 # Agent Cube Project Configuration
 
+behavior:
+  default_mode: "dual"      # "dual" or "single" - default workflow mode
+  default_writer: "writer_a"  # writer key for single mode when not specified
+
 judges:
   judge_4:
     type: "cli-review"

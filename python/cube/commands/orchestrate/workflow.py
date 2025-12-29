@@ -6,7 +6,7 @@ import typer
 
 from ...core.output import print_error, print_success, print_warning, print_info, console
 from ...core.config import PROJECT_ROOT, resolve_path
-from ...automation.dual_writers import launch_dual_writers
+from ...automation.dual_writers import launch_dual_writers, launch_single_writer
 from ...automation.judge_panel import launch_judge_panel
 
 from .prompts import generate_writer_prompt, generate_panel_prompt, generate_dual_feedback
@@ -456,3 +456,191 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
         console.print("Try:")
         console.print(f"  cube decide {task_id}  # Re-aggregate decisions")
         console.print(f"  cube status {task_id}  # Check current state")
+
+
+async def _orchestrate_single_writer_impl(
+    task_file: str, 
+    resume_from: int, 
+    task_id: str, 
+    writer_key: str | None,
+    resume_alias: str | None = None
+) -> None:
+    """Workflow for single-writer mode.
+    
+    Single-writer mode runs a simplified 5-phase workflow:
+      Phase 1: Generate Writer Prompt
+      Phase 2: Run Single Writer
+      Phase 3: Peer Review (judges review implementation)
+      Phase 4: Minor Fixes Loop (until approved)
+      Phase 5: Create PR
+    """
+    from ...core.state import validate_resume, update_phase, load_state, get_progress
+    from ...core.master_log import get_master_log
+    from ...core.user_config import get_default_writer, get_writer_config
+
+    master_log = get_master_log()
+
+    prompts_dir = PROJECT_ROOT / ".prompts"
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+
+    # Resolve writer_key
+    if not writer_key:
+        writer_key = get_default_writer()
+    
+    writer_cfg = get_writer_config(writer_key)
+
+    console.print(f"[bold cyan]🤖 Agent Cube Single-Writer Mode[/bold cyan]")
+    console.print(f"Task: {task_id}")
+    console.print(f"Writer: {writer_cfg.label}")
+
+    existing_state = load_state(task_id)
+
+    if not existing_state and resume_from > 1:
+        from ...core.state_backfill import backfill_state_from_artifacts
+        console.print("[dim]Backfilling state from existing artifacts...[/dim]")
+        existing_state = backfill_state_from_artifacts(task_id)
+        console.print(f"[dim]Detected: {get_progress(task_id)}[/dim]")
+
+    if existing_state:
+        console.print(f"[dim]Progress: {get_progress(task_id)}[/dim]")
+
+    if resume_from > 1:
+        valid, msg = validate_resume(task_id, resume_from)
+        if not valid:
+            print_error(msg)
+            raise typer.Exit(1)
+        console.print(f"[yellow]Resuming from Phase {resume_from}[/yellow]")
+
+    console.print()
+
+    writer_prompt_path = prompts_dir / f"writer-prompt-{task_id}.md"
+
+    def log_phase(phase_num: int, phase_name: str):
+        if master_log:
+            master_log.write_phase_start(phase_num, phase_name)
+
+    # Phase 1: Generate Writer Prompt
+    if resume_from <= 1:
+        console.print("[yellow]═══ Phase 1: Generate Writer Prompt ═══[/yellow]")
+        log_phase(1, "Generate Writer Prompt")
+        if not task_file:
+            print_error("Task file required for Phase 1. Provide a task.md path.")
+            raise typer.Exit(1)
+        task_path = resolve_path(task_file)
+        writer_prompt_path = await generate_writer_prompt(task_id, task_path.read_text(), prompts_dir)
+        update_phase(task_id, 1, path="SINGLE", mode="single", writer_key=writer_key, project_root=str(PROJECT_ROOT))
+
+    # Phase 2: Run Single Writer
+    if resume_from <= 2:
+        console.print()
+        console.print("[yellow]═══ Phase 2: Run Single Writer ═══[/yellow]")
+        log_phase(2, "Run Single Writer")
+        await launch_single_writer(task_id, writer_prompt_path, writer_key, resume_mode=False)
+        update_phase(task_id, 2, writers_complete=True, winner=writer_key, mode="single", writer_key=writer_key)
+
+    # Build a result dict that matches what dual-writer workflow expects
+    result = {
+        "winner": writer_key,
+        "next_action": "SINGLE",
+        "blocker_issues": []
+    }
+
+    # Phase 3: Peer Review
+    if resume_from <= 3:
+        console.print()
+        console.print("[yellow]═══ Phase 3: Peer Review ═══[/yellow]")
+        log_phase(3, "Peer Review")
+        
+        clear_peer_review_decisions(task_id)
+        await run_peer_review(task_id, result, prompts_dir)
+        update_phase(task_id, 3, peer_review_complete=True, mode="single", writer_key=writer_key)
+
+    # Check peer review result
+    peer_result = run_decide_peer_review(task_id)
+
+    from ...core.user_config import get_judge_configs
+    peer_review_judges = [j for j in get_judge_configs() if j.peer_review_only]
+    total_peer_judges = len(peer_review_judges) if peer_review_judges else 1
+    decisions_found = peer_result.get("decisions_found", 0)
+
+    if decisions_found < total_peer_judges:
+        print_warning(f"Only {decisions_found}/{total_peer_judges} peer-review judges have decisions")
+        print_warning("Run peer-review to get all judge decisions before proceeding")
+        console.print()
+        console.print("[cyan]To run missing judges:[/cyan]")
+        console.print(f"  cube peer-review {task_id}")
+        return
+
+    if peer_result["approved"] and not peer_result["remaining_issues"]:
+        console.print()
+        console.print("[yellow]═══ Phase 5: Create PR ═══[/yellow]")
+        log_phase(5, "Create PR")
+        await create_pr(task_id, writer_key)
+        update_phase(task_id, 5, mode="single", writer_key=writer_key)
+        return
+
+    # Phase 4: Minor Fixes Loop
+    max_fix_iterations = 3
+    for iteration in range(max_fix_iterations):
+        if resume_from <= 4 or iteration > 0:
+            console.print()
+            console.print(f"[yellow]═══ Phase 4: Minor Fixes (iteration {iteration + 1}/{max_fix_iterations}) ═══[/yellow]")
+            log_phase(4, f"Minor Fixes (iteration {iteration + 1})")
+
+            issues = peer_result.get("remaining_issues", [])
+            if not issues:
+                print_info("No specific issues listed - skipping minor fixes")
+            else:
+                await run_minor_fixes(task_id, result, issues, prompts_dir)
+            
+            update_phase(task_id, 4, mode="single", writer_key=writer_key)
+
+            # Re-run peer review after fixes
+            console.print()
+            console.print("[yellow]═══ Re-running Peer Review ═══[/yellow]")
+            clear_peer_review_decisions(task_id)
+            await run_peer_review(task_id, result, prompts_dir)
+
+            peer_result = run_decide_peer_review(task_id)
+
+            if peer_result["approved"] and not peer_result["remaining_issues"]:
+                print_success("All judges approved after fixes!")
+                break
+
+            if peer_result["approved"]:
+                print_warning(f"Approved but still has {len(peer_result['remaining_issues'])} issue(s)")
+                break
+    else:
+        console.print()
+        print_warning(f"Still has issues after {max_fix_iterations} fix iterations")
+        console.print()
+        console.print("[bold red]🔄 Fix Loop Limit Reached[/bold red]")
+        console.print()
+        console.print("Manual intervention may be required. Options:")
+        console.print()
+        console.print("[cyan]Option 1:[/cyan] Review and fix manually")
+        console.print(f"  cd ~/.cube/worktrees/*/writer-{writer_cfg.name}-{task_id}")
+        console.print(f"  # Make fixes, commit, push")
+        console.print(f"  cube auto {task_id} --single --resume-from 3")
+        console.print()
+        console.print("[cyan]Option 2:[/cyan] Create PR anyway")
+        console.print(f"  cube auto {task_id} --single --resume-from 5")
+        return
+
+    # Phase 5: Create PR
+    console.print()
+    console.print("[yellow]═══ Phase 5: Create PR ═══[/yellow]")
+    log_phase(5, "Create PR")
+
+    if not peer_result["approved"]:
+        issues = peer_result.get("remaining_issues", [])
+        print_warning(f"Creating PR with {len(issues)} outstanding issue(s)")
+        if issues:
+            for issue in issues[:3]:
+                console.print(f"  • {issue[:80]}")
+            if len(issues) > 3:
+                console.print(f"  ... and {len(issues) - 3} more")
+        console.print()
+
+    await create_pr(task_id, writer_key)
+    update_phase(task_id, 5, mode="single", writer_key=writer_key)

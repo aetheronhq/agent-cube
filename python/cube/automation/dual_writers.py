@@ -134,7 +134,8 @@ async def launch_dual_writers(
             current_phase=2,
             path="INIT",
             completed_phases=[1, 2],
-            writers_complete=False
+            writers_complete=False,
+            mode="dual"
         )
         save_state(state)
     
@@ -256,4 +257,131 @@ async def launch_dual_writers(
     console.print("Next steps:")
     console.print(f"  1. Review both branches")
     console.print(f"  2. Run: cube-py panel {task_id} <panel-prompt-file>")
+
+
+async def launch_single_writer(
+    task_id: str,
+    prompt_file: Path,
+    writer_key: str = "writer_a",
+    resume_mode: bool = False
+) -> str:
+    """Launch a single writer for a task.
+    
+    Returns:
+        The writer_key used (for state tracking)
+    """
+    
+    if not prompt_file.exists():
+        raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
+    
+    from ..core.dynamic_layout import DynamicLayout
+    
+    wconfig = get_writer_config(writer_key)
+    boxes = {writer_key: wconfig.label}
+    DynamicLayout.initialize(boxes, lines_per_box=5)
+    
+    # Create state file for UI tracking
+    if not resume_mode:
+        from ..core.state import save_state, WorkflowState
+        state = WorkflowState(
+            task_id=task_id,
+            current_phase=2,
+            path="INIT",
+            completed_phases=[1, 2],
+            writers_complete=False,
+            mode="single",
+            writer_key=writer_key
+        )
+        save_state(state)
+    
+    prompt = prompt_file.read_text()
+    
+    worktree = create_worktree(task_id, wconfig.name)
+    branch = f"writer-{wconfig.name}/{task_id}"
+    
+    session_id = None
+    if resume_mode:
+        session_id = load_session(wconfig.key.upper(), task_id)
+        if not session_id:
+            raise RuntimeError(f"No session found for writer {wconfig.name}")
+    
+    writer = WriterInfo(
+        key=wconfig.key,
+        name=wconfig.name,
+        model=wconfig.model,
+        color=wconfig.color,
+        label=wconfig.label,
+        task_id=task_id,
+        worktree=worktree,
+        branch=branch,
+        session_id=session_id
+    )
+    
+    if resume_mode:
+        print_info(f"Resuming Single Writer for Task: {task_id}")
+        console.print()
+        console.print(f"[yellow]📋 Resuming session:[/yellow]")
+        console.print(f"  [{writer.color}]{writer.label}[/{writer.color}]: {writer.session_id}")
+        console.print()
+    else:
+        print_info(f"Launching Single Writer for Task: {task_id}")
+    
+    print_info(f"Prompt: {prompt_file}")
+    console.print()
+    
+    console.print()
+    console.print("🚀 Launching single writer...")
+    console.print()
+    
+    from ..core.user_config import load_config
+    config = load_config()
+    cli_name = config.cli_tools.get(writer.model, "cursor-agent")
+    console.print(f"[dim]{writer.label}: Starting with model {writer.model} (CLI: {cli_name})...[/dim]")
+    console.print()
+    
+    try:
+        await run_writer(writer, prompt, resume_mode)
+    except Exception as e:
+        DynamicLayout.close()
+        print_error(f"Writer failed: {e}")
+        raise
+    
+    DynamicLayout.close()
+    
+    console.print()
+    console.print("✅ Writer completed successfully")
+    console.print()
+    
+    # Update state file
+    from ..core.state import load_state, save_state
+    state = load_state(task_id)
+    if state:
+        state.writers_complete = True
+        state.current_phase = 2
+        state.winner = writer_key
+        if 2 not in state.completed_phases:
+            state.completed_phases.append(2)
+        save_state(state)
+    
+    console.print("📤 Ensuring all changes are committed and pushed...")
+    console.print()
+    
+    if has_uncommitted_changes(writer.worktree):
+        print_info(f"{writer.label}: Committing uncommitted changes...")
+        message = f"{writer.label} ({writer.model}) - Task: {task_id}\n\nAuto-commit of remaining changes at end of session."
+        if commit_and_push(writer.worktree, writer.branch, message):
+            print_success(f"{writer.label}: Changes committed and pushed")
+        else:
+            print_warning(f"{writer.label}: Failed to commit/push")
+    else:
+        print_success(f"{writer.label}: All changes already committed")
+        
+        if has_unpushed_commits(writer.worktree, writer.branch):
+            print_info(f"{writer.label}: Pushing unpushed commits...")
+            commit_and_push(writer.worktree, writer.branch, "")
+    
+    console.print()
+    print_success("Changes committed and pushed!")
+    
+    return writer_key
 

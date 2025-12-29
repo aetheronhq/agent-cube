@@ -393,14 +393,48 @@ def auto(
         typer.Option("--resume-from", help=f"Resume from phase number or alias ({PHASE_ALIAS_SUMMARY})")
     ] = None,
     resume: Annotated[bool, typer.Option("--resume", help="Auto-resume from last checkpoint")] = False,
-    reset: Annotated[bool, typer.Option("--reset", help="Clear state and start fresh")] = False
+    reset: Annotated[bool, typer.Option("--reset", help="Clear state and start fresh")] = False,
+    single: Annotated[bool, typer.Option("--single", help="Run with single writer instead of dual")] = False,
+    writer: Annotated[Optional[str], typer.Option("--writer", "-w", help="Specific writer for single mode (opus, codex, a, b)")] = None
 ):
     """Shortcut for: cube orchestrate auto <task-file>
     
     If --resume is passed without a task file, resumes the last task from this terminal.
+    
+    Single-writer mode (--single or --writer) runs a simplified 5-phase workflow:
+      Phase 1: Generate Writer Prompt
+      Phase 2: Run Single Writer
+      Phase 3: Peer Review
+      Phase 4: Minor Fixes Loop
+      Phase 5: Create PR
     """
     from .core.config import set_current_task_id, get_current_task_id
     from .core.output import print_error, print_info
+    from .core.user_config import resolve_writer_alias, is_single_mode_default, get_default_writer
+    
+    # --writer implies --single
+    if writer:
+        single = True
+    
+    # Check config for default mode
+    if not single and is_single_mode_default():
+        single = True
+        print_info("Using single-writer mode (config default)")
+    
+    # Resolve writer alias if provided
+    writer_key: Optional[str] = None
+    if single:
+        if writer:
+            try:
+                resolved_writer = resolve_writer_alias(writer)
+                writer_key = resolved_writer.key
+                print_info(f"Single-writer mode with {resolved_writer.label}")
+            except KeyError:
+                print_error(f"Unknown writer: {writer}")
+                print_error("Valid writers: opus, codex, a, b, writer_a, writer_b")
+                raise typer.Exit(1)
+        else:
+            writer_key = get_default_writer()
     
     # If no task file provided, try to get from saved state
     if not task_file:
@@ -415,6 +449,14 @@ def auto(
         
         task_id = saved_task_id
         print_info(f"Resuming task: {task_id}")
+        
+        # Check saved state for mode - respect it on resume
+        from .core.state import load_state
+        saved_state = load_state(task_id)
+        if saved_state and saved_state.mode == "single" and not single:
+            single = True
+            writer_key = saved_state.writer_key or get_default_writer()
+            print_info(f"Resuming in single-writer mode (from saved state)")
         
         # Try to find the task file
         from pathlib import Path
@@ -447,7 +489,14 @@ def auto(
     
     try:
         import asyncio
-        asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from, task_id=task_id, resume_alias=resume_alias))
+        asyncio.run(orchestrate_auto_command(
+            task_file, 
+            resolved_resume_from, 
+            task_id=task_id, 
+            resume_alias=resume_alias,
+            single_mode=single,
+            writer_key=writer_key
+        ))
     except Exception as e:
         _print_error(e)
         sys.exit(1)
