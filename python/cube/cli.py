@@ -222,6 +222,7 @@ def peer_review(
     task_id_or_prompt: Annotated[Optional[str], typer.Argument(help="Task ID or prompt message")] = None,
     peer_review_prompt_file: Annotated[Optional[str], typer.Argument(help="Path to prompt file or prompt message")] = None,
     fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False,
+    resume: Annotated[bool, typer.Option("--resume", help="Resume original judges (default behavior)")] = False,
     judge: Annotated[Optional[str], typer.Option("--judge", "-j", help="Run only this judge (e.g., judge_4)")] = None
 ):
     """Resume judge panel for peer review of winner's implementation."""
