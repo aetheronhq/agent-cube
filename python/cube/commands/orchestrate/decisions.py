@@ -21,7 +21,6 @@ def run_decide_peer_review(task_id: str) -> dict:
     from ...core.user_config import get_judge_configs
     from ...core.decision_parser import get_decision_file_path
 
-    decisions_dir = PROJECT_ROOT / ".prompts" / "decisions"
     all_issues = []
     approvals = 0
     decisions_found = 0
@@ -30,7 +29,6 @@ def run_decide_peer_review(task_id: str) -> dict:
     console.print(f"[cyan]📊 Checking peer review decisions for: {task_id}[/cyan]")
     console.print()
 
-    has_request_changes = False
     judge_configs = get_judge_configs()
     judge_nums = [j.key for j in judge_configs]
     total_judges = len(judge_nums)
@@ -58,9 +56,8 @@ def run_decide_peer_review(task_id: str) -> dict:
                 if decision == "APPROVED":
                     approvals += 1
                 elif decision == "REQUEST_CHANGES":
-                    has_request_changes = True
                     if not issues:
-                        console.print(f"  [yellow]⚠️  No issues listed (malformed decision)[/yellow]")
+                        console.print("  [yellow]⚠️  No issues listed (malformed decision)[/yellow]")
                         all_issues.append(f"Judge {judge_label} requested changes but didn't specify issues")
 
     console.print()

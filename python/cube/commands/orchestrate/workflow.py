@@ -29,13 +29,6 @@ def extract_task_id_from_file(task_file: str) -> str:
             task_id = task_id[len(prefix):]
             break
 
-    if not task_id:
-        parts = name.split("-")
-        if len(parts) > 0 and parts[0].isdigit():
-            task_id = name
-        else:
-            task_id = name
-
     if not task_id or task_id.startswith("-") or task_id.endswith("-"):
         raise ValueError(f"Invalid task ID extracted: '{task_id}' from {task_file}")
 
@@ -290,7 +283,7 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
             console.print()
             console.print("[yellow]═══ Phase 6: Generate Feedback for Both Writers ═══[/yellow]")
             log_phase(6, "Generate Feedback")
-            await generate_dual_feedback(task_id, result, prompts_dir)
+            await generate_dual_feedback(task_id, prompts_dir)
             update_phase(task_id, 6, path="FEEDBACK")
 
         console.print()

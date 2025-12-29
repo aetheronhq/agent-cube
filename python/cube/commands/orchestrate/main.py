@@ -62,8 +62,7 @@ async def orchestrate_auto_command(task_file: str, resume_from: int = 1, task_id
         task_id: Optional task ID (if not provided, extracted from task_file)
         resume_alias: Original alias used (e.g., "peer-review") to handle special cases
     """
-    from ...core.state import validate_resume, update_phase, load_state, get_progress
-    from ...core.master_log import master_log_context, get_master_log
+    from ...core.master_log import master_log_context
 
     if task_id is None:
         task_id = extract_task_id_from_file(task_file)

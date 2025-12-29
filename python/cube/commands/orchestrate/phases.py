@@ -13,7 +13,6 @@ from ...automation.judge_panel import launch_judge_panel
 
 async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
     """Phase 6: Run synthesis if needed."""
-    from pathlib import Path as PathLib
     from ...core.user_config import get_writer_by_key_or_letter
     from ...core.single_layout import SingleAgentLayout
 
@@ -24,8 +23,6 @@ async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
 
     if not synthesis_path.exists():
         console.print("Generating synthesis prompt...")
-
-        logs_dir = PathLib.home() / ".cube" / "logs"
 
         from ...core.user_config import get_judge_configs
         judge_configs = get_judge_configs()
@@ -216,11 +213,29 @@ Keep their implementation intact, just fix these specific points.
 
 Save to: `.prompts/minor-fixes-{task_id}.md`"""
 
+    from ...core.single_layout import SingleAgentLayout
+
     parser = get_parser("cursor-agent")
+    layout = SingleAgentLayout(title="Prompter")
+    layout.start()
+
     stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
 
     async for line in stream:
+        msg = parser.parse(line)
+        if msg:
+            formatted = format_stream_message(msg, "Prompter", "cyan")
+            if formatted:
+                if formatted.startswith("[thinking]"):
+                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                    layout.add_thinking(thinking_text)
+                elif msg.type == "assistant" and msg.content:
+                    layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
+                else:
+                    layout.add_output(formatted)
+
         if minor_fixes_path.exists():
+            layout.close()
             print_success(f"Created: {minor_fixes_path}")
             break
 
