@@ -171,10 +171,12 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     elif result["next_action"] == "SYNTHESIS":
         from ..core.user_config import get_writer_by_key_or_letter
         winner_cfg = get_writer_by_key_or_letter(result["winner"])
-        console.print("Synthesis needed (winner has blockers):")
-        console.print(f"  1. Create: .prompts/synthesis-{task_id}.md")
-        console.print(f"  2. Run: cube feedback {winner_cfg.name} {task_id} .prompts/synthesis-{task_id}.md")
-        console.print(f"  3. After fixes: cube peer-review {task_id} .prompts/peer-review-{task_id}.md")
+        console.print("Synthesis needed (winner has blockers).")
+        console.print("Next resume will automatically:")
+        console.print(f"  • Generate .prompts/synthesis-{task_id}.md")
+        console.print(f"  • Send feedback: cube feedback {winner_cfg.name} {task_id} ...")
+        console.print(f"  • Re-run peer review afterwards")
+        console.print("Only run these manually if you need to intervene mid-flow.")
     
     elif result["next_action"] == "FEEDBACK":
         console.print("Major changes needed:")
