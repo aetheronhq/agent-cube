@@ -1,5 +1,7 @@
 """Auto-update functionality for cube CLI."""
 
+import os
+import sys
 from pathlib import Path
 import subprocess
 from typing import Optional
@@ -80,7 +82,10 @@ def pull_updates(repo_root: Path, branch: str) -> bool:
         return False
 
 def auto_update() -> None:
-    """Auto-update cube if running from a git repo on main branch."""
+    """Auto-update cube if running from a git repo on main branch.
+    
+    If updates are pulled, re-execs the current process to use new code.
+    """
     try:
         cube_file = Path(__file__).resolve()
         cube_repo_root = cube_file
@@ -102,7 +107,8 @@ def auto_update() -> None:
             print_info("Updating cube...")
             if pull_updates(cube_repo_root, current_branch):
                 print_success("Cube updated successfully")
-                print()
+                # Re-exec to use the new code
+                os.execv(sys.executable, [sys.executable] + sys.argv)
     except Exception:
         pass
 
