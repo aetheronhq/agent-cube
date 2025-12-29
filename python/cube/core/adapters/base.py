@@ -198,4 +198,3 @@ async def run_subprocess_streaming(
     exit_code = await process.wait()
     if exit_code != 0:
         raise RuntimeError(f"{tool_name} exited with code {exit_code}")
-

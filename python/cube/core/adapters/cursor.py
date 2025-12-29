@@ -6,7 +6,7 @@ from typing import AsyncGenerator, Optional
 import os
 import shutil
 
-from ..cli_adapter import CLIAdapter, run_subprocess_streaming
+from .base import CLIAdapter, run_subprocess_streaming
 
 class CursorAdapter(CLIAdapter):
     """Adapter for cursor-agent CLI."""

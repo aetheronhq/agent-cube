@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import AsyncGenerator, Optional, Dict, Any
 
-from ..cli_adapter import CLIAdapter, run_subprocess_streaming
+from .base import CLIAdapter, run_subprocess_streaming
 
 class CLIReviewAdapter(CLIAdapter):
     """Adapter for running generic CLI review tools + LLM synthesis."""
