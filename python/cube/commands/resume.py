@@ -37,7 +37,8 @@ async def resume_async(
     
     from ..core.single_layout import SingleAgentLayout
     
-    layout = SingleAgentLayout(title=target_label)
+    layout = SingleAgentLayout
+    layout.initialize(target_label)
     layout.start()
     
     async for line in stream:
