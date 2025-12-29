@@ -1,14 +1,14 @@
 import json
 from unittest.mock import AsyncMock, patch, MagicMock
 import pytest
-from cube.core.adapters.cursor_adapter import CursorAdapter
+from cube.core.adapters import CursorAdapter
 from pathlib import Path
 
 @pytest.mark.asyncio
 async def test_cursor_adapter_run():
     adapter = CursorAdapter()
     
-    with patch("cube.core.adapters.cursor_adapter.CursorAdapter.check_logged_in", return_value=True), \
+    with patch("cube.core.adapters.cursor.CursorAdapter.check_logged_in", return_value=True), \
          patch("asyncio.create_subprocess_exec") as mock_exec:
         
         # Mock process
@@ -50,7 +50,7 @@ async def test_cursor_adapter_run():
 @pytest.mark.asyncio
 async def test_cursor_adapter_not_logged_in():
     adapter = CursorAdapter()
-    with patch("cube.core.adapters.cursor_adapter.CursorAdapter.check_logged_in", return_value=False):
+    with patch("cube.core.adapters.cursor.CursorAdapter.check_logged_in", return_value=False):
         with pytest.raises(RuntimeError, match="not logged in"):
             async for _ in adapter.run(Path("/tmp"), "model", "prompt"):
                 pass

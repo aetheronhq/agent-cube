@@ -86,7 +86,7 @@ async def monitor_process_health(
     last_output_tracker: Optional[list] = None,
     output_timeout: float = 600.0  # 10 minutes
 ) -> None:
-    """Monitor subprocess health and detect if it dies or stalls.
+    """Monitor subprocess health and detect if it dies or stalls. 
     
     Uses triple detection for maximum reliability:
     1. process.returncode - Check if process has exited
@@ -198,4 +198,3 @@ async def run_subprocess_streaming(
     exit_code = await process.wait()
     if exit_code != 0:
         raise RuntimeError(f"{tool_name} exited with code {exit_code}")
-

@@ -6,7 +6,7 @@ from typing import AsyncGenerator, Optional
 import os
 import shutil
 
-from ..cli_adapter import CLIAdapter, run_subprocess_streaming
+from .base import CLIAdapter, run_subprocess_streaming
 
 class GeminiAdapter(CLIAdapter):
     """Adapter for gemini CLI (https://github.com/google-gemini/gemini-cli)."""
