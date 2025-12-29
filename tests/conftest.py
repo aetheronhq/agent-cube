@@ -88,6 +88,9 @@ def frontend_server(frontend_port, backend_port):
     
     web_ui_dir = Path(__file__).parent.parent / "web-ui"
     
+    if not (web_ui_dir / "node_modules").exists():
+        pytest.skip("Skipping frontend tests: web-ui/node_modules missing")
+
     env = os.environ.copy()
     # Ensure we point to the API base, handling any trailing slashes if needed by frontend logic
     env["VITE_API_BASE_URL"] = f"http://127.0.0.1:{backend_port}/api"
@@ -108,7 +111,7 @@ def frontend_server(frontend_port, backend_port):
     # Wait for frontend
     base_url = f"http://localhost:{frontend_port}"
     start_time = time.time()
-    while time.time() - start_time < 15:
+    while time.time() - start_time < 30:
         try:
             requests.get(base_url)
             break
@@ -116,8 +119,10 @@ def frontend_server(frontend_port, backend_port):
             time.sleep(0.5)
     else:
         proc.kill()
-        # stdout, stderr = proc.communicate() 
+        stdout, stderr = proc.communicate() 
         # Don't read all stdout/stderr as it might be huge if it's just hanging
+        if stderr:
+            print(f"Frontend stderr: {stderr.decode()}")
         raise RuntimeError("Frontend failed to start")
 
     yield base_url

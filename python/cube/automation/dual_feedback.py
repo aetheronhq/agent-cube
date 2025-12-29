@@ -7,7 +7,7 @@ from typing import List
 from dataclasses import dataclass
 
 from ..core.agent import run_agent
-from ..core.user_config import load_config, get_writer_config
+from ..core.user_config import get_writer_config
 from ..core.parsers.registry import get_parser
 from ..automation.stream import format_stream_message
 from ..core.output import console
