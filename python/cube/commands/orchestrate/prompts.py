@@ -186,7 +186,7 @@ Include: context, requirements, steps, constraints, anti-patterns, success crite
                     thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                     layout.add_thinking(thinking_text)
                 elif msg.type == "assistant" and msg.content:
-                    layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
+                    layout.add_assistant_message(msg.content, "Prompter", "cyan")
                 else:
                     layout.add_output(formatted)
 
@@ -233,7 +233,7 @@ Include evaluation criteria, scoring rubric, and decision JSON format."""
                     thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                     layout.add_thinking(thinking_text)
                 elif msg.type == "assistant" and msg.content:
-                    layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
+                    layout.add_assistant_message(msg.content, "Prompter", "cyan")
                 else:
                     layout.add_output(formatted)
 

@@ -98,7 +98,7 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                             layout.add_thinking(thinking_text)
                         elif msg.type == "assistant" and msg.content:
-                            layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
+                            layout.add_assistant_message(msg.content, "Prompter", "cyan")
                         else:
                             layout.add_output(formatted)
 
@@ -174,7 +174,7 @@ Include the worktree location and git commands for reviewing."""
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                             layout.add_thinking(thinking_text)
                         elif msg.type == "assistant" and msg.content:
-                            layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
+                            layout.add_assistant_message(msg.content, "Prompter", "cyan")
                         else:
                             layout.add_output(formatted)
 
