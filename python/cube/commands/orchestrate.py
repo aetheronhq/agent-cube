@@ -360,16 +360,8 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
             final_result = run_decide_peer_review(task_id)
             update_phase(task_id, 8)
             
-            # Check if all judges ran
-            from ..core.user_config import get_judge_configs
-            total_judges = len(get_judge_configs())
-            decisions_found = final_result.get("decisions_found", 0)
-            
-            if decisions_found < total_judges:
-                print_warning(f"Only {decisions_found}/{total_judges} judges have decisions")
-                print_warning("Run peer-review to get all judge decisions before proceeding")
-                console.print()
-                console.print("[cyan]To run missing judges:[/cyan]")
+            if final_result.get("decisions_found", 0) == 0:
+                print_warning("No peer review decisions found - run peer-review first")
                 console.print(f"  cube peer-review {task_id}")
                 return
             
@@ -393,16 +385,8 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
             if resume_from > 8:
                 final_result = run_decide_peer_review(task_id)
             
-            # Check if all judges ran
-            from ..core.user_config import get_judge_configs
-            total_judges = len(get_judge_configs())
-            decisions_found = final_result.get("decisions_found", 0)
-            
-            if decisions_found < total_judges:
-                print_warning(f"Only {decisions_found}/{total_judges} judges have decisions")
-                print_warning("Run peer-review to get all judge decisions before proceeding")
-                console.print()
-                console.print("[cyan]To run missing judges:[/cyan]")
+            if final_result.get("decisions_found", 0) == 0:
+                print_warning("No peer review decisions found - run peer-review first")
                 console.print(f"  cube peer-review {task_id}")
                 return
             
@@ -517,6 +501,9 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
             temp_prompt = prompts_dir / f"temp-peer-review-{task_id}.md"
             temp_prompt.write_text(task_id)
             
+            # Clear existing peer-review decision files to prevent concatenation
+            _clear_peer_review_decisions(task_id)
+            
             # Run only the peer_review_only judges
             await launch_judge_panel(task_id, temp_prompt, "peer-review", resume_mode=False, winner=result["winner"])
             
@@ -525,6 +512,7 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
             
             if auto_result.get("approved") and auto_result.get("decisions_found", 0) > 0:
                 print_info("✅ Automated review passed!")
+                update_phase(task_id, 6, path="MERGE", peer_review_complete=True)
             else:
                 issues = auto_result.get("remaining_issues", [])
                 decisions_found = auto_result.get("decisions_found", 0)
@@ -532,23 +520,44 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
                 
                 console.print()
                 if issues:
-                    print_warning(f"Automated review found {len(issues)} issue(s):")
+                    print_warning(f"Automated review found {len(issues)} issue(s) - running minor fixes")
                     for issue in issues[:5]:
                         console.print(f"  • {issue[:100]}")
                     if len(issues) > 5:
                         console.print(f"  ... and {len(issues) - 5} more")
+                    
+                    # Run minor fixes for the automated review issues
+                    await run_minor_fixes(task_id, result, issues, prompts_dir)
+                    update_phase(task_id, 6, path="MERGE")
+                    
+                    # Re-run automated review after fixes
+                    console.print()
+                    console.print("[yellow]═══ Re-running Automated Review ═══[/yellow]")
+                    _clear_peer_review_decisions(task_id)
+                    await launch_judge_panel(task_id, temp_prompt, "peer-review", resume_mode=False, winner=result["winner"])
+                    
+                    recheck = run_decide_peer_review(task_id)
+                    if recheck.get("approved"):
+                        print_success("✅ Automated review passed after fixes!")
+                        update_phase(task_id, 6, path="MERGE", peer_review_complete=True)
+                    else:
+                        remaining = recheck.get("remaining_issues", [])
+                        console.print()
+                        print_warning(f"Still {len(remaining)} issue(s) after fixes")
+                        console.print()
+                        winner = result.get("winner", "writer_b").replace("writer_", "")
+                        console.print("Send targeted feedback to address remaining issues:")
+                        console.print(f"  cube feedback {winner} {task_id} \"<fix instructions>\"")
+                        console.print(f"  cube auto {task_id} --resume-from peer-review")
+                        return
                 elif decisions_found == 0:
                     print_warning("No automated review decisions found!")
+                    console.print("Retry:")
+                    console.print(f"  cube auto {task_id} --resume-from peer-review")
+                    return
                 else:
                     print_warning(f"Automated review not approved ({approvals}/{decisions_found} approved)")
-                
-                console.print()
-                console.print("Fix issues or wait for decisions, then resume:")
-                console.print(f"  cube auto {task_id} --resume-from 6")
-                update_phase(task_id, 6, path="MERGE")
-                return
-            
-            update_phase(task_id, 6, path="MERGE", peer_review_complete=True)
+                    update_phase(task_id, 6, path="MERGE", peer_review_complete=True)
         
         if resume_from <= 7:
             console.print()
@@ -692,8 +701,25 @@ def run_decide_and_get_result(task_id: str) -> dict:
     with open(result_file) as f:
         return json.load(f)
 
+def _clear_peer_review_decisions(task_id: str) -> None:
+    """Delete existing peer-review decision files to prevent append/concatenation.
+    
+    Some agents append to existing files instead of overwriting, causing
+    invalid JSON with multiple root objects. Clear before each peer-review run.
+    """
+    from ..core.user_config import get_judge_configs
+    from ..core.decision_parser import get_decision_file_path
+    
+    for judge in get_judge_configs():
+        peer_file = get_decision_file_path(judge.key, task_id, review_type="peer-review")
+        if peer_file.exists():
+            peer_file.unlink()
+
 def run_decide_peer_review(task_id: str) -> dict:
-    """Check peer review decisions and extract any remaining issues."""
+    """Check peer review decisions and extract any remaining issues.
+    
+    Only checks judges that have peer-review decision files (not all judges).
+    """
     import json
     from pathlib import Path
     from ..core.user_config import get_judge_configs
@@ -712,7 +738,14 @@ def run_decide_peer_review(task_id: str) -> dict:
     has_request_changes = False
     judge_configs = get_judge_configs()
     judge_nums = [j.key for j in judge_configs]
-    total_judges = len(judge_nums)
+    
+    # Count judges that actually have peer-review files (not all judges)
+    judges_with_files = []
+    for judge_key in judge_nums:
+        peer_file = get_decision_file_path(judge_key, task_id, review_type="peer-review")
+        if peer_file.exists():
+            judges_with_files.append(judge_key)
+    total_judges = len(judges_with_files) if judges_with_files else 1
     
     for judge_key in judge_nums:
         peer_file = get_decision_file_path(judge_key, task_id, review_type="peer-review")
@@ -967,6 +1000,7 @@ Include the worktree location and git commands for reviewing."""
             raise RuntimeError(f"Prompter failed to generate peer review prompt at {peer_review_path}")
     
     print_info(f"Launching peer review for Winner: Writer {winner_name}")
+    _clear_peer_review_decisions(task_id)
     await launch_judge_panel(task_id, peer_review_path, "peer-review", resume_mode=False, winner=winner_name)
 
 async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):
