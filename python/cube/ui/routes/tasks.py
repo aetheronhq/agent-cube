@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
 
+MAX_FILE_PREVIEW_SIZE = 10_000  # 10KB preview limit for UI
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel, model_validator
 
@@ -187,8 +189,8 @@ async def get_task_prompts(task_id: str) -> dict[str, Any]:
             try:
                 prompts[key] = {
                     "filename": filename,
-                    "content": filepath.read_text()[:10000],
-                    "truncated": filepath.stat().st_size > 10000,
+                    "content": filepath.read_text()[:MAX_FILE_PREVIEW_SIZE],
+                    "truncated": filepath.stat().st_size > MAX_FILE_PREVIEW_SIZE,
                 }
             except (OSError, IOError):
                 pass
@@ -209,8 +211,8 @@ async def get_task_prompts(task_id: str) -> dict[str, Any]:
             try:
                 prompts[key] = {
                     "filename": filename,
-                    "content": filepath.read_text()[:10000],
-                    "truncated": filepath.stat().st_size > 10000,
+                    "content": filepath.read_text()[:MAX_FILE_PREVIEW_SIZE],
+                    "truncated": filepath.stat().st_size > MAX_FILE_PREVIEW_SIZE,
                 }
             except (OSError, IOError):
                 pass
@@ -228,8 +230,8 @@ async def get_task_prompts(task_id: str) -> dict[str, Any]:
                 try:
                     prompts[key] = {
                         "filename": filename,
-                        "content": filepath.read_text()[:10000],
-                        "truncated": filepath.stat().st_size > 10000,
+                        "content": filepath.read_text()[:MAX_FILE_PREVIEW_SIZE],
+                        "truncated": filepath.stat().st_size > MAX_FILE_PREVIEW_SIZE,
                     }
                 except (OSError, IOError):
                     pass
