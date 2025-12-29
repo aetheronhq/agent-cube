@@ -188,7 +188,7 @@ Include the worktree location and git commands for reviewing."""
             layout.close()
 
     print_info(f"Launching peer review for Winner: {winner_cfg.label}")
-    await launch_judge_panel(task_id, peer_review_path, "peer-review", resume_mode=False, winner=result["winner"])
+    await launch_judge_panel(task_id, peer_review_path, "peer-review", resume_mode=False, winner=result["winner"], automated=False)
 
 
 async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):

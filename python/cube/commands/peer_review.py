@@ -84,9 +84,11 @@ def peer_review_command(
             from ..core.user_config import get_judge_configs
             
             judge_configs = get_judge_configs()
+            # Only check sessions for judges that have resumable sessions (skip CLI tools)
+            resumable_judges = [j for j in judge_configs if j.type == "llm"]
             missing_sessions = []
             
-            for jconfig in judge_configs:
+            for jconfig in resumable_judges:
                 if not session_exists(f"JUDGE_{jconfig.key}", f"{task_id}_panel"):
                     missing_sessions.append(jconfig.key)
             

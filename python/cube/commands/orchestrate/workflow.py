@@ -499,7 +499,7 @@ async def _orchestrate_auto_impl(
             # Clear existing peer-review decision files to prevent concatenation
             clear_peer_review_decisions(task_id)
 
-            await launch_judge_panel(task_id, temp_prompt, "peer-review", resume_mode=False, winner=result["winner"])
+            await launch_judge_panel(task_id, temp_prompt, "peer-review", resume_mode=False, winner=result["winner"], automated=True)
 
             auto_result = run_decide_peer_review(task_id)
 
@@ -527,7 +527,7 @@ async def _orchestrate_auto_impl(
                     console.print()
                     console.print("[yellow]═══ Re-running Automated Review ═══[/yellow]")
                     clear_peer_review_decisions(task_id)
-                    await launch_judge_panel(task_id, temp_prompt, "peer-review", resume_mode=False, winner=result["winner"])
+                    await launch_judge_panel(task_id, temp_prompt, "peer-review", resume_mode=False, winner=result["winner"], automated=False)
                     
                     recheck = run_decide_peer_review(task_id)
                     if recheck.get("approved"):

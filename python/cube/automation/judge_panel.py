@@ -214,12 +214,14 @@ async def launch_judge_panel(
     review_type: str = "initial",
     resume_mode: bool = False,
     winner: str = None,
-    single_judge: str = None
+    single_judge: str = None,
+    automated: bool = False
 ) -> None:
     """Launch judge panel in parallel.
     
     Args:
         single_judge: If provided, only run this specific judge (e.g., "judge_4")
+        automated: True if called from automated workflow (uses peer_review_only filter)
     """
     
     if not prompt_file.exists():
@@ -238,10 +240,13 @@ async def launch_judge_panel(
         # Panel review: exclude peer_review_only judges (they only do peer review)
         judge_configs = [j for j in all_judges if not j.peer_review_only]
     elif review_type == "peer-review":
-        # Peer review in MERGE path: only run peer_review_only judges (e.g. CodeRabbit)
-        peer_only = [j for j in all_judges if j.peer_review_only]
-        # If no peer_review_only judges configured, fall back to all judges
-        judge_configs = peer_only if peer_only else all_judges
+        # Automated peer review (MERGE path): only run peer_review_only judges (e.g. CodeRabbit)
+        # Manual/SYNTHESIS peer review: run ALL judges to re-review after changes
+        if automated:
+            peer_only = [j for j in all_judges if j.peer_review_only]
+            judge_configs = peer_only if peer_only else all_judges
+        else:
+            judge_configs = all_judges
     else:
         judge_configs = all_judges
     
