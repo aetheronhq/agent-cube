@@ -42,7 +42,8 @@ async def send_feedback_async(
         resume=True
     )
     
-    layout = SingleAgentLayout(title=wconfig.label)
+    layout = SingleAgentLayout
+    layout.initialize(wconfig.label)
     layout.start()
     
     async with agent_logging_context(

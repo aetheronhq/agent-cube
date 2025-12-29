@@ -226,7 +226,8 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
     from ...core.single_layout import SingleAgentLayout
 
     parser = get_parser("cursor-agent")
-    layout = SingleAgentLayout(title="Prompter")
+    layout = SingleAgentLayout
+    layout.initialize("Prompter")
     layout.start()
 
     try:

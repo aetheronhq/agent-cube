@@ -31,7 +31,8 @@ async def run_single_agent(
         raise RuntimeError(f"{cli_name} not installed")
     
     parser = get_parser(cli_name)
-    layout = SingleAgentLayout(title=f"{model}")
+    layout = SingleAgentLayout
+    layout.initialize(f"{model}")
     
     console.print(f"[cyan]🤖 Running {model} with {cli_name}[/cyan]")
     console.print()
