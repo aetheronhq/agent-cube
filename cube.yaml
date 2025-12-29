@@ -1,5 +1,15 @@
 # Agent Cube Project Configuration
 
+# CLI tool to use for each model
+# cursor-agent CLI: npm install -g @cursor/cli
+# gemini CLI: npm install -g @google/gemini-cli
+# claude-code CLI: npm install -g @anthropic-ai/claude-code
+#   Then authenticate: claude setup-token (requires Claude subscription)
+cli_tools:
+  # Claude Code CLI models (direct Anthropic API)
+  claude-4-opus: claude-code
+  claude-4-sonnet: claude-code
+
 judges:
   judge_4:
     type: "cli-review"
