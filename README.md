@@ -1,5 +1,7 @@
 # 🧊 Agent Cube
 
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
+
 **Autonomous multi-agent coding workflow with competitive development and judicial review**
 
 ```bash
