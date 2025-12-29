@@ -1,7 +1,7 @@
 # Agent Cube Task Phases
 
 **Generated:** 2025-12-29
-**Total Tasks:** 16 (2 complete, 1 partial, 1 in review, 12 pending)
+**Total Tasks:** 16 (3 complete, 1 partial, 1 in review, 11 pending)
 **Estimated Total Time:** 20-28 hours parallel execution
 
 ---
@@ -12,7 +12,7 @@
 |------|-------------|--------|------------|-----------|
 | 01 | pyproject.toml | ✅ DONE | Low | - |
 | 02 | Fix bare excepts | ✅ DONE | Low | - |
-| 03 | Delete dead layouts | ❌ TODO | Low | 15 min |
+| 03 | Delete dead layouts | ✅ DONE | Low | - |
 | 04 | Split orchestrate.py | 🔄 IN REVIEW | High | 4-6 hrs |
 | 05 | Add core tests | ❌ TODO | Medium | 4-6 hrs |
 | 06 | Add docstrings | ❌ TODO | Low | 2-3 hrs |
@@ -63,23 +63,22 @@ PHASE 4: Quality
 
 ## Phase 0: Quick Wins
 
-**Parallelizable:** ✅ Yes (all 4 tasks)
+**Parallelizable:** ✅ Yes (all 3 remaining tasks)
 **Est. Time:** 1.5 hours total
 **Risk:** Low
 
 ### Tasks
 
-| Task | Files Changed | Description |
-|------|---------------|-------------|
-| 03 | Delete 2 files | Remove `dual_layout.py`, `triple_layout.py` |
-| 07 | Create 2 files | Add `CODE_OF_CONDUCT.md`, `CHANGELOG.md` |
-| 11 | Edit 3 files | Replace ~11 `print()` with `console.print()` |
-| 12 | Edit 2 files | Extract magic numbers to constants |
+| Task | Files Changed | Description | Status |
+|------|---------------|-------------|--------|
+| 03 | Delete 2 files | Remove `dual_layout.py`, `triple_layout.py` | ✅ DONE |
+| 07 | Create 2 files | Add `CODE_OF_CONDUCT.md`, `CHANGELOG.md` | 🟡 PARTIAL |
+| 11 | Edit 3 files | Replace ~11 `print()` with `console.print()` | ❌ TODO |
+| 12 | Edit 2 files | Extract magic numbers to constants | ❌ TODO |
 
 ### Execution
 ```bash
-# All 4 can run in parallel with 2 writers
-cube auto docs/tasks/03-delete-dead-layouts.md &
+# Remaining 3 can run in parallel
 cube auto docs/tasks/07-add-oss-files.md &
 cube auto docs/tasks/11-fix-raw-prints.md &
 cube auto docs/tasks/12-extract-constants.md &
