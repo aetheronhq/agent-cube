@@ -278,14 +278,14 @@ Save to: `.prompts/feedback-{writer_letter}-{task_id}.md`"""
 Task: {task_id}
 Both writers need changes based on judge reviews.
 
-{prompt_base.format(task_id=task_id, writer=writer_a.letter, writer_slug=writer_a.name, writer_letter=writer_a.letter.lower())}"""
+{prompt_base.format(task_id=task_id, writer="A", writer_slug=writer_a.name, writer_letter="a")}"""
 
     prompt_b = f"""Generate a feedback prompt for {writer_b.label}.
 
 Task: {task_id}
 Both writers need changes based on judge reviews.
 
-{prompt_base.format(task_id=task_id, writer=writer_b.letter, writer_slug=writer_b.name, writer_letter=writer_b.letter.lower())}"""
+{prompt_base.format(task_id=task_id, writer="B", writer_slug=writer_b.name, writer_letter="b")}"""
 
     console.print("Generating feedback for both writers in parallel...")
     console.print()
@@ -355,16 +355,16 @@ Both writers need changes based on judge reviews.
         from ...core.session import load_session
         from ...core.config import WORKTREE_BASE
 
-        session_a = load_session("WRITER_A", task_id)
-        session_b = load_session("WRITER_B", task_id)
-
-        if not session_a:
-            raise RuntimeError("No session found for Writer A. Cannot send feedback.")
-        if not session_b:
-            raise RuntimeError("No session found for Writer B. Cannot send feedback.")
-
         writer_a = get_writer_config("writer_a")
         writer_b = get_writer_config("writer_b")
+        
+        session_a = load_session(writer_a.key.upper(), task_id)
+        session_b = load_session(writer_b.key.upper(), task_id)
+
+        if not session_a:
+            raise RuntimeError(f"No session found for {writer_a.label}. Cannot send feedback.")
+        if not session_b:
+            raise RuntimeError(f"No session found for {writer_b.label}. Cannot send feedback.")
 
         project_name = Path(PROJECT_ROOT).name
         worktree_a = WORKTREE_BASE / project_name / f"writer-{writer_a.name}-{task_id}"

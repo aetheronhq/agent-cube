@@ -109,13 +109,13 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
         finally:
             layout.close()
 
-    print_info(f"Sending synthesis to Writer {winner_name}")
+    print_info(f"Sending synthesis to {winner_cfg.label}")
     from ..feedback import send_feedback_async
     from ...core.session import load_session
 
-    session_id = load_session(f"WRITER_{winner_cfg.letter}", task_id)
+    session_id = load_session(winner_cfg.key.upper(), task_id)
     if not session_id:
-        raise RuntimeError(f"No session found for Writer {winner_name}. Cannot send synthesis.")
+        raise RuntimeError(f"No session found for {winner_cfg.label}. Cannot send synthesis.")
 
     project_name = Path(PROJECT_ROOT).name
     worktree = WORKTREE_BASE / project_name / f"writer-{winner_cfg.name}-{task_id}"
@@ -184,8 +184,8 @@ Include the worktree location and git commands for reviewing."""
         finally:
             layout.close()
 
-    print_info(f"Launching peer review for Winner: Writer {winner_name}")
-    await launch_judge_panel(task_id, peer_review_path, "peer-review", resume_mode=False, winner=winner_name)
+    print_info(f"Launching peer review for Winner: {winner_cfg.label}")
+    await launch_judge_panel(task_id, peer_review_path, "peer-review", resume_mode=False, winner=result["winner"])
 
 
 async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):
@@ -251,9 +251,9 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
     from ..feedback import send_feedback_async
     from ...core.session import load_session
 
-    session_id = load_session(f"WRITER_{winner_cfg.letter}", task_id)
+    session_id = load_session(winner_cfg.key.upper(), task_id)
     if not session_id:
-        raise RuntimeError(f"No session found for Writer {winner_cfg.label}. Cannot send minor fixes.")
+        raise RuntimeError(f"No session found for {winner_cfg.label}. Cannot send minor fixes.")
 
     project_name = Path(PROJECT_ROOT).name
     worktree = WORKTREE_BASE / project_name / f"writer-{winner_name}-{task_id}"

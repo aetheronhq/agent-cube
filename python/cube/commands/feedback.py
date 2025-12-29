@@ -7,7 +7,7 @@ import typer
 from ..core.agent import check_cursor_agent, run_agent
 from ..core.session import load_session
 from ..core.output import print_error, print_info, console
-from ..core.config import PROJECT_ROOT, get_worktree_path, WRITER_LETTERS, resolve_path
+from ..core.config import PROJECT_ROOT, get_worktree_path, resolve_path
 from ..core.user_config import resolve_writer_alias, get_writer_aliases
 async def send_feedback_async(
     writer: str,
@@ -27,51 +27,44 @@ async def send_feedback_async(
         raise RuntimeError(f"Worktree not found: {worktree}")
     
     wconfig = resolve_writer_alias(writer)
-    writer_slug = wconfig.name
-    model = wconfig.model
-    writer_letter = WRITER_LETTERS.get(writer_slug, "X")
     
     config = load_config()
-    cli_name = config.cli_tools.get(model, "cursor-agent")
+    cli_name = config.cli_tools.get(wconfig.model, "cursor-agent")
     parser = get_parser(cli_name)
     
     feedback_message = feedback_file.read_text()
     
     stream = run_agent(
         worktree,
-        model,
+        wconfig.model,
         feedback_message,
         session_id=session_id,
         resume=True
     )
     
-    writer_label = wconfig.label
-    color = wconfig.color
-    
-    layout = SingleAgentLayout(title=writer_label)
+    layout = SingleAgentLayout(title=wconfig.label)
     layout.start()
     
-    # Use generic logging context
     async with agent_logging_context(
         agent_type="feedback",
-        agent_name=writer_slug,
+        agent_name=wconfig.name,
         task_id=task_id,
-        session_key=f"WRITER_{writer_letter}",
+        session_key=wconfig.key.upper(),
         session_task_key=task_id,
-        metadata=f"Feedback {writer_label} ({model}) - {task_id}"
+        metadata=f"Feedback {wconfig.label} ({wconfig.model}) - {task_id}"
     ) as logger:
         async for line in stream:
             logger.write_line(line)  # Log every line
             
             msg = parser.parse(line)
             if msg:
-                formatted = format_stream_message(msg, writer_label, color)
+                formatted = format_stream_message(msg, wconfig.label, wconfig.color)
                 if formatted:
                     if formatted.startswith("[thinking]"):
                         thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                         layout.add_thinking(thinking_text)
                     elif msg.type == "assistant" and msg.content:
-                        layout.add_assistant_message("agent", msg.content, writer_label, color)
+                        layout.add_assistant_message("agent", msg.content, wconfig.label, wconfig.color)
                     else:
                         layout.add_output(formatted)
     
@@ -90,8 +83,6 @@ def feedback_command(
         print_error(f"Invalid writer: {writer} (choices: {', '.join(get_writer_aliases())})")
         raise typer.Exit(1)
     
-    writer_slug = wconfig.name
-    
     if not check_cursor_agent():
         print_error("cursor-agent CLI is not installed")
         raise typer.Exit(1)
@@ -104,16 +95,15 @@ def feedback_command(
         temp_path.write_text(feedback_file)
         feedback_path = temp_path
     
-    writer_letter = WRITER_LETTERS[writer_slug]
-    session_id = load_session(f"WRITER_{writer_letter}", task_id)
+    session_id = load_session(wconfig.key.upper(), task_id)
     
     if not session_id:
-        print_error(f"Session ID not found for writer-{writer}")
+        print_error(f"Session ID not found for {wconfig.label}")
         print_info("Run 'cube-py sessions' to see available sessions")
         raise typer.Exit(1)
     
     project_name = Path(PROJECT_ROOT).name
-    worktree = get_worktree_path(project_name, writer_slug, task_id)
+    worktree = get_worktree_path(project_name, wconfig.name, task_id)
     
     if not worktree.exists():
         print_error(f"Worktree not found: {worktree}")
@@ -127,7 +117,7 @@ def feedback_command(
     console.print()
     
     try:
-        asyncio.run(send_feedback_async(writer_slug, task_id, feedback_path, session_id, worktree))
+        asyncio.run(send_feedback_async(wconfig.name, task_id, feedback_path, session_id, worktree))
     except RuntimeError as e:
         print_error(str(e))
         raise typer.Exit(1)

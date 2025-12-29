@@ -14,7 +14,14 @@ class WriterConfig:
     model: str
     label: str
     color: str
-    letter: str
+    
+    def session_key(self, task_id: str) -> str:
+        """Session file key - use config key directly (e.g., WRITER_A_taskid)."""
+        return f"{self.key.upper()}_{task_id}"
+    
+    def worktree_name(self, task_id: str) -> str:
+        """Worktree directory name (e.g., writer-opus-taskid)."""
+        return f"writer-{self.name}-{task_id}"
 
 @dataclass
 class JudgeConfig:
@@ -23,21 +30,21 @@ class JudgeConfig:
     model: str
     label: str
     color: str
-    # New fields for CLI reviewers
     type: str = "llm"  # "llm" or "cli-review"
     cmd: Optional[str] = None
     peer_review_only: bool = False  # Skip in panel, only run in peer-review
+    
+    def session_key(self, task_id: str, review_type: str) -> str:
+        """Session file key (e.g., JUDGE_1_taskid_panel)."""
+        return f"{self.key.upper()}_{task_id}_{review_type}"
 
 @dataclass
 class CubeConfig:
     """Main configuration."""
     writers: Dict[str, WriterConfig]
-    writer_slug_map: Dict[str, str]  # slug -> writer key
-    writer_alias_map: Dict[str, str]  # alias -> slug
     writer_order: list[str]
     judges: Dict[str, JudgeConfig]
     judge_order: list[str]
-    judge_alias_map: Dict[str, str]
     cli_tools: Dict[str, str]
     prompter_model: str
     auto_commit: bool
@@ -154,45 +161,21 @@ def load_config() -> CubeConfig:
     
     writer_order: list[str] = []
     writers: Dict[str, WriterConfig] = {}
-    writer_slug_map: Dict[str, str] = {}
-    writer_alias_map: Dict[str, str] = {}
-    for idx, (key, w) in enumerate(data.get("writers", {}).items()):
+    for key, w in data.get("writers", {}).items():
         writer_order.append(key)
-        slug = w["name"]
-        letter = w.get("letter") or chr(ord("A") + idx)
-        canonical_slug = slug
-        writer_cfg = WriterConfig(
+        writers[key] = WriterConfig(
             key=key,
-            name=canonical_slug,
+            name=w["name"],
             model=w["model"],
             label=w["label"],
-            color=w["color"],
-            letter=letter.upper()
+            color=w["color"]
         )
-        writers[key] = writer_cfg
-        writer_slug_map[canonical_slug] = key
-        
-        aliases = {
-            canonical_slug,
-            canonical_slug.replace("_", "-"),
-            key,
-            key.replace("_", "-"),
-            f"writer-{canonical_slug}",
-            f"writer-{canonical_slug}".replace("_", "-"),
-            writer_cfg.letter,
-            writer_cfg.letter.lower(),
-            f"writer-{writer_cfg.letter}",
-            f"writer-{writer_cfg.letter.lower()}",
-        }
-        for alias in aliases:
-            writer_alias_map[alias.lower()] = canonical_slug
     
     judges: Dict[str, JudgeConfig] = {}
     judge_order: list[str] = []
-    judge_alias_map: Dict[str, str] = {}
-    for idx, (key, j) in enumerate(data.get("judges", {}).items()):
+    for key, j in data.get("judges", {}).items():
         judge_order.append(key)
-        judge_cfg = JudgeConfig(
+        judges[key] = JudgeConfig(
             key=key,
             model=j.get("model", "sonnet-4.5-thinking"),
             label=j.get("label", key),
@@ -201,15 +184,6 @@ def load_config() -> CubeConfig:
             cmd=j.get("cmd"),
             peer_review_only=j.get("peer_review_only", False)
         )
-        judges[key] = judge_cfg
-        
-        aliases = {
-            key,
-            key.replace("_", "-"),
-            judge_cfg.label.lower(),
-        }
-        for alias in aliases:
-            judge_alias_map[alias.lower()] = key
     
     cli_tools = data.get("cli_tools", {})
     behavior = data.get("behavior", {})
@@ -218,12 +192,9 @@ def load_config() -> CubeConfig:
     
     _config_cache = CubeConfig(
         writers=writers,
-        writer_slug_map=writer_slug_map,
-        writer_alias_map=writer_alias_map,
         writer_order=writer_order,
         judges=judges,
         judge_order=judge_order,
-        judge_alias_map=judge_alias_map,
         cli_tools=cli_tools,
         prompter_model=prompter_model,
         auto_commit=behavior.get("auto_commit", True),
@@ -245,71 +216,57 @@ def get_prompter_model() -> str:
     return config.prompter_model
 
 def get_writer_config(writer_key: str) -> WriterConfig:
-    """Get writer configuration."""
+    """Get writer configuration by key."""
     config = load_config()
     return config.writers.get(writer_key, config.writers["writer_a"])
 
-def get_writer_config_by_slug(slug: str) -> WriterConfig:
-    """Get writer configuration by slug/name."""
-    config = load_config()
-    if slug not in config.writer_slug_map:
-        alias_slug = config.writer_alias_map.get(slug.lower())
-        if not alias_slug:
-            raise KeyError(f"Unknown writer slug: {slug}")
-        slug = alias_slug
-    writer_key = config.writer_slug_map[slug]
-    return config.writers[writer_key]
-
 def get_writer_slugs() -> list[str]:
-    """Return list of writer slugs in order."""
+    """Return list of writer slugs (names) in order."""
     config = load_config()
     return [config.writers[key].name for key in config.writer_order]
 
-def get_writer_letter(slug: str) -> str:
-    """Get the letter (A/B/...) associated with a writer slug."""
-    writer = get_writer_config_by_slug(slug)
-    return writer.letter
-
 def resolve_writer_alias(alias: str) -> WriterConfig:
-    """Resolve a user-provided alias (slug, letter, writer-a, etc.) to a writer config."""
+    """Resolve a user-provided alias to writer config.
+    
+    Supports: key (writer_a), name (opus), hyphenated (writer-a), letter (a/A).
+    """
     config = load_config()
     alias_lower = alias.lower()
-    slug = config.writer_alias_map.get(alias_lower)
-    if not slug:
-        raise KeyError(f"Unknown writer alias: {alias}")
-    return get_writer_config_by_slug(slug)
+    
+    # Direct key match (writer_a, writer_b)
+    if alias_lower in config.writers:
+        return config.writers[alias_lower]
+    
+    # By name/slug (opus, codex)
+    for w in config.writers.values():
+        if w.name.lower() == alias_lower:
+            return w
+    
+    # Hyphenated key (writer-a -> writer_a)
+    for key, w in config.writers.items():
+        if key.replace("_", "-") == alias_lower:
+            return w
+    
+    # Single letter (a -> writer_a, b -> writer_b)
+    if len(alias_lower) == 1 and alias_lower.isalpha():
+        idx = ord(alias_lower) - ord('a')
+        if 0 <= idx < len(config.writer_order):
+            return config.writers[config.writer_order[idx]]
+    
+    raise KeyError(f"Unknown writer: {alias}")
 
 def get_writer_aliases() -> list[str]:
-    """Return sorted list of known writer aliases."""
+    """Return list of common writer aliases."""
     config = load_config()
-    return sorted(set(config.writer_alias_map.keys()))
-
-def get_writer_by_letter(letter: str) -> WriterConfig:
-    """Get writer config by letter (A/B/...)."""
-    config = load_config()
-    letter_upper = letter.upper()
-    for key in config.writer_order:
-        writer = config.writers[key]
-        if writer.letter == letter_upper:
-            return writer
-    raise KeyError(f"No writer found with letter: {letter}")
+    aliases = []
+    for idx, key in enumerate(config.writer_order):
+        w = config.writers[key]
+        aliases.extend([w.name, key, chr(ord('a') + idx)])
+    return sorted(set(aliases))
 
 def get_writer_by_key_or_letter(key_or_letter: str) -> WriterConfig:
-    """Get writer config by key (writer_a) or letter (A)."""
-    config = load_config()
-    
-    # Try as key first
-    if key_or_letter in config.writers:
-        return config.writers[key_or_letter]
-    
-    # Try as letter
-    letter_upper = key_or_letter.upper()
-    for key in config.writer_order:
-        writer = config.writers[key]
-        if writer.letter == letter_upper:
-            return writer
-    
-    raise KeyError(f"No writer found with key or letter: {key_or_letter}")
+    """Get writer config by key (writer_a) or letter (A/a)."""
+    return resolve_writer_alias(key_or_letter)
 
 def get_judge_config(judge_key: str) -> JudgeConfig:
     """Get judge configuration by key."""
@@ -328,16 +285,35 @@ def get_judge_numbers() -> list[str]:
     return [judge.key for judge in get_judge_configs()]
 
 def resolve_judge_alias(alias: str) -> JudgeConfig:
-    """Resolve alias (judge-1, 1, key, label) to judge config."""
+    """Resolve alias to judge config.
+    
+    Supports: key (judge_1), hyphenated (judge-1), label (Judge Sonnet).
+    """
     config = load_config()
     alias_lower = alias.lower()
-    key = config.judge_alias_map.get(alias_lower)
-    if not key:
-        raise KeyError(f"Unknown judge alias: {alias}")
-    return config.judges[key]
+    
+    # Direct key match (judge_1, judge_2)
+    if alias_lower in config.judges:
+        return config.judges[alias_lower]
+    
+    # Hyphenated key (judge-1 -> judge_1)
+    for key, j in config.judges.items():
+        if key.replace("_", "-") == alias_lower:
+            return j
+    
+    # By label (Judge Sonnet)
+    for j in config.judges.values():
+        if j.label.lower() == alias_lower:
+            return j
+    
+    raise KeyError(f"Unknown judge: {alias}")
 
 def get_judge_aliases() -> list[str]:
-    """Return sorted list of judge aliases."""
+    """Return list of common judge aliases."""
     config = load_config()
-    return sorted(set(config.judge_alias_map.keys()))
+    aliases = []
+    for key in config.judge_order:
+        j = config.judges[key]
+        aliases.extend([key, key.replace("_", "-")])
+    return sorted(set(aliases))
 
