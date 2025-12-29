@@ -47,19 +47,23 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     console.print(f"[cyan]📊 Analyzing panel decisions for: {task_id}[/cyan]")
     console.print()
     
+    # For panel review, only count non-peer_review_only judges
+    panel_judges = [j for j in judge_configs if not j.peer_review_only]
+    panel_judge_keys = [j.key for j in panel_judges]
+    
     decisions = parse_all_decisions(task_id)
     
     if not decisions:
         print_error("No decision files found")
         console.print()
         console.print("Expected decision files:")
-        for judge_key in judge_nums:
+        for judge_key in panel_judge_keys:
             decision_file = get_decision_file_path(judge_key, task_id)
             console.print(f"  {decision_file}")
         console.print()
         
         console.print("Missing decisions from:")
-        for judge_key in judge_nums:
+        for judge_key in panel_judge_keys:
             decision_file = get_decision_file_path(judge_key, task_id)
             if not decision_file.exists():
                 session_id = load_session(f"JUDGE_{judge_key}", f"{task_id}_panel")
@@ -79,7 +83,7 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
         
         raise typer.Exit(1)
     
-    total_judges = len(judge_nums)
+    total_judges = len(panel_judge_keys)
     if len(decisions) < total_judges:
         # Normalize judge keys for comparison (handle "1" vs "judge_1" etc)
         found_judges = set()
@@ -89,7 +93,7 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
             if str(d.judge).isdigit():
                 found_judges.add(f"judge_{d.judge}")
         
-        missing = [j for j in judge_nums if j not in found_judges]
+        missing = [j for j in panel_judge_keys if j not in found_judges]
         if missing:
             missing_labels = []
             for j in missing:

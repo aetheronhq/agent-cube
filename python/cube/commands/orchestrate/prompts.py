@@ -161,7 +161,14 @@ Generate a comprehensive writer prompt for the Agent Cube dual-writer workflow.
 Create a detailed writer prompt and save to: `.prompts/writer-prompt-{task_id}.md`
 
 Include: context, requirements, steps, constraints, anti-patterns, success criteria.
-**Critical:** Tell writers to commit and push at the end!"""
+
+**Critical Instructions for Writers:**
+1. **First step**: Merge latest main to avoid conflicts later:
+   - `git fetch origin main`
+   - `git merge origin/main --no-edit` (non-interactive merge)
+   - If conflicts: Use read_file/write_file to fix them programmatically (no interactive editors!)
+   - Verify clean with `git status` before proceeding
+2. **Last step**: Commit and push when complete!"""
 
     parser = get_parser("cursor-agent")
     layout = SingleAgentLayout(title="Prompter")
@@ -271,11 +278,13 @@ Location: `~/.cube/worktrees/PROJECT/writer-{writer_slug}-{task_id}/`
 
 ## Your Task
 
-Create a targeted feedback prompt for Writer {writer} that:
-1. Lists specific issues judges found
-2. Provides concrete fix suggestions
-3. References specific files/lines
-4. Keeps their good work, fixes problems
+Create a targeted feedback prompt for Writer {writer} that tells them to:
+1. **First**: Merge latest main (`git fetch origin main && git merge origin/main --no-edit`) and fix any conflicts programmatically using read_file/write_file (no interactive editors!)
+2. Lists specific issues judges found
+3. Provides concrete fix suggestions
+4. References specific files/lines
+5. Keeps their good work, fixes problems
+6. Commit and push when complete
 
 Save to: `.prompts/feedback-{writer_letter}-{task_id}.md`"""
 
@@ -407,24 +416,37 @@ Task: {task_id}
     print_success(f"Created: {feedback_b_path}")
 
     console.print()
-    print_info("Sending feedback to both writers...")
-    from ...automation.dual_feedback import send_dual_feedback
+    print_info("Sending feedback to writers...")
+    from ..feedback import send_feedback_async
     from ...core.session import load_session
     from ...core.config import WORKTREE_BASE
+    from ...core.output import print_warning
 
     session_a = load_session("WRITER_A", task_id)
     session_b = load_session("WRITER_B", task_id)
 
-    if not session_a:
-        raise RuntimeError("No session found for Writer A. Cannot send feedback.")
-    if not session_b:
-        raise RuntimeError("No session found for Writer B. Cannot send feedback.")
+    if not session_a and not session_b:
+        print_warning("No sessions found for either writer. Feedback files generated but not sent.")
+        print_info("Writers will need to manually read and address feedback:")
+        console.print(f"  Writer A: {feedback_a_path}")
+        console.print(f"  Writer B: {feedback_b_path}")
+        return
 
     project_name = Path(PROJECT_ROOT).name
     worktree_a = WORKTREE_BASE / project_name / f"writer-{writer_a.name}-{task_id}"
     worktree_b = WORKTREE_BASE / project_name / f"writer-{writer_b.name}-{task_id}"
 
-    await send_dual_feedback(
-        task_id, feedback_a_path, feedback_b_path,
-        session_a, session_b, worktree_a, worktree_b
-    )
+    # Send feedback to each writer that has a session
+    tasks = []
+    if session_a:
+        tasks.append(send_feedback_async(writer_a.name, task_id, feedback_a_path, session_a, worktree_a))
+    else:
+        print_warning(f"No session found for Writer A. Feedback generated at {feedback_a_path} but not sent.")
+    
+    if session_b:
+        tasks.append(send_feedback_async(writer_b.name, task_id, feedback_b_path, session_b, worktree_b))
+    else:
+        print_warning(f"No session found for Writer B. Feedback generated at {feedback_b_path} but not sent.")
+
+    if tasks:
+        await asyncio.gather(*tasks)

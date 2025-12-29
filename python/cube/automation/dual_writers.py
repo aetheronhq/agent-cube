@@ -61,6 +61,13 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
             if msg:
                 if msg.session_id and not writer_info.session_id:
                     writer_info.session_id = msg.session_id
+                    # Save session immediately when captured
+                    save_session(
+                        f"WRITER_{writer_info.letter}",
+                        writer_info.task_id,
+                        msg.session_id,
+                        f"Writer {writer_info.letter} ({writer_info.model})"
+                    )
                 
                 formatted = format_stream_message(msg, writer_info.label, writer_info.color)
                 if formatted:

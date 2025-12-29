@@ -54,15 +54,11 @@ def run_decide_peer_review(task_id: str, require_decisions: bool = True) -> dict
     console.print()
 
     judge_configs = get_judge_configs()
+    peer_review_judges = [j for j in judge_configs if j.peer_review_only]
     judge_nums = [j.key for j in judge_configs]
     
-    # Count judges that actually have peer-review files (not all judges)
-    judges_with_files = []
-    for judge_key in judge_nums:
-        peer_file = get_decision_file_path(judge_key, task_id, review_type="peer-review")
-        if peer_file.exists():
-            judges_with_files.append(judge_key)
-    total_judges = len(judges_with_files) if judges_with_files else 1
+    # Count expected peer-review judges (only peer_review_only judges run in peer review)
+    total_peer_judges = len(peer_review_judges) if peer_review_judges else len(judge_configs)
 
     for judge_key in judge_nums:
         peer_file = get_decision_file_path(judge_key, task_id, review_type="peer-review")
@@ -105,14 +101,21 @@ def run_decide_peer_review(task_id: str, require_decisions: bool = True) -> dict
     if decisions_found == 0:
         if require_decisions:
             print_warning("No peer review decisions found!")
-            console.print("Expected files:")
-            for judge_key in judge_nums:
-                judge_label = judge_key.replace("_", "-")
-                console.print(f"  .prompts/decisions/{judge_label}-{task_id}-peer-review.json")
+            peer_review_judges = [j for j in judge_configs if j.peer_review_only]
+            if peer_review_judges:
+                console.print("Expected files from peer-review judges:")
+                for judge_cfg in peer_review_judges:
+                    judge_label = judge_cfg.key.replace("_", "-")
+                    console.print(f"  .prompts/decisions/{judge_label}-{task_id}-peer-review.json")
+            else:
+                console.print("No peer_review_only judges configured - all judges:")
+                for judge_key in judge_nums:
+                    judge_label = judge_key.replace("_", "-")
+                    console.print(f"  .prompts/decisions/{judge_label}-{task_id}-peer-review.json")
             console.print()
         return {"approved": False, "remaining_issues": [], "decisions_found": 0, "approvals": 0}
 
-    console.print(f"Decisions: {decisions_found}/{total_judges}, Approvals: {approvals}/{decisions_found}")
+    console.print(f"Decisions: {decisions_found}/{total_peer_judges}, Approvals: {approvals}/{decisions_found}")
 
     approved = approvals == decisions_found
 

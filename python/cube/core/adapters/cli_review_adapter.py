@@ -199,15 +199,25 @@ The writer should read their file to address all issues.
 Do NOT approve if there are suggestions, warnings, or improvements to make. The writer should fix ALL issues first.
 
 **CRITICAL REQUIREMENTS:**
-- Do NOT use read_file or shell tools - make your decision SOLELY based on the review output above
+- For normal reviews: Make your decision SOLELY based on the review output above
+- For failed reviews: You MAY use read_file/shell tools to verify if previous issues were fixed
 - If ANY code issues exist, use REQUEST_CHANGES - even "minor" or "non-blocking" ones
 - You MUST use write_file to create the decision file (see Task Context above for the file path)
 
 **If review tool FAILED (rate limit, network error, empty output):**
-- Use decision: "SKIPPED" (NOT REQUEST_CHANGES!)
-- Tool failures are NOT code issues - don't block the workflow
+
+OPTION 1: Smart Verification (Preferred for re-reviews)
+- Check if a PREVIOUS peer-review decision file exists for this task
+- If yes: Read the previous issues and use read_file/shell tools to verify if they were fixed
+  - APPROVED: All previous issues are now resolved
+  - REQUEST_CHANGES: Previous issues still exist or not all fixed
+  - Include specific details about what was/wasn't fixed in remaining_issues
+- If you can verify all previous issues are fixed, you don't need the tool to re-run
+
+OPTION 2: Skip (Fallback for first-time reviews or if can't verify)
+- Use decision: "SKIPPED" 
 - Set remaining_issues to empty array []
-- Set recommendation to explain the tool failure for retry later
+- Set recommendation to explain the tool failure and suggest retry later
 
 ## JSON Format (save this to the decision file path from Task Context)
 {{
