@@ -71,6 +71,10 @@ def _resolve_resume_from(task_id: str, resume_flag: bool, resume_from_value: Opt
             if path == "FEEDBACK" and current >= 8:
                 parsed_phase = 6
                 console.print(f"[cyan]Auto-resuming from Phase {parsed_phase} (FEEDBACK path loop)[/cyan]")
+            # MERGE path ends at phase 7 (PR created)
+            elif path == "MERGE" and current >= 7:
+                print_success(f"Task {task_id} complete! PR already created.")
+                parsed_phase = 7  # Will exit immediately
             else:
                 parsed_phase = current + 1 if current < 10 else current
                 console.print(f"[cyan]Auto-resuming from Phase {parsed_phase}[/cyan]")

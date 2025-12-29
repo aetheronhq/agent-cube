@@ -62,11 +62,13 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
                 if msg.session_id and not writer_info.session_id:
                     writer_info.session_id = msg.session_id
                     # Save session immediately when captured
+                    # Extract letter from key (writer_a -> A, writer_b -> B)
+                    letter = writer_info.key.split('_')[-1].upper()
                     save_session(
-                        writer_info.key.upper(),
+                        f"WRITER_{letter}",
                         writer_info.task_id,
                         msg.session_id,
-                        f"Writer {writer_info.name} ({writer_info.model})"
+                        f"Writer {letter} ({writer_info.model})"
                     )
                 
                 formatted = format_stream_message(msg, writer_info.label, writer_info.color)
@@ -159,6 +161,7 @@ async def launch_dual_writers(
             model=wconfig.model,
             color=wconfig.color,
             label=wconfig.label,
+            letter=wconfig.letter,
             task_id=task_id,
             worktree=worktree,
             branch=branch,
