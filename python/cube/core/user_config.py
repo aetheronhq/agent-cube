@@ -313,7 +313,6 @@ def get_judge_aliases() -> list[str]:
     config = load_config()
     aliases = []
     for key in config.judge_order:
-        j = config.judges[key]
         aliases.extend([key, key.replace("_", "-")])
     return sorted(set(aliases))
 

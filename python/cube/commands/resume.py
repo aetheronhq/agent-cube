@@ -95,7 +95,7 @@ def resume_command(
             from ..core.user_config import get_writer_aliases, get_judge_aliases
             valid = ", ".join(list(get_writer_aliases())[:5] + list(get_judge_aliases())[:5])
             print_error(f"Invalid target: {target}. Examples: {valid}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
     
     if judge_cfg:
         session_id = load_session(judge_cfg.key.upper(), f"{task_id}_panel")
