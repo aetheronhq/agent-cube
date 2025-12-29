@@ -63,4 +63,6 @@ behavior:
   auto_push: true
   auto_update: true
   session_recording_at_start: true
+  default_mode: "dual"
+  default_writer: "writer_a"
 

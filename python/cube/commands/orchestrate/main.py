@@ -53,7 +53,14 @@ def orchestrate_prompt_command(
         console.print(prompt)
 
 
-async def orchestrate_auto_command(task_file: str | None, resume_from: int = 1, task_id: str | None = None, resume_alias: str | None = None) -> None:
+async def orchestrate_auto_command(
+    task_file: str | None, 
+    resume_from: int = 1, 
+    task_id: str | None = None, 
+    resume_alias: str | None = None,
+    single_mode: bool = False,
+    writer_key: str | None = None
+) -> None:
     """Fully autonomous orchestration - runs entire workflow.
 
     Args:
@@ -61,11 +68,22 @@ async def orchestrate_auto_command(task_file: str | None, resume_from: int = 1, 
         resume_from: Phase number to resume from (1-10)
         task_id: Optional task ID (if not provided, extracted from task_file)
         resume_alias: Original alias used (e.g., "peer-review") to handle special cases
+        single_mode: Run in single-writer mode
+        writer_key: The writer to use in single-writer mode
     """
     from ...core.master_log import master_log_context
 
     if task_id is None:
+        if not task_file:
+            raise ValueError("Task ID or task file must be provided")
         task_id = extract_task_id_from_file(task_file)
 
     with master_log_context(task_id):
-        await _orchestrate_auto_impl(task_file, resume_from, task_id, resume_alias)
+        await _orchestrate_auto_impl(
+            task_file=task_file, 
+            resume_from=resume_from, 
+            task_id=task_id, 
+            resume_alias=resume_alias,
+            single_mode=single_mode,
+            writer_key=writer_key
+        )
