@@ -1,7 +1,6 @@
 """Parallel judge panel execution."""
 
 import asyncio
-import json
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -142,18 +141,13 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
 
 def _parse_decision_status(judge_info: JudgeInfo) -> str:
     """Parse decision file and return status string."""
-    from ..core.decision_parser import get_decision_file_path
+    from ..core.decision_parser import get_decision_file_path, parse_single_decision_file
     
     decision_type = "peer-review" if judge_info.review_type == "peer-review" else "decision"
     decision_file = get_decision_file_path(judge_info.key, judge_info.task_id, review_type=decision_type)
     
-    if not decision_file.exists():
-        return "Review complete"
-    
-    try:
-        with open(decision_file) as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError):
+    data = parse_single_decision_file(decision_file)
+    if data is None:
         return "Review complete"
     
     decision = data.get("decision", "")
