@@ -29,8 +29,6 @@ async def send_dual_feedback(
     # Create fresh layout for feedback prompters (closes previous if exists)
     from ..core.dynamic_layout import DynamicLayout
     
-    config = load_config()
-    
     boxes = {}
     for fb in feedbacks:
         wconfig = get_writer_config(fb.writer_key)

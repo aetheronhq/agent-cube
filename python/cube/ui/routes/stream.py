@@ -110,7 +110,7 @@ class TaskStreamState:
         if "writers" in self._layouts:
             return
         DynamicLayout.reset()
-        from ..core.user_config import load_config
+        from cube.core.user_config import load_config
         config = load_config()
         writer_boxes = {key: writer.label for key, writer in config.writers.items()}
         # ----------------------------------------------------------------------
@@ -150,7 +150,7 @@ class TaskStreamState:
         if "judges" in self._layouts:
             return
         DynamicLayout.reset()
-        from ..core.user_config import load_config
+        from cube.core.user_config import load_config
         config = load_config()
         judge_boxes = {key: judge.label for key, judge in config.judges.items()}
         layout = SSELayout(self.task_id, judge_boxes, self.queue)

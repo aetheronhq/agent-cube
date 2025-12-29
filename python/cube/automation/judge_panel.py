@@ -436,11 +436,8 @@ Use absolute path when writing the file. The project root is available in your w
         review_instructions = "".join(review_instructions_parts)
         
         # Replace single curly braces from json.dumps with double to not conflict with f-string
-        review_instructions = review_instructions.replace('{', '{{').replace('}', '}}')
-        review_instructions = review_instructions.replace('"{scores_json}"', scores_json)
-        review_instructions = review_instructions.replace(f'"{{{{judge_key}}}}"', '"{{judge_key}}"')
-        review_instructions = review_instructions.replace(f'"{{{{task_id}}}}"', '"{{task_id}}"')
-        review_instructions = review_instructions.replace(f'"{{{{current-iso-timestamp}}}}"', '"{{current-iso-timestamp}}"')
+        # Logic removed as we use .replace() for substitution, not .format()
+        pass
 
 
     

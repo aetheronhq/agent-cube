@@ -120,7 +120,7 @@ async def launch_dual_writers(
     
     # Create fresh layout for this run (closes previous if exists)
     from ..core.dynamic_layout import DynamicLayout
-    from ..core.user_config import load_config, get_writer_config
+    from ..core.user_config import load_config
     
     config = load_config()
     keys_to_run = writer_keys or config.writer_order
