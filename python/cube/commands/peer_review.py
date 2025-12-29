@@ -92,15 +92,15 @@ def peer_review_command(
             
             if missing_sessions:
                 print_error(f"Could not find panel session IDs for task: {task_id}")
-                print()
-                print("Make sure you've run the panel first:")
-                print(f"  cube panel {task_id} <panel-prompt.md>")
-                print()
-                print("Session files expected:")
+                console.print()
+                console.print("Make sure you've run the panel first:")
+                console.print(f"  cube panel {task_id} <panel-prompt.md>")
+                console.print()
+                console.print("Session files expected:")
                 for num in missing_sessions:
-                    print(f"  .agent-sessions/JUDGE_{num}_{task_id}_panel_SESSION_ID.txt")
-                print()
-                print("Or use --fresh to launch new judges instead")
+                    console.print(f"  .agent-sessions/JUDGE_{num}_{task_id}_panel_SESSION_ID.txt")
+                console.print()
+                console.print("Or use --fresh to launch new judges instead")
                 raise typer.Exit(1)
             
             asyncio.run(launch_judge_panel(task_id, prompt_path, "peer-review", resume_mode=True, winner=winner))

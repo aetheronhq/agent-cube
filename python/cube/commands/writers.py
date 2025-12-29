@@ -19,16 +19,16 @@ def writers_command(
     
     if not check_cursor_agent():
         print_error("cursor-agent CLI is not installed")
-        print()
-        print("Install cursor-agent:")
-        print("  npm install -g @cursor/cli")
-        print()
-        print("Or add to your PATH if already installed:")
-        print('  export PATH="$HOME/.local/bin:$PATH"')
-        print()
-        print("After installation, authenticate with:")
-        print("  cursor-agent login")
-        print()
+        console.print()
+        console.print("Install cursor-agent:")
+        console.print("  npm install -g @cursor/cli")
+        console.print()
+        console.print("Or add to your PATH if already installed:")
+        console.print('  export PATH="$HOME/.local/bin:$PATH"')
+        console.print()
+        console.print("After installation, authenticate with:")
+        console.print("  cursor-agent login")
+        console.print()
         raise typer.Exit(1)
     
     if resume:
