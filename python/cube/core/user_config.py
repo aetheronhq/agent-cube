@@ -1,5 +1,6 @@
 """User configuration management."""
 
+import sys
 import yaml
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -131,7 +132,6 @@ def load_config() -> CubeConfig:
                 if base_data:
                     data = merge_config_data(data, base_data)
             except (yaml.YAMLError, Exception) as e:
-                import sys
                 print(f"Warning: Failed to parse base config {base_config}: {e}", file=sys.stderr)
     
     if global_config:
@@ -141,7 +141,6 @@ def load_config() -> CubeConfig:
                 if global_data:
                     data = merge_config_data(data, global_data)
             except (yaml.YAMLError, Exception) as e:
-                import sys
                 print(f"Warning: Failed to parse global config {global_config}: {e}", file=sys.stderr)
     
     if repo_config:
@@ -151,7 +150,6 @@ def load_config() -> CubeConfig:
                 if repo_data:
                     data = merge_config_data(data, repo_data)
             except (yaml.YAMLError, Exception) as e:
-                import sys
                 print(f"Warning: Failed to parse repo config {repo_config}: {e}", file=sys.stderr)
     
     writer_order: list[str] = []

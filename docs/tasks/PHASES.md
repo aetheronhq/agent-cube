@@ -30,7 +30,7 @@
 
 ## Dependency Graph
 
-```
+```text
 READY NOW (no blockers):
 ├── 07: Add OSS files
 ├── 08: Simplify agent identity  
@@ -57,11 +57,11 @@ These have no blockers - can all run in parallel:
 
 | Task | Complexity | Est. Time | Priority |
 |------|------------|-----------|----------|
-| **15** | High | 3-4 hrs | 🔥 Feature |
-| **08** | High | 3-4 hrs | 🔥 Architecture |
-| **09** | Medium | 1-2 hrs | Structure |
-| **10** | Medium | 1-2 hrs | Structure |
-| **13** | Medium | 1-2 hrs | Structure |
+| **15** | High | 3–4 hrs | 🔥 Feature |
+| **08** | High | 3–4 hrs | 🔥 Architecture |
+| **09** | Medium | 1–2 hrs | Structure |
+| **10** | Medium | 1–2 hrs | Structure |
+| **13** | Medium | 1–2 hrs | Structure |
 | **07** | Low | 30 min | OSS |
 | **11** | Low | 30 min | Cleanup |
 | **12** | Low | 30 min | Cleanup |
@@ -83,7 +83,7 @@ cube auto docs/tasks/12-extract-constants.md
 
 | Task | Depends On | Est. Time |
 |------|------------|-----------|
-| **16** | 09, 10 | 2-3 hrs |
+| **16** | 09, 10 | 2–3 hrs |
 
 ```bash
 cube auto docs/tasks/16-claude-code-adapter.md
@@ -93,7 +93,7 @@ cube auto docs/tasks/16-claude-code-adapter.md
 
 | Task | Depends On | Est. Time |
 |------|------------|-----------|
-| **14** | 04 | 2-3 hrs |
+| **14** | 04 | 2–3 hrs |
 
 ```bash
 cube auto docs/tasks/14-centralize-decision-parsing.md
@@ -103,8 +103,8 @@ cube auto docs/tasks/14-centralize-decision-parsing.md
 
 | Task | Depends On | Est. Time |
 |------|------------|-----------|
-| **05** | Stable code | 4-6 hrs |
-| **06** | 05 | 2-3 hrs |
+| **05** | Stable code | 4–6 hrs |
+| **06** | 05 | 2–3 hrs |
 
 ```bash
 cube auto docs/tasks/05-add-core-tests.md
@@ -116,23 +116,23 @@ cube auto docs/tasks/06-add-docstrings.md
 ## Critical Paths
 
 ### Path A: Claude Code Adapter
-```
+```text
 09 (Consolidate adapters) ─┬─► 16 (Claude Code)
 10 (Consolidate parsers) ──┘
 ```
-**Time:** 3-5 hrs sequential
+**Time:** 3–5 hrs sequential
 
 ### Path B: Decision Parsing
-```
+```text
 04 (Split orchestrate) ──► 14 (Centralize parsing)
 ```
-**Time:** Waiting on PR review + 2-3 hrs
+**Time:** Waiting on PR review + 2–3 hrs
 
 ### Path C: Quality
-```
+```text
 All refactoring ──► 05 (Tests) ──► 06 (Docstrings)
 ```
-**Time:** 6-9 hrs, run last
+**Time:** 6–9 hrs, run last
 
 ---
 
@@ -142,13 +142,13 @@ All refactoring ──► 05 (Tests) ──► 06 (Docstrings)
 
 | Time | Writer A | Writer B |
 |------|----------|----------|
-| 0-4h | 15 (Single writer) | 08 (Agent identity) |
-| 0-1h | 09 (Adapters) | 10 (Parsers) |
-| 1-2h | 13 (Layouts) | 07, 11, 12 (Quick wins) |
-| 2-5h | 16 (Claude Code) | - waiting for 04 - |
+| 0–4h | 15 (Single writer) | 08 (Agent identity) |
+| 0–1h | 09 (Adapters) | 10 (Parsers) |
+| 1–2h | 13 (Layouts) | 07, 11, 12 (Quick wins) |
+| 2–5h | 16 (Claude Code) | - waiting for 04 - |
 | 4+h | 14 (Decision parsing) | - after 04 merges - |
 
-**Total wall clock:** ~8-10 hrs (vs 20+ sequential)
+**Total wall clock:** ~8–10 hrs (vs 20+ sequential)
 
 ---
 

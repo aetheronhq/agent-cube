@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
 
-MAX_FILE_PREVIEW_SIZE = 10_000  # 10KB preview limit for UI
-
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel, model_validator
 
@@ -20,6 +18,8 @@ from cube.core.user_config import resolve_writer_alias, get_writer_aliases
 from cube.core.decision_parser import JudgeDecision, aggregate_decisions, parse_all_decisions
 from cube.core.session import load_session
 from cube.core.state import WorkflowState, load_state
+
+MAX_FILE_PREVIEW_SIZE = 10 * 1024  # 10 KB preview limit for UI
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
