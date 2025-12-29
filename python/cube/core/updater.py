@@ -37,7 +37,7 @@ def get_current_branch(repo_root: Path) -> Optional[str]:
         return None
 
 def has_updates(repo_root: Path, branch: str) -> bool:
-    """Check if there are updates available from origin."""
+    """Check if there are updates available from origin (remote ahead of local)."""
     try:
         subprocess.run(
             ["git", "fetch", "origin", branch],
@@ -46,25 +46,17 @@ def has_updates(repo_root: Path, branch: str) -> bool:
             check=True
         )
         
-        local_result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+        # Check if remote is ahead of local (has commits we don't have)
+        result = subprocess.run(
+            ["git", "rev-list", "HEAD..origin/" + branch, "--count"],
             cwd=repo_root,
             capture_output=True,
             text=True,
             check=True
         )
-        local_commit = local_result.stdout.strip()
+        commits_behind = int(result.stdout.strip())
         
-        remote_result = subprocess.run(
-            ["git", "rev-parse", f"origin/{branch}"],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        remote_commit = remote_result.stdout.strip()
-        
-        return local_commit != remote_commit
+        return commits_behind > 0
     except Exception:
         return False
 
