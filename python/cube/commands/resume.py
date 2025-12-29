@@ -140,3 +140,6 @@ def resume_command(
         print_error(str(e))
         raise typer.Exit(1)
 
+# Backwards compatibility
+resume = resume_command
+
