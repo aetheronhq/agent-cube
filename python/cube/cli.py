@@ -371,10 +371,11 @@ def clean(
     task_id: Annotated[Optional[str], typer.Argument(help="Task ID to clean")] = None,
     old: Annotated[bool, typer.Option("--old", help="Clean sessions older than 7 days")] = False,
     all_tasks: Annotated[bool, typer.Option("--all", help="Clean all completed tasks")] = False,
+    full: Annotated[bool, typer.Option("--full", help="Full reset: + worktrees, branches, decisions, logs")] = False,
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview without deleting")] = False
 ):
     """Clean up completed or stale sessions."""
-    clean_command(task_id, old, all_tasks, dry_run)
+    clean_command(task_id, old, all_tasks, full, dry_run)
 
 @app.command(name="auto")
 def auto(

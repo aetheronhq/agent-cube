@@ -552,7 +552,6 @@ Use absolute path when writing the file. The project root is available in your w
         return_exceptions=True
     )
     
-    from ..core.dynamic_layout import DynamicLayout
     DynamicLayout.close()
     
     errors = []
