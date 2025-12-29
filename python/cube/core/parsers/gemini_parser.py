@@ -13,6 +13,9 @@ class GeminiParser(ParserAdapter):
         try:
             data = json.loads(line)
             
+            if not isinstance(data, dict):
+                return None
+            
             msg_type = data.get("type")
             
             if msg_type == "init":
@@ -68,7 +71,7 @@ class GeminiParser(ParserAdapter):
             
             return None
             
-        except (json.JSONDecodeError, KeyError, TypeError):
+        except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
             return None
     
     def supports_resume(self) -> bool:
