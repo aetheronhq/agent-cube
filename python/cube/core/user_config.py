@@ -13,6 +13,7 @@ class WriterConfig:
     name: str
     model: str
     label: str
+    letter: str  # Writer letter: A, B, C...
     color: str
     
     def session_key(self, task_id: str) -> str:
@@ -161,13 +162,15 @@ def load_config() -> CubeConfig:
     
     writer_order: list[str] = []
     writers: Dict[str, WriterConfig] = {}
-    for key, w in data.get("writers", {}).items():
+    for idx, (key, w) in enumerate(data.get("writers", {}).items()):
         writer_order.append(key)
+        letter = chr(65 + idx)  # A, B, C...
         writers[key] = WriterConfig(
             key=key,
             name=w["name"],
             model=w["model"],
             label=w["label"],
+            letter=letter,
             color=w["color"]
         )
     
