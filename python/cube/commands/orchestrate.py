@@ -683,9 +683,10 @@ Include evaluation criteria, scoring rubric, and decision JSON format."""
     return panel_prompt_path
 
 def run_decide_and_get_result(task_id: str) -> dict:
-    """Run decide and return parsed result."""
+    """Run decide for panel decisions and return parsed result."""
     import json
-    decide_command(task_id)
+    # Force panel review type - this is for Phase 5 panel aggregation
+    decide_command(task_id, review_type="panel")
     
     result_file = PROJECT_ROOT / ".prompts" / "decisions" / f"{task_id}-aggregated.json"
     with open(result_file) as f:
