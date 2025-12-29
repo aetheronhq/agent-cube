@@ -4,7 +4,7 @@ judges:
   judge_4:
     type: "cli-review"
     cmd: "coderabbit review --plain --type all --cwd {{worktree}}"
-    model: "composer-1"
+    model: "gpt-5.2"
     label: "CodeRabbit"
     color: "magenta"
     peer_review_only: true
