@@ -124,7 +124,7 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
                 pass
         
         color = "green" if d.decision == "APPROVED" else ("yellow" if d.decision == "REQUEST_CHANGES" else "red")
-        scores_str = ", ".join([f"{key.split('_')[-1].upper()}: {score}" for key, score in d.scores.items()])
+        scores_str = ", ".join([f"{key.upper()}: {score}" for key, score in d.scores.items()])
         console.print(f"[{color}]{judge_label}:[/{color}] {d.decision} → Winner: {d.winner} ({scores_str})")
     
     console.print()

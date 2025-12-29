@@ -460,16 +460,6 @@ def _build_single_decision_payload(
     summary = aggregate_decisions(judge_decisions)
     winner = summary.get("winner")
     
-    winner_letter = None
-    if winner:
-        from cube.core.user_config import load_config
-        config = load_config()
-        try:
-            idx = config.writer_order.index(winner)
-            winner_letter = chr(ord('A') + idx)
-        except (ValueError, IndexError):
-            winner_letter = winner
-    
     timestamps = [decision.timestamp for decision in judge_decisions if decision.timestamp]
     latest_timestamp = max(timestamps) if timestamps else datetime.utcnow().isoformat()
 
@@ -479,8 +469,8 @@ def _build_single_decision_payload(
         "timestamp": latest_timestamp,
     }
 
-    if winner_letter:
-        decision_payload["winner"] = winner_letter
+    if winner:
+        decision_payload["winner"] = winner
 
     return decision_payload
 
@@ -508,16 +498,7 @@ def _serialize_judge_decision(decision: JudgeDecision) -> dict[str, Any]:
         label = decision.judge.replace("_", " ").title()
         model_name = JUDGE_MODELS.get(decision.judge, f"judge-{decision.judge}")
 
-    scores = {}
-    from cube.core.user_config import load_config
-    config = load_config()
-    for key, score in decision.scores.items():
-        try:
-            idx = config.writer_order.index(key)
-            letter = chr(ord('a') + idx)
-            scores[letter] = score
-        except (ValueError, IndexError):
-            scores[key] = score
+    scores = decision.scores
 
     return {
         "judge": decision.judge,
@@ -534,11 +515,7 @@ def _resolve_vote(decision: JudgeDecision) -> str:
     from cube.core.user_config import load_config
     config = load_config()
     if decision.winner in config.writer_order:
-        try:
-            idx = config.writer_order.index(decision.winner)
-            return chr(ord('A') + idx)
-        except (ValueError, IndexError):
-            pass
+        return decision.winner
     elif decision.winner == "TIE":
         return "TIE"
 

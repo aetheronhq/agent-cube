@@ -62,13 +62,11 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
                 if msg.session_id and not writer_info.session_id:
                     writer_info.session_id = msg.session_id
                     # Save session immediately when captured
-                    # Extract letter from key (writer_a -> A, writer_b -> B)
-                    letter = writer_info.key.split('_')[-1].upper()
                     save_session(
-                        f"WRITER_{letter}",
+                        writer_info.key.upper(),
                         writer_info.task_id,
                         msg.session_id,
-                        f"Writer {letter} ({writer_info.model})"
+                        f"Writer {writer_info.key.upper()} ({writer_info.model})"
                     )
                 
                 formatted = format_stream_message(msg, writer_info.label, writer_info.color)
@@ -159,9 +157,7 @@ async def launch_dual_writers(
         
         session_id = None
         if resume_mode:
-            # Derive letter from key for backward compatibility with session files
-            letter = writer_key.split('_')[-1].upper()
-            session_id = load_session(f"WRITER_{letter}", task_id)
+            session_id = load_session(writer_key.upper(), task_id)
             if not session_id:
                 raise RuntimeError(f"No session found for writer {wconfig.name}")
         

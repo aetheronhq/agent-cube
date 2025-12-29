@@ -269,15 +269,15 @@ async def generate_dual_feedback(
 - `.prompts/decisions/judge_2-{task_id}-decision.json`
 - `.prompts/decisions/judge_3-{task_id}-decision.json`
 
-Read these to see what issues judges found for Writer {writer_letter_upper}.
+Read these to see what issues judges found for Writer {writer_label}.
 
-**Writer {writer_letter_upper}'s Work:**
+**Writer {writer_label}'s Work:**
 Branch: `writer-{writer_slug}/{task_id}`
 Location: `~/.cube/worktrees/PROJECT/writer-{writer_slug}-{task_id}/`
 
 ## Your Task
 
-Create a targeted feedback prompt for Writer {writer_letter_upper} that tells them to:
+Create a targeted feedback prompt for Writer {writer_label} that tells them to:
 1. **First**: Merge latest main (`git fetch origin main && git merge origin/main --no-edit`) and fix any conflicts programmatically using read_file/write_file (no interactive editors!)
 2. Lists specific issues judges found
 3. Provides concrete fix suggestions
@@ -285,12 +285,11 @@ Create a targeted feedback prompt for Writer {writer_letter_upper} that tells th
 5. Keeps their good work, fixes problems
 6. Commit and push when complete
 
-Save to: `.prompts/feedback-{writer_letter_lower}-{task_id}.md`"""
+Save to: `.prompts/feedback-{writer_slug}-{task_id}.md`"""
 
     entries = []
-    for idx, writer_key in enumerate(config.writer_order):
+    for writer_key in config.writer_order:
         wconfig = get_writer_config(writer_key)
-        letter = chr(ord('a') + idx)
         
         prompt_intro = (
             "Both writers need changes based on judge reviews."
@@ -305,20 +304,18 @@ Task: {task_id}
 
 {prompt_base.format(
     task_id=task_id, 
-    writer_letter_upper=letter.upper(), 
+    writer_label=wconfig.label, 
     writer_slug=wconfig.name, 
-    writer_letter_lower=letter
 )}"""
 
         entries.append({
             "key": writer_key,
             "cfg": wconfig,
-            "path": prompts_dir / f"feedback-{letter}-{task_id}.md",
+            "path": prompts_dir / f"feedback-{wconfig.name}-{task_id}.md",
             "prompt": prompt,
-            "box_id": f"prompter_{letter}",
-            "label": f"Prompter {letter.upper()} ({wconfig.label})",
-            "color": wconfig.color,
-            "letter": letter
+            "box_id": f"prompter_{writer_key}",
+            "label": f"Prompter {wconfig.label}",
+            "color": wconfig.color
         })
 
     if winner_only:
@@ -356,7 +353,7 @@ Task: {task_id}
         from ...core.config import WORKTREE_BASE
         from ..feedback import send_feedback_async
 
-        session = load_session(f"WRITER_{entry['letter'].upper()}", task_id)
+        session = load_session(entry['key'].upper(), task_id)
         if not session:
             raise RuntimeError("No session found for winner. Cannot send feedback.")
 
@@ -365,7 +362,7 @@ Task: {task_id}
         await send_feedback_async(entry["cfg"].name, task_id, entry["path"], session, worktree)
         return
 
-    console.print("Generating feedback for both writers in parallel...")
+    console.print("Generating feedback for all writers in parallel...")
     console.print()
 
     boxes = {entry["box_id"]: entry["label"] for entry in entries}
@@ -394,13 +391,10 @@ Task: {task_id}
 
     layout.close()
 
-    if not feedback_a_path.exists():
-        raise RuntimeError(f"Prompter A failed to generate feedback at {feedback_a_path}")
-    if not feedback_b_path.exists():
-        raise RuntimeError(f"Prompter B failed to generate feedback at {feedback_b_path}")
-
-    print_success(f"Created: {feedback_a_path}")
-    print_success(f"Created: {feedback_b_path}")
+    for entry in entries:
+        if not entry["path"].exists():
+            raise RuntimeError(f"{entry['label']} failed to generate feedback at {entry['path']}")
+        print_success(f"Created: {entry['path']}")
 
     console.print()
     print_info("Sending feedback to writers...")
@@ -413,7 +407,7 @@ Task: {task_id}
     tasks = []
     any_session_found = False
     for entry in entries:
-        session = load_session(f"WRITER_{entry['letter'].upper()}", task_id)
+        session = load_session(entry['key'].upper(), task_id)
         if session:
             any_session_found = True
             project_name = Path(PROJECT_ROOT).name
