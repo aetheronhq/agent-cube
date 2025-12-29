@@ -2,7 +2,7 @@
 
 import json
 from typing import Optional
-from ..parser_adapter import ParserAdapter
+from .base import ParserAdapter
 from ...models.types import StreamMessage
 
 class GeminiParser(ParserAdapter):
@@ -12,6 +12,9 @@ class GeminiParser(ParserAdapter):
         """Parse gemini CLI JSON line."""
         try:
             data = json.loads(line)
+            
+            if not isinstance(data, dict):
+                return None
             
             msg_type = data.get("type")
             
@@ -68,7 +71,16 @@ class GeminiParser(ParserAdapter):
             
             return None
             
-        except (json.JSONDecodeError, KeyError, TypeError):
+        except json.JSONDecodeError:
+            line = line.strip()
+            if line:
+                return StreamMessage(
+                    type="system",
+                    subtype="log",
+                    content=f"[gemini] {line[:200]}"
+                )
+            return None
+        except (KeyError, TypeError, AttributeError):
             return None
     
     def supports_resume(self) -> bool:

@@ -32,8 +32,13 @@ def clear_peer_review_decisions(task_id: str) -> None:
             peer_file.unlink()
 
 
-def run_decide_peer_review(task_id: str) -> dict:
+def run_decide_peer_review(task_id: str, require_decisions: bool = True) -> dict:
     """Check peer review decisions and extract any remaining issues.
+    
+    Args:
+        task_id: Identifier of the current task.
+        require_decisions: When False, missing peer-review files won't raise
+            warnings (useful before peer review runs).
     
     Only checks judges that have peer-review decision files (not all judges).
     """
@@ -98,12 +103,13 @@ def run_decide_peer_review(task_id: str) -> dict:
     console.print()
 
     if decisions_found == 0:
-        print_warning("No peer review decisions found!")
-        console.print("Expected files:")
-        for judge_key in judge_nums:
-            judge_label = judge_key.replace("_", "-")
-            console.print(f"  .prompts/decisions/{judge_label}-{task_id}-peer-review.json")
-        console.print()
+        if require_decisions:
+            print_warning("No peer review decisions found!")
+            console.print("Expected files:")
+            for judge_key in judge_nums:
+                judge_label = judge_key.replace("_", "-")
+                console.print(f"  .prompts/decisions/{judge_label}-{task_id}-peer-review.json")
+            console.print()
         return {"approved": False, "remaining_issues": [], "decisions_found": 0, "approvals": 0}
 
     console.print(f"Decisions: {decisions_found}/{total_judges}, Approvals: {approvals}/{decisions_found}")

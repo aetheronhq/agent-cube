@@ -1,10 +1,10 @@
 """CLI adapter registry and factory."""
 
 from typing import Dict, Type, Any, Optional
-from ..cli_adapter import CLIAdapter
-from .cursor_adapter import CursorAdapter
-from .gemini_adapter import GeminiAdapter
-from .cli_review_adapter import CLIReviewAdapter
+from .base import CLIAdapter
+from .cursor import CursorAdapter
+from .gemini import GeminiAdapter
+from .cli_review import CLIReviewAdapter
 
 _ADAPTERS: Dict[str, Type[CLIAdapter]] = {
     "cursor-agent": CursorAdapter,

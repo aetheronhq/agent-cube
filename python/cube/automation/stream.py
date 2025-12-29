@@ -142,11 +142,33 @@ def parse_stream_message(line: str) -> Optional[StreamMessage]:
         
         if msg.type == "tool_use":
             tool_name = data.get("tool_name", "")
+            params = data.get("parameters", {}) or {}
             if tool_name:
                 msg.type = "tool_call"
                 msg.subtype = "started"
+                
+                if tool_name == "run_shell_command":
+                    msg.tool_name = "shell"
+                    msg.tool_args = {"command": params.get("command", "")}
+                    return msg
+                if tool_name == "read_file":
+                    path = strip_worktree_path(params.get("file_path", ""))
+                    msg.tool_name = "read"
+                    msg.tool_args = {"path": path}
+                    return msg
+                if tool_name == "write_file":
+                    path = strip_worktree_path(params.get("file_path", ""))
+                    msg.tool_name = "write"
+                    msg.tool_args = {"path": path}
+                    return msg
+                if tool_name == "edit_file":
+                    path = strip_worktree_path(params.get("file_path", ""))
+                    msg.tool_name = "edit"
+                    msg.tool_args = {"path": path}
+                    return msg
+                
                 msg.tool_name = tool_name.replace("_", " ")
-                msg.tool_args = data.get("parameters", {})
+                msg.tool_args = params
                 return msg
         
         if msg.type == "tool_call":
