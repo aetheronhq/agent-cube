@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import AsyncGenerator, Optional, Dict, Any
 
-from ..cli_adapter import CLIAdapter, run_subprocess_streaming
+from .base import CLIAdapter, run_subprocess_streaming
 
 class CLIReviewAdapter(CLIAdapter):
     """Adapter for running generic CLI review tools + LLM synthesis."""
@@ -233,7 +233,7 @@ Note: Use "SKIPPED" only for tool failures (rate limit, errors). SKIPPED = no co
 
 **IMPORTANT:** 
 - The review output files let the writer find the FULL {self.tool_name} output
-- List ALL issues in blocker_issues, not just "critical" ones - everything must be addressed
+- List ALL issues in remaining_issues, not just "critical" ones - everything must be addressed
 - Use write_file to save the decision JSON to the path specified in Task Context
 """
 

@@ -42,17 +42,17 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
         resume=resume
     )
     
-    # Box key for layout operations
-    box_key = "writer_a" if writer_info.letter == "A" else "writer_b"
+    # Box key for layout operations - use config key (writer_a, writer_b)
+    box_key = writer_info.key
     
     # Use generic logging context
     async with agent_logging_context(
         agent_type="writer",
         agent_name=writer_info.name,
         task_id=writer_info.task_id,
-        session_key=f"WRITER_{writer_info.letter}",
+        session_key=writer_info.key.upper(),
         session_task_key=writer_info.task_id,
-        metadata=f"Writer {writer_info.letter} ({writer_info.model}) - {writer_info.task_id} - {datetime.now()}"
+        metadata=f"{writer_info.label} ({writer_info.model}) - {writer_info.task_id} - {datetime.now()}"
     ) as logger:
         async for line in stream:
             logger.write_line(line)
@@ -149,16 +149,16 @@ async def launch_dual_writers(
         
         session_id = None
         if resume_mode:
-            session_id = load_session(f"WRITER_{wconfig.letter}", task_id)
+            session_id = load_session(wconfig.key.upper(), task_id)
             if not session_id:
                 raise RuntimeError(f"No session found for writer {wconfig.name}")
         
         writer = WriterInfo(
+            key=wconfig.key,
             name=wconfig.name,
             model=wconfig.model,
             color=wconfig.color,
             label=wconfig.label,
-            letter=wconfig.letter,
             task_id=task_id,
             worktree=worktree,
             branch=branch,

@@ -302,14 +302,14 @@ Save to: `.prompts/feedback-{writer_letter}-{task_id}.md`"""
 Task: {task_id}
 {prompt_intro}
 
-{prompt_base.format(task_id=task_id, writer=writer_a.letter, writer_slug=writer_a.name, writer_letter=writer_a.letter.lower())}"""
+{prompt_base.format(task_id=task_id, writer="A", writer_slug=writer_a.name, writer_letter="a")}"""
 
     prompt_b = f"""Generate a feedback prompt for {writer_b.label}.
 
 Task: {task_id}
 {prompt_intro}
 
-{prompt_base.format(task_id=task_id, writer=writer_b.letter, writer_slug=writer_b.name, writer_letter=writer_b.letter.lower())}"""
+{prompt_base.format(task_id=task_id, writer="B", writer_slug=writer_b.name, writer_letter="b")}"""
 
     parser = get_parser("cursor-agent")
 
