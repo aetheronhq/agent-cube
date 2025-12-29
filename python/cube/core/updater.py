@@ -86,6 +86,10 @@ def auto_update() -> None:
     
     If updates are pulled, re-execs the current process to use new code.
     """
+    # Skip if already updated in this execution chain
+    if os.environ.get("CUBE_SKIP_UPDATE") == "1":
+        return
+    
     try:
         cube_file = Path(__file__).resolve()
         cube_repo_root = cube_file
@@ -107,6 +111,8 @@ def auto_update() -> None:
             print_info("Updating cube...")
             if pull_updates(cube_repo_root, current_branch):
                 print_success("Cube updated successfully")
+                # Set flag to skip update check after re-exec
+                os.environ["CUBE_SKIP_UPDATE"] = "1"
                 os.execv(sys.executable, [sys.executable] + sys.argv)
     except Exception:
         pass
