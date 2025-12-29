@@ -112,19 +112,27 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
 async def launch_dual_writers(
     task_id: str,
     prompt_file: Path,
-    resume_mode: bool = False
+    resume_mode: bool = False,
+    writer_keys: Optional[list[str]] = None
 ) -> None:
-    """Launch two writers in parallel."""
+    """Launch N writers in parallel (default: all from config)."""
     
     if not prompt_file.exists():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
     
     # Create fresh layout for this run (closes previous if exists)
     from ..core.dynamic_layout import DynamicLayout
+    from ..core.user_config import load_config, get_writer_config
     
-    writer_a = get_writer_config("writer_a")
-    writer_b = get_writer_config("writer_b")
-    boxes = {"writer_a": writer_a.label, "writer_b": writer_b.label}
+    config = load_config()
+    keys_to_run = writer_keys or config.writer_order
+    
+    # Build layout boxes dynamically
+    boxes = {}
+    for writer_key in keys_to_run:
+        wconfig = get_writer_config(writer_key)
+        boxes[writer_key] = wconfig.label
+    
     DynamicLayout.initialize(boxes, lines_per_box=3)
     layout = DynamicLayout
     
@@ -144,14 +152,16 @@ async def launch_dual_writers(
     project_name = Path(PROJECT_ROOT).name
     
     writers = []
-    for writer_key in ["writer_a", "writer_b"]:
+    for writer_key in keys_to_run:
         wconfig = get_writer_config(writer_key)
         worktree = create_worktree(task_id, wconfig.name)
         branch = f"writer-{wconfig.name}/{task_id}"
         
         session_id = None
         if resume_mode:
-            session_id = load_session(wconfig.key.upper(), task_id)
+            # Derive letter from key for backward compatibility with session files
+            letter = writer_key.split('_')[-1].upper()
+            session_id = load_session(f"WRITER_{letter}", task_id)
             if not session_id:
                 raise RuntimeError(f"No session found for writer {wconfig.name}")
         
@@ -161,7 +171,6 @@ async def launch_dual_writers(
             model=wconfig.model,
             color=wconfig.color,
             label=wconfig.label,
-            letter=wconfig.letter,
             task_id=task_id,
             worktree=worktree,
             branch=branch,
@@ -195,8 +204,7 @@ async def launch_dual_writers(
     console.print()
     
     results = await asyncio.gather(
-        run_writer(writers[0], prompt, resume_mode),
-        run_writer(writers[1], prompt, resume_mode),
+        *[run_writer(w, prompt, resume_mode) for w in writers],
         return_exceptions=True
     )
     

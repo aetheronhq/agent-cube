@@ -49,11 +49,12 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
         winner_cfg = get_writer_by_key_or_letter(winner)
         return {winner_cfg.label: get_worktree_path(project_name, winner_cfg.name, task_id)}
     
-    writers = [get_writer_config("writer_a"), get_writer_config("writer_b")]
-    return {
-        "Writer A": get_worktree_path(project_name, writers[0].name, task_id),
-        "Writer B": get_worktree_path(project_name, writers[1].name, task_id)
+    config = load_config()
+    writers = {
+        w.label: get_worktree_path(project_name, w.name, task_id)
+        for w in (config.writers[k] for k in config.writer_order)
     }
+    return writers
 
 
 async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, winner: str = None) -> int:
@@ -156,12 +157,19 @@ def _parse_decision_status(judge_info: JudgeInfo) -> str:
     blocker_issues = data.get("blocker_issues", [])
     
     scores = data.get("scores", {})
-    score_a = scores.get("writer_a", {}).get("total_weighted") or scores.get("writer_a", {}).get("total")
-    score_b = scores.get("writer_b", {}).get("total_weighted") or scores.get("writer_b", {}).get("total")
     
+    config = load_config()
+    writer_scores = []
+    for writer_key in config.writer_order:
+        score = scores.get(writer_key, {}).get("total_weighted") or scores.get(writer_key, {}).get("total")
+        writer_scores.append((writer_key, score))
+        
     if judge_info.review_type == "peer-review":
         return _format_peer_review_status(decision, remaining_issues)
-    return _format_panel_status(decision, winner, score_a, score_b, blocker_issues)
+        
+    score_text = " / ".join([f"{s:.0f}" for _, s in writer_scores if s is not None])
+    
+    return _format_panel_status(decision, winner, score_text, blocker_issues)
 
 
 def _format_peer_review_status(decision: str, remaining_issues: list) -> str:
@@ -176,37 +184,32 @@ def _format_peer_review_status(decision: str, remaining_issues: list) -> str:
     return f"Review complete → {decision}"
 
 
-def _format_panel_status(decision: str, winner: str, score_a: Optional[float], score_b: Optional[float], blocker_issues: list) -> str:
+def _format_panel_status(decision: str, winner: str, score_text: str, blocker_issues: list) -> str:
     """Format status for panel decisions."""
     winner_text = _get_winner_text(winner)
-    score_text = f" ({score_a:.0f}/{score_b:.0f})" if score_a is not None and score_b is not None else ""
+    score_display = f" ({score_text})" if score_text else ""
     
     if decision == "APPROVED":
         if blocker_issues:
-            return f"✓ APPROVED → {winner_text}{score_text} → {len(blocker_issues)} blocker{'s' if len(blocker_issues) != 1 else ''}"
-        return f"✓ APPROVED → {winner_text}{score_text}"
+            return f"✓ APPROVED → {winner_text}{score_display} → {len(blocker_issues)} blocker{'s' if len(blocker_issues) != 1 else ''}"
+        return f"✓ APPROVED → {winner_text}{score_display}"
     if decision == "REQUEST_CHANGES":
-        return f"⚠ REQUEST_CHANGES → {winner_text}{score_text}"
+        return f"⚠ REQUEST_CHANGES → {winner_text}{score_display}"
     if decision == "REJECTED":
-        return f"✗ REJECTED → {winner_text}{score_text}"
-    return f"{winner_text}{score_text}"
+        return f"✗ REJECTED → {winner_text}{score_display}"
+    return f"{winner_text}{score_display}"
 
 
 def _get_winner_text(winner: str) -> str:
     """Get human-readable winner text."""
     if winner == "TIE":
         return "TIE"
-    if winner in ["A", "writer_a", "Writer A"]:
-        try:
-            return f"{get_writer_config('writer_a').label} wins"
-        except Exception:
-            return "Writer A wins"
-    if winner in ["B", "writer_b", "Writer B"]:
-        try:
-            return f"{get_writer_config('writer_b').label} wins"
-        except Exception:
-            return "Writer B wins"
-    return f"Winner: {winner}"
+    
+    try:
+        wconfig = get_writer_by_key_or_letter(winner)
+        return f"{wconfig.label} wins"
+    except KeyError:
+        return f"Winner: {winner}"
 
 async def launch_judge_panel(
     task_id: str,
@@ -343,53 +346,58 @@ Example: If you are `judge_1`, create `.prompts/decisions/judge_1-{task_id}-peer
 
 """
     else:
-        writer_a = get_writer_config("writer_a")
-        writer_b = get_writer_config("writer_b")
+        config = load_config()
         
-        review_instructions = f"""# Code Review Locations
+        review_instructions_parts = ["""# Code Review Locations
 
 ## ⚠️ CRITICAL: Fetch Latest Code First
 
-**BEFORE reviewing either writer, you MUST fetch the latest commits:**
+**BEFORE reviewing any writer, you MUST fetch the latest commits for all of them:**
+"""]
 
+        for writer_key in config.writer_order:
+            wconfig = config.writers[writer_key]
+            review_instructions_parts.append(f"""
 ```bash
-# Fetch Writer A's latest
-cd {WORKTREE_BASE}/{project_name}/writer-{writer_a.name}-{task_id}/
+# Fetch {wconfig.label}'s latest
+cd {WORKTREE_BASE}/{project_name}/writer-{wconfig.name}-{task_id}/
 git fetch origin
-git reset --hard origin/writer-{writer_a.name}/{task_id}
+git reset --hard origin/writer-{wconfig.name}/{task_id}
+```""")
 
-# Fetch Writer B's latest  
-cd {WORKTREE_BASE}/{project_name}/writer-{writer_b.name}-{task_id}/
-git fetch origin
-git reset --hard origin/writer-{writer_b.name}/{task_id}
-```
+        review_instructions_parts.append("\n---")
 
-## Writer A ({writer_a.label}) Implementation
+        for writer_key in config.writer_order:
+            wconfig = config.writers[writer_key]
+            review_instructions_parts.append(f"""
+## {wconfig.label} Implementation
 
-**Branch:** `writer-{writer_a.name}/{task_id}`  
-**Location:** `{WORKTREE_BASE}/{project_name}/writer-{writer_a.name}-{task_id}/`
+**Branch:** `writer-{wconfig.name}/{task_id}`  
+**Location:** `{WORKTREE_BASE}/{project_name}/writer-{wconfig.name}-{task_id}/`
 
 Review commits since main:
 ```bash
-cd {WORKTREE_BASE}/{project_name}/writer-{writer_a.name}-{task_id}/
+cd {WORKTREE_BASE}/{project_name}/writer-{wconfig.name}-{task_id}/
 git log --oneline main..HEAD
 git diff main...HEAD --stat
-```
+```""")
 
-## Writer B ({writer_b.label}) Implementation
+        scores_template = {}
+        for writer_key in config.writer_order:
+            scores_template[writer_key] = {
+                "kiss_compliance": "0-10",
+                "architecture": "0-10",
+                "type_safety": "0-10",
+                "tests": "0-10",
+                "production_ready": "0-10",
+                "total_weighted": "0-10"
+            }
+        import json
+        scores_json = json.dumps(scores_template, indent=4)
+        
+        winner_options = " | ".join([f'"{k}"' for k in config.writer_order] + ['"TIE"'])
 
-**Branch:** `writer-{writer_b.name}/{task_id}`  
-**Location:** `{WORKTREE_BASE}/{project_name}/writer-{writer_b.name}-{task_id}/`
-
-Review commits since main:
-```bash
-cd {WORKTREE_BASE}/{project_name}/writer-{writer_b.name}-{task_id}/
-git log --oneline main..HEAD
-git diff main...HEAD --stat
-```
-
-Use read_file or git commands to view their actual code changes.
-
+        review_instructions_parts.append(f"""
 ---
 
 # REQUIRED: Panel Decision File
@@ -403,7 +411,7 @@ Example: If you are `judge_1`, create `.prompts/decisions/judge_1-{task_id}-deci
 
 **CRITICAL for Gemini users:**
 You're running from `~/.cube`. You MUST write your decision to:
-- `{PROJECT_ROOT}/.prompts/decisions/{{judge_key}}-{task_id}-decision.json`
+- `{{PROJECT_ROOT}}/.prompts/decisions/{{judge_key}}-{task_id}-decision.json`
 
 Use absolute path when writing the file. The project root is available in your workspace context.
 
@@ -414,25 +422,8 @@ Use absolute path when writing the file. The project root is available in your w
   "task_id": "{task_id}",
   "timestamp": "{{current-iso-timestamp}}",
   "decision": "APPROVED" | "REQUEST_CHANGES" | "REJECTED",
-  "winner": "A" | "B" | "TIE",
-  "scores": {{
-    "writer_a": {{
-      "kiss_compliance": 0-10,
-      "architecture": 0-10,
-      "type_safety": 0-10,
-      "tests": 0-10,
-      "production_ready": 0-10,
-      "total_weighted": 0-10
-    }},
-    "writer_b": {{
-      "kiss_compliance": 0-10,
-      "architecture": 0-10,
-      "type_safety": 0-10,
-      "tests": 0-10,
-      "production_ready": 0-10,
-      "total_weighted": 0-10
-    }}
-  }},
+  "winner": {winner_options},
+  "scores": {scores_json},
   "blocker_issues": [
     "Description of blocking issues that must be fixed"
   ],
@@ -441,8 +432,17 @@ Use absolute path when writing the file. The project root is available in your w
 ```
 
 ---
+""")
+        review_instructions = "".join(review_instructions_parts)
+        
+        # Replace single curly braces from json.dumps with double to not conflict with f-string
+        review_instructions = review_instructions.replace('{', '{{').replace('}', '}}')
+        review_instructions = review_instructions.replace('"{scores_json}"', scores_json)
+        review_instructions = review_instructions.replace(f'"{{{{judge_key}}}}"', '"{{judge_key}}"')
+        review_instructions = review_instructions.replace(f'"{{{{task_id}}}}"', '"{{task_id}}"')
+        review_instructions = review_instructions.replace(f'"{{{{current-iso-timestamp}}}}"', '"{{current-iso-timestamp}}"')
 
-"""
+
     
     prompt = judge_assignments + review_instructions + base_prompt
     

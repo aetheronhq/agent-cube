@@ -13,7 +13,6 @@ class WriterConfig:
     name: str
     model: str
     label: str
-    letter: str  # Writer letter: A, B, C...
     color: str
     
     def session_key(self, task_id: str) -> str:
@@ -164,15 +163,11 @@ def load_config() -> CubeConfig:
     writers: Dict[str, WriterConfig] = {}
     for idx, (key, w) in enumerate(data.get("writers", {}).items()):
         writer_order.append(key)
-        # Derive letter from key suffix (writer_a -> A, writer_b -> B)
-        # This ensures stable session keys even if config order changes
-        letter = key.split('_')[-1].upper()
         writers[key] = WriterConfig(
             key=key,
             name=w["name"],
             model=w["model"],
             label=w["label"],
-            letter=letter,
             color=w["color"]
         )
     
@@ -223,7 +218,15 @@ def get_prompter_model() -> str:
 def get_writer_config(writer_key: str) -> WriterConfig:
     """Get writer configuration by key."""
     config = load_config()
-    return config.writers.get(writer_key, config.writers["writer_a"])
+    if writer_key in config.writers:
+        return config.writers[writer_key]
+    
+    # Fallback to the first writer if key not found
+    if config.writer_order:
+        first_writer_key = config.writer_order[0]
+        return config.writers[first_writer_key]
+    
+    raise KeyError("No writers configured.")
 
 def get_writer_slugs() -> list[str]:
     """Return list of writer slugs (names) in order."""

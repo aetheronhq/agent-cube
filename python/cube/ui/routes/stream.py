@@ -24,17 +24,6 @@ STREAM_HEADERS = {
     "X-Accel-Buffering": "no",
 }
 
-WRITER_BOXES = {
-    "writer_a": "Writer A",
-    "writer_b": "Writer B",
-}
-
-JUDGE_BOXES = {
-    "judge_1": "Judge 1",
-    "judge_2": "Judge 2",
-    "judge_3": "Judge 3",
-}
-
 RICH_TAG_PATTERN = re.compile(r"\[(?:\/)?[a-zA-Z0-9_-]+\]")
 
 
@@ -121,6 +110,9 @@ class TaskStreamState:
         if "writers" in self._layouts:
             return
         DynamicLayout.reset()
+        from ..core.user_config import load_config
+        config = load_config()
+        writer_boxes = {key: writer.label for key, writer in config.writers.items()}
         # ----------------------------------------------------------------------
         # CRITICAL INTEGRATION PATTERN: "Layout hijacking"
         #
@@ -142,7 +134,7 @@ class TaskStreamState:
         # the streaming integration self-contained while guaranteeing parity with
         # the CLI experience.
         # ----------------------------------------------------------------------
-        layout = SSELayout(self.task_id, WRITER_BOXES, self.queue)
+        layout = SSELayout(self.task_id, writer_boxes, self.queue)
         DynamicLayout._instance = layout  # type: ignore[attr-defined]
         self._layouts["writers"] = layout
 
@@ -158,7 +150,10 @@ class TaskStreamState:
         if "judges" in self._layouts:
             return
         DynamicLayout.reset()
-        layout = SSELayout(self.task_id, JUDGE_BOXES, self.queue)
+        from ..core.user_config import load_config
+        config = load_config()
+        judge_boxes = {key: judge.label for key, judge in config.judges.items()}
+        layout = SSELayout(self.task_id, judge_boxes, self.queue)
         DynamicLayout._instance = layout  # type: ignore[attr-defined]
         self._layouts["judges"] = layout
 
@@ -279,29 +274,26 @@ async def stream_task(task_id: str) -> StreamingResponse:
                     
                     # Detect agent info from filename with config-based labels
                     filename = str(log_file.name)
-                    if "writer-sonnet" in filename or "writer-opus" in filename:
-                        w = writers[0] if len(writers) > 0 else None
-                        box_id, agent_label, color = "writer-a", w.label if w else "Writer A", w.color if w else "green"
-                    elif "writer-codex" in filename:
-                        w = writers[1] if len(writers) > 1 else None
-                        box_id, agent_label, color = "writer-b", w.label if w else "Writer B", w.color if w else "blue"
-                    elif "synth-opus" in filename or "synth-sonnet" in filename:
-                        w = writers[0] if len(writers) > 0 else None
-                        box_id, agent_label, color = "synth-a", f"Synth {w.label}" if w else "Synth A", w.color if w else "green"
-                    elif "synth-codex" in filename:
-                        w = writers[1] if len(writers) > 1 else None
-                        box_id, agent_label, color = "synth-b", f"Synth {w.label}" if w else "Synth B", w.color if w else "blue"
-                    elif "judge_1" in filename or "judge-1" in filename:
-                        j = judges[0] if len(judges) > 0 else None
-                        box_id, agent_label, color = "judge-1", j.label if j else "Judge 1", j.color if j else "green"
-                    elif "judge_2" in filename or "judge-2" in filename:
-                        j = judges[1] if len(judges) > 1 else None
-                        box_id, agent_label, color = "judge-2", j.label if j else "Judge 2", j.color if j else "yellow"
-                    elif "judge_3" in filename or "judge-3" in filename:
-                        j = judges[2] if len(judges) > 2 else None
-                        box_id, agent_label, color = "judge-3", j.label if j else "Judge 3", j.color if j else "magenta"
-                    else:
+                    agent_info = None
+                    
+                    for writer in writers:
+                        if f"writer-{writer.name}" in filename:
+                            agent_info = (writer.key, writer.label, writer.color)
+                            break
+                        if f"synth-{writer.name}" in filename:
+                            agent_info = (f"synth-{writer.key}", f"Synth {writer.label}", writer.color)
+                            break
+                    
+                    if not agent_info:
+                        for judge in judges:
+                            if judge.key in filename or judge.key.replace("_", "-") in filename:
+                                agent_info = (judge.key, judge.label, judge.color)
+                                break
+                    
+                    if not agent_info:
                         continue
+                        
+                    box_id, agent_label, color = agent_info
                     
                     pos = file_positions.get(str(log_file), 0)
                     

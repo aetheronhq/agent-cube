@@ -7,6 +7,33 @@ from typing import List, Optional, Dict, Any, Union
 
 from .config import PROJECT_ROOT
 
+def normalize_winner(winner_str: str) -> str:
+    """Normalize winner string to config key."""
+    from .user_config import load_config
+    if not winner_str:
+        return "TIE"
+    
+    config = load_config()
+    winner_lower = winner_str.lower()
+    
+    # Try direct key match
+    for key in config.writer_order:
+        if key.lower() == winner_lower:
+            return key
+        # Handle "A", "B", etc. by position
+        idx = config.writer_order.index(key)
+        letter = chr(ord('a') + idx)
+        if winner_lower == letter:
+            return key
+    
+    # Handle legacy formats like "Writer A", "writer_a"
+    for key in config.writer_order:
+        if key in winner_lower or winner_lower.replace(" ", "_") == key:
+            return key
+    
+    return "TIE"
+
+
 @dataclass
 class JudgeDecision:
     """Parsed decision from a judge."""
@@ -14,8 +41,7 @@ class JudgeDecision:
     task_id: str
     decision: str
     winner: str
-    scores_a: float
-    scores_b: float
+    scores: Dict[str, float]
     blocker_issues: List[str]
     recommendation: str
     timestamp: str
@@ -97,51 +123,34 @@ def parse_judge_decision(
             winner = data["comparison"].get("better_implementation", "TIE")
         
         # Normalize winner format to writer keys
-        if isinstance(winner, str):
-            winner_lower = winner.lower()
-            if "writer_a" in winner_lower or winner_lower == "a":
-                winner = "writer_a"
-            elif "writer_b" in winner_lower or winner_lower == "b":
-                winner = "writer_b"
-            else:
-                winner = "TIE"
+        winner = normalize_winner(winner)
         
-        # Extract scores (try standard location, then nested reviews)
-        scores_a = data.get("scores", {}).get("writer_a", {})
-        scores_b = data.get("scores", {}).get("writer_b", {})
+        from .user_config import load_config
+        config = load_config()
         
-        # If scores not in standard location, try nested reviews
-        if not scores_a and "reviews" in data:
-            scores_a = data["reviews"].get("writer_a", {}).get("scores", {})
-            scores_b = data["reviews"].get("writer_b", {}).get("scores", {})
-        
-        # Extract total score (try multiple field names and locations)
-        total_a = scores_a.get("total_weighted") or scores_a.get("total")
-        if total_a is None and "total_score" in data:
-            total_a = data["total_score"].get("writer_a")
-        if total_a is None:
-            # Calculate from individual scores
-            total_a = sum([
-                scores_a.get("kiss_compliance", 0),
-                scores_a.get("architecture", 0),
-                scores_a.get("type_safety", 0),
-                scores_a.get("tests", 0),
-                scores_a.get("production_ready", 0)
-            ]) / 5.0
-        
-        total_b = scores_b.get("total_weighted") or scores_b.get("total")
-        if total_b is None and "total_score" in data:
-            total_b = data["total_score"].get("writer_b")
-        if total_b is None:
-            # Calculate from individual scores
-            total_b = sum([
-                scores_b.get("kiss_compliance", 0),
-                scores_b.get("architecture", 0),
-                scores_b.get("type_safety", 0),
-                scores_b.get("tests", 0),
-                scores_b.get("production_ready", 0)
-            ]) / 5.0
-        
+        scores = {}
+        for writer_key in config.writer_order:
+            writer_scores = data.get("scores", {}).get(writer_key, {})
+            
+            # If scores not in standard location, try nested reviews
+            if not writer_scores and "reviews" in data:
+                writer_scores = data["reviews"].get(writer_key, {}).get("scores", {})
+            
+            total = writer_scores.get("total_weighted") or writer_scores.get("total")
+            if total is None and "total_score" in data:
+                total = data["total_score"].get(writer_key)
+            
+            if total is None:
+                # Calculate from individual scores
+                total = sum([
+                    writer_scores.get("kiss_compliance", 0),
+                    writer_scores.get("architecture", 0),
+                    writer_scores.get("type_safety", 0),
+                    writer_scores.get("tests", 0),
+                    writer_scores.get("production_ready", 0)
+                ]) / 5.0
+            scores[writer_key] = float(total)
+
         # Extract blocker issues (try multiple locations)
         blockers = data.get("blocker_issues", [])
         # Also check remaining_issues (used in peer-review)
@@ -149,9 +158,10 @@ def parse_judge_decision(
         if remaining and isinstance(remaining, list):
             blockers = blockers + remaining
         if not blockers and "reviews" in data:
-            blockers_a = data["reviews"].get("writer_a", {}).get("critical_issues", [])
-            blockers_b = data["reviews"].get("writer_b", {}).get("critical_issues", [])
-            blockers = blockers_a + blockers_b
+            blockers_all = []
+            for writer_key in config.writer_order:
+                blockers_all.extend(data["reviews"].get(writer_key, {}).get("critical_issues", []))
+            blockers = blockers_all
         if not isinstance(blockers, list):
             blockers = [str(blockers)] if blockers else []
         
@@ -182,8 +192,7 @@ def parse_judge_decision(
             task_id=data.get("task_id", task_id),
             decision=decision,
             winner=winner,
-            scores_a=float(total_a),
-            scores_b=float(total_b),
+            scores=scores,
             blocker_issues=blockers,
             recommendation=recommendation,
             timestamp=data.get("timestamp", "")
@@ -225,25 +234,36 @@ def aggregate_decisions(decisions: List[JudgeDecision]) -> Dict[str, Any]:
             "message": "No decisions found"
         }
     
+    from .user_config import load_config
+    config = load_config()
+
     approvals = sum(1 for d in decisions if d.decision == "APPROVED")
     request_changes = sum(1 for d in decisions if d.decision == "REQUEST_CHANGES")
     rejections = sum(1 for d in decisions if d.decision == "REJECTED")
     
-    # Normalize winner field (supports "A", "writer_a", "Writer A", etc.)
-    a_wins = sum(1 for d in decisions if d.winner and d.winner.upper() in ["A", "WRITER_A", "WRITER A"])
-    b_wins = sum(1 for d in decisions if d.winner and d.winner.upper() in ["B", "WRITER_B", "WRITER B"])
-    ties = sum(1 for d in decisions if d.winner and d.winner.upper() == "TIE")
+    # Normalize winner field
+    winner_votes = {key: 0 for key in config.writer_order}
+    winner_votes["TIE"] = 0
     
-    avg_score_a = sum(d.scores_a for d in decisions) / len(decisions)
-    avg_score_b = sum(d.scores_b for d in decisions) / len(decisions)
-    
+    for d in decisions:
+        winner_key = normalize_winner(d.winner)
+        if winner_key in winner_votes:
+            winner_votes[winner_key] += 1
+
+    avg_scores = {}
+    for key in config.writer_order:
+        scores = [d.scores.get(key, 0) for d in decisions]
+        avg_scores[f"avg_score_{key}"] = round(sum(scores) / len(decisions), 2)
+
     all_blockers = []
     for d in decisions:
         all_blockers.extend(d.blocker_issues)
     
-    winner = "writer_b" if b_wins > a_wins else ("writer_a" if a_wins > b_wins else "TIE")
+    # Determine winner by votes
+    sorted_winners = sorted(winner_votes.items(), key=lambda item: item[1], reverse=True)
+    winner = sorted_winners[0][0]
     
-    has_clear_winner = (a_wins >= 2 or b_wins >= 2)
+    has_clear_winner = sorted_winners[0][1] >= 2
     
     if winner == "TIE":
         next_action = "FEEDBACK"  # Both writers need changes
@@ -257,25 +277,21 @@ def aggregate_decisions(decisions: List[JudgeDecision]) -> Dict[str, Any]:
         # Fallback: not has_clear_winner or other edge cases
         next_action = "FEEDBACK"
     
-    return {
+    result = {
         "consensus": approvals >= 2,
         "winner": winner,
-        "avg_score_a": round(avg_score_a, 2),
-        "avg_score_b": round(avg_score_b, 2),
         "votes": {
             "approve": approvals,
             "request_changes": request_changes,
             "reject": rejections
         },
-        "winner_votes": {
-            "a": a_wins,
-            "b": b_wins,
-            "tie": ties
-        },
+        "winner_votes": winner_votes,
         "blocker_issues": all_blockers,
         "next_action": next_action,
         "decisions": decisions
     }
+    result.update(avg_scores)
+    return result
 
 
 def get_peer_review_status(

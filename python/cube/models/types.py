@@ -12,7 +12,6 @@ class WriterInfo:
     model: str
     color: str
     label: str
-    letter: str  # Writer letter: A, B, C...
     task_id: str
     worktree: Path
     branch: str

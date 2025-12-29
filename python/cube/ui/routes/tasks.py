@@ -459,8 +459,17 @@ def _build_single_decision_payload(
 
     summary = aggregate_decisions(judge_decisions)
     winner = summary.get("winner")
-    winner_letter = winner if winner in {"A", "B"} else None
-
+    
+    winner_letter = None
+    if winner:
+        from cube.core.user_config import load_config
+        config = load_config()
+        try:
+            idx = config.writer_order.index(winner)
+            winner_letter = chr(ord('A') + idx)
+        except (ValueError, IndexError):
+            winner_letter = winner
+    
     timestamps = [decision.timestamp for decision in judge_decisions if decision.timestamp]
     latest_timestamp = max(timestamps) if timestamps else datetime.utcnow().isoformat()
 
@@ -499,6 +508,17 @@ def _serialize_judge_decision(decision: JudgeDecision) -> dict[str, Any]:
         label = decision.judge.replace("_", " ").title()
         model_name = JUDGE_MODELS.get(decision.judge, f"judge-{decision.judge}")
 
+    scores = {}
+    from cube.core.user_config import load_config
+    config = load_config()
+    for key, score in decision.scores.items():
+        try:
+            idx = config.writer_order.index(key)
+            letter = chr(ord('a') + idx)
+            scores[letter] = score
+        except (ValueError, IndexError):
+            scores[key] = score
+
     return {
         "judge": decision.judge,
         "label": label,
@@ -506,16 +526,21 @@ def _serialize_judge_decision(decision: JudgeDecision) -> dict[str, Any]:
         "vote": vote_value,
         "rationale": decision.recommendation,
         "blockers": decision.blocker_issues or [],
-        "scores": {
-            "a": decision.scores_a,
-            "b": decision.scores_b,
-        },
+        "scores": scores,
     }
 
 
 def _resolve_vote(decision: JudgeDecision) -> str:
-    if decision.winner in {"A", "B"}:
-        return decision.winner
+    from cube.core.user_config import load_config
+    config = load_config()
+    if decision.winner in config.writer_order:
+        try:
+            idx = config.writer_order.index(decision.winner)
+            return chr(ord('A') + idx)
+        except (ValueError, IndexError):
+            pass
+    elif decision.winner == "TIE":
+        return "TIE"
 
     normalized_decision = (decision.decision or "").upper()
     if normalized_decision in {"APPROVE", "APPROVED"}:

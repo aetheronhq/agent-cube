@@ -124,7 +124,8 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
                 pass
         
         color = "green" if d.decision == "APPROVED" else ("yellow" if d.decision == "REQUEST_CHANGES" else "red")
-        console.print(f"[{color}]{judge_label}:[/{color}] {d.decision} → Winner: {d.winner} (A: {d.scores_a}, B: {d.scores_b})")
+        scores_str = ", ".join([f"{key.split('_')[-1].upper()}: {score}" for key, score in d.scores.items()])
+        console.print(f"[{color}]{judge_label}:[/{color}] {d.decision} → Winner: {d.winner} ({scores_str})")
     
     console.print()
     console.print("━" * 60)
@@ -138,15 +139,28 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     
     console.print()
     
-    # Format winner display
-    winner_display = result['winner']
-    if winner_display == "writer_a":
-        winner_display = "A"
-    elif winner_display == "writer_b":
-        winner_display = "B"
+    from ..core.user_config import get_writer_by_key_or_letter, load_config
+    config = load_config()
+
+    winner_key = result['winner']
+    try:
+        winner_cfg = get_writer_by_key_or_letter(winner_key)
+        winner_display = winner_cfg.label
+    except KeyError:
+        winner_display = winner_key
+
+    console.print(f"[bold]🏆 Winner: {winner_display}[/bold]")
+
+    score_parts = []
+    for key in config.writer_order:
+        wconfig = config.writers[key]
+        score = result.get(f'avg_score_{key}')
+        if score is not None:
+            score_parts.append(f"{wconfig.label}={score:.1f}")
     
-    console.print(f"[bold]🏆 Winner: Writer {winner_display}[/bold]")
-    console.print(f"📊 Average Scores: A={result['avg_score_a']:.1f}, B={result['avg_score_b']:.1f}")
+    if score_parts:
+        console.print(f"📊 Average Scores: {', '.join(score_parts)}")
+    
     console.print()
     
     if result["blocker_issues"]:
