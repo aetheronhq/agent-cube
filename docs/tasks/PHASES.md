@@ -1,7 +1,7 @@
 # Agent Cube Task Execution Plan
 
 **Generated:** 2025-12-29
-**Total Tasks:** 16 (3 complete, 1 partial, 1 in review, 11 pending)
+**Total Tasks:** 16 (6 complete, 1 in review, 9 pending)
 
 ---
 
@@ -15,12 +15,12 @@
 | 04 | Split orchestrate.py | 🔄 IN REVIEW | 14 | - |
 | 05 | Add core tests | ❌ TODO | 06 | All refactoring |
 | 06 | Add docstrings | ❌ TODO | - | 05 |
-| 07 | Add OSS files | 🟡 PARTIAL | - | - |
+| 07 | Add OSS files | ✅ DONE | - | - |
 | 08 | Simplify agent identity | ❌ TODO | - | - |
 | 09 | Consolidate adapters | ❌ TODO | 16 | - |
 | 10 | Consolidate parsers | ❌ TODO | 16 | - |
-| 11 | Fix raw prints | ❌ TODO | - | - |
-| 12 | Extract constants | ❌ TODO | - | - |
+| 11 | Fix raw prints | ✅ DONE | - | - |
+| 12 | Extract constants | ✅ DONE | - | - |
 | 13 | Consolidate layouts | ❌ TODO | - | 03 ✅ |
 | 14 | Centralize decision parsing | ❌ TODO | - | 04 |
 | 15 | Single writer mode | ❌ TODO | - | - |
