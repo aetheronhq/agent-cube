@@ -52,6 +52,8 @@ class CubeConfig:
     auto_push: bool
     auto_update: bool
     session_recording_at_start: bool
+    default_mode: str
+    default_writer: str
 
 _config_cache: Optional[CubeConfig] = None
 
@@ -205,10 +207,22 @@ def load_config() -> CubeConfig:
         auto_commit=behavior.get("auto_commit", True),
         auto_push=behavior.get("auto_push", True),
         auto_update=behavior.get("auto_update", True),
-        session_recording_at_start=behavior.get("session_recording_at_start", True)
+        session_recording_at_start=behavior.get("session_recording_at_start", True),
+        default_mode=behavior.get("default_mode", "dual"),
+        default_writer=behavior.get("default_writer", "writer_a"),
     )
     
     return _config_cache
+
+def get_default_writer() -> str:
+    """Get default writer for single mode."""
+    config = load_config()
+    return config.default_writer
+
+def is_single_mode_default() -> bool:
+    """Check if single mode is the default."""
+    config = load_config()
+    return config.default_mode == "single"
 
 def get_cli_tool_for_model(model: str) -> str:
     """Get the CLI tool to use for a given model."""

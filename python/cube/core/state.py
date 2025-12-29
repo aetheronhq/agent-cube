@@ -22,6 +22,8 @@ class WorkflowState:
     peer_review_complete: bool = False
     updated_at: str = ""
     project_root: Optional[str] = None  # Project root where task was run
+    mode: str = "dual"  # "dual" or "single"
+    writer_key: Optional[str] = None  # For single mode, which writer
     
     def __post_init__(self):
         if not self.updated_at:
@@ -56,7 +58,9 @@ def load_state(task_id: str) -> Optional[WorkflowState]:
             synthesis_complete=data.get("synthesis_complete", False),
             peer_review_complete=data.get("peer_review_complete", False),
             updated_at=data.get("updated_at", ""),
-            project_root=data.get("project_root")
+            project_root=data.get("project_root"),
+            mode=data.get("mode", "dual"),
+            writer_key=data.get("writer_key")
         )
     except Exception as exc:
         from .output import console_err
