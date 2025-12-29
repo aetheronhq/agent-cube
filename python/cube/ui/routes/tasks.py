@@ -13,8 +13,8 @@ from pydantic import BaseModel, model_validator
 from cube.automation.dual_writers import launch_dual_writers
 from cube.automation.judge_panel import launch_judge_panel
 from cube.commands.feedback import send_feedback_async
-from cube.core.config import JUDGE_MODELS, PROJECT_ROOT, WRITER_LETTERS, get_worktree_path
-from cube.core.user_config import resolve_writer_alias, get_writer_aliases
+from cube.core.config import JUDGE_MODELS, PROJECT_ROOT, get_worktree_path
+from cube.core.user_config import resolve_writer_alias, get_writer_aliases, get_writer_config
 from cube.core.decision_parser import JudgeDecision, aggregate_decisions, parse_all_decisions
 from cube.core.session import load_session
 from cube.core.state import WorkflowState, load_state
@@ -360,29 +360,27 @@ async def send_feedback(
 ) -> dict[str, str]:
     """Queue feedback to resume a writer session."""
     writer_cfg = resolve_writer_alias(request.writer)
-    writer = writer_cfg.name
-    writer_letter = WRITER_LETTERS[writer]
-    session_id = load_session(f"WRITER_{writer_letter}", task_id)
+    session_id = load_session(writer_cfg.key.upper(), task_id)
 
     if not session_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Session not found for writer '{writer}' and task '{task_id}'",
+            detail=f"Session not found for writer '{writer_cfg.name}' and task '{task_id}'",
         )
 
     feedback_path = _resolve_feedback_path(task_id, request)
     project_name = PROJECT_ROOT.name
-    worktree = get_worktree_path(project_name, writer, task_id)
+    worktree = get_worktree_path(project_name, writer_cfg.name, task_id)
 
     if not worktree.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Worktree not found for writer '{writer}' and task '{task_id}'",
+            detail=f"Worktree not found for writer '{writer_cfg.name}' and task '{task_id}'",
         )
 
     logger.info(
         "Scheduling feedback for writer %s (task=%s, session=%s, feedback=%s)",
-        writer,
+        writer_cfg.name,
         task_id,
         session_id,
         feedback_path,
@@ -390,7 +388,7 @@ async def send_feedback(
 
     background_tasks.add_task(
         send_feedback_async,
-        writer,
+        writer_cfg.name,
         task_id,
         feedback_path,
         session_id,
@@ -400,7 +398,7 @@ async def send_feedback(
     return {
         "status": "started",
         "task_id": task_id,
-        "message": f"Feedback sent to writer {writer}",
+        "message": f"Feedback sent to {writer_cfg.label}",
     }
 
 

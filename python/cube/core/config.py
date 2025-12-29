@@ -118,21 +118,19 @@ def get_worktree_path(project_name: str, writer_name: str, task_id: str) -> Path
     """Get the worktree path for a specific writer and task."""
     return WORKTREE_BASE / project_name / f"writer-{writer_name}-{task_id}"
 
-def _get_writer_metadata() -> tuple[dict, dict, dict, dict]:
-    """Load writer metadata (model/color/label/letter) from user config."""
+def _get_writer_metadata() -> tuple[dict, dict, dict]:
+    """Load writer metadata (model/color/label) from user config."""
     try:
         from .user_config import load_config
         config = load_config()
         models = {}
         colors = {}
         labels = {}
-        letters = {}
         for writer in config.writers.values():
             models[writer.name] = writer.model
             colors[writer.name] = writer.color
             labels[writer.name] = writer.label
-            letters[writer.name] = writer.letter
-        return models, colors, labels, letters
+        return models, colors, labels
     except Exception:
         models = {
             "sonnet": "sonnet-4.5-thinking",
@@ -146,13 +144,9 @@ def _get_writer_metadata() -> tuple[dict, dict, dict, dict]:
             "sonnet": "Writer A",
             "codex": "Writer B",
         }
-        letters = {
-            "sonnet": "A",
-            "codex": "B",
-        }
-        return models, colors, labels, letters
+        return models, colors, labels
 
-MODELS, WRITER_COLORS, WRITER_LABELS, WRITER_LETTERS = _get_writer_metadata()
+MODELS, WRITER_COLORS, WRITER_LABELS = _get_writer_metadata()
 
 def _get_judge_models_from_config() -> dict:
     """Load judge models from cube.yaml config."""
