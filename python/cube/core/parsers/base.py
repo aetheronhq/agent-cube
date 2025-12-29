@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 import json
-from ..models.types import StreamMessage
+from ...models.types import StreamMessage
 
 class ParserAdapter(ABC):
     """Interface for parsing CLI-specific JSON output."""
@@ -17,4 +17,3 @@ class ParserAdapter(ABC):
     def supports_resume(self) -> bool:
         """Check if this CLI supports session resume."""
         pass
-

@@ -2,7 +2,7 @@
 
 import json
 from typing import Optional
-from ..parser_adapter import ParserAdapter
+from .base import ParserAdapter
 from ...models.types import StreamMessage
 
 class GeminiParser(ParserAdapter):
