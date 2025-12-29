@@ -92,11 +92,13 @@ class SingleAgentLayout(BaseThinkingLayout):
     def close(cls) -> None:
         with cls._lock:
             if cls._instance:
-                cls._instance.close()
+                # Call parent class's close method to avoid recursion
+                BaseThinkingLayout.close(cls._instance)
                 cls._instance = None
     
     @classmethod
     def start(cls) -> None:
         with cls._lock:
             if cls._instance:
-                cls._instance.start()
+                # Call parent class's start method to avoid recursion
+                BaseThinkingLayout.start(cls._instance)
