@@ -163,8 +163,7 @@ async def _orchestrate_auto_impl(
     prompts_dir = PROJECT_ROOT / ".prompts"
     prompts_dir.mkdir(parents=True, exist_ok=True)
 
-    console.print(f"[bold cyan]🤖 Agent Cube Autonomous Orchestration[/bold cyan]")
-    console.print(f"Task: {task_id}")
+    console.print(f"[bold cyan]🤖 Agent Cube[/bold cyan] [bold yellow]▶ {task_id.upper()}[/bold yellow]")
 
     existing_state = load_state(task_id)
 

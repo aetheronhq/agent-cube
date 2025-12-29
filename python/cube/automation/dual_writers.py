@@ -125,7 +125,7 @@ async def launch_dual_writers(
     writer_a = get_writer_config("writer_a")
     writer_b = get_writer_config("writer_b")
     boxes = {"writer_a": writer_a.label, "writer_b": writer_b.label}
-    DynamicLayout.initialize(boxes, lines_per_box=3)
+    DynamicLayout.initialize(boxes, lines_per_box=3, task_name=task_id)
     layout = DynamicLayout
     
     # Create minimal state file for UI tracking
