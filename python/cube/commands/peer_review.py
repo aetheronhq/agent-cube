@@ -89,7 +89,7 @@ def peer_review_command(
             missing_sessions = []
             
             for jconfig in resumable_judges:
-                if not session_exists(f"JUDGE_{jconfig.key}", f"{task_id}_panel"):
+                if not session_exists(jconfig.key.upper(), f"{task_id}_panel"):
                     missing_sessions.append(jconfig.key)
             
             if missing_sessions:
