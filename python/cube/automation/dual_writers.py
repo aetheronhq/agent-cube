@@ -161,6 +161,7 @@ async def launch_dual_writers(
             model=wconfig.model,
             color=wconfig.color,
             label=wconfig.label,
+            letter=wconfig.letter,
             task_id=task_id,
             worktree=worktree,
             branch=branch,
