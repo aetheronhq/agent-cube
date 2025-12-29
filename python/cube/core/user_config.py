@@ -13,6 +13,7 @@ class WriterConfig:
     name: str
     model: str
     label: str
+    letter: str  # Writer letter: A, B, C...
     color: str
     
     def session_key(self, task_id: str) -> str:
@@ -161,13 +162,17 @@ def load_config() -> CubeConfig:
     
     writer_order: list[str] = []
     writers: Dict[str, WriterConfig] = {}
-    for key, w in data.get("writers", {}).items():
+    for idx, (key, w) in enumerate(data.get("writers", {}).items()):
         writer_order.append(key)
+        # Derive letter from key suffix (writer_a -> A, writer_b -> B)
+        # This ensures stable session keys even if config order changes
+        letter = key.split('_')[-1].upper()
         writers[key] = WriterConfig(
             key=key,
             name=w["name"],
             model=w["model"],
             label=w["label"],
+            letter=letter,
             color=w["color"]
         )
     

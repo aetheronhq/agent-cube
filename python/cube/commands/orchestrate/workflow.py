@@ -148,7 +148,7 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
             console.print()
             console.print("[yellow]═══ Phase 6: Synthesis ═══[/yellow]")
             log_phase(6, "Synthesis")
-            await run_synthesis(task_id, result, prompts_dir, both_writers=send_both_feedback)
+            await run_synthesis(task_id, result, prompts_dir)
             update_phase(task_id, 6, synthesis_complete=True)
 
         if resume_from <= 7:
@@ -398,6 +398,7 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
                     if recheck.get("approved"):
                         print_success("✅ Automated review passed after fixes!")
                         update_phase(task_id, 6, path="MERGE", peer_review_complete=True)
+                        # Continue to Phase 7
                     else:
                         remaining = recheck.get("remaining_issues", [])
                         console.print()
@@ -415,13 +416,11 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
                     return
                 else:
                     print_warning(f"Automated review not approved ({approvals}/{decisions_found} approved)")
-                    update_phase(task_id, 6, path="MERGE", peer_review_complete=True)
-
-                console.print()
-                console.print("Fix issues or wait for decisions, then resume:")
-                console.print(f"  cube auto {task_id} --resume-from 6")
-                update_phase(task_id, 6, path="MERGE")
-                return
+                    console.print()
+                    console.print("Fix issues or wait for decisions, then resume:")
+                    console.print(f"  cube auto {task_id} --resume-from 6")
+                    update_phase(task_id, 6, path="MERGE")
+                    return
 
             update_phase(task_id, 6, path="MERGE", peer_review_complete=True)
 
