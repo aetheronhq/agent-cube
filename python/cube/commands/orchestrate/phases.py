@@ -82,7 +82,8 @@ Tell the winner: "Read `.prompts/reviews/{task_id}-writer-{{a|b}}-coderabbit.txt
 Save to: `.prompts/synthesis-{task_id}.md`"""
 
         parser = get_parser("cursor-agent")
-        layout = SingleAgentLayout(title="Prompter")
+        layout = SingleAgentLayout
+        layout.initialize("Prompter")
         layout.start()
 
         try:
@@ -157,7 +158,8 @@ Save to: `.prompts/peer-review-{task_id}.md`
 Include the worktree location and git commands for reviewing."""
 
         parser = get_parser("cursor-agent")
-        layout = SingleAgentLayout(title="Prompter")
+        layout = SingleAgentLayout
+        layout.initialize("Prompter")
         layout.start()
 
         try:
