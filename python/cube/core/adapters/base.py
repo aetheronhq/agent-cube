@@ -108,7 +108,8 @@ async def monitor_process_health(
         
         if process.returncode is not None:
             if process.returncode != 0:
-                raise RuntimeError(f"{name} exited with code {process.returncode}")
+                # Process died - error will be raised in main function with output context
+                break
             break
         
         try:
@@ -164,6 +165,8 @@ async def run_subprocess_streaming(
     
     # Track last output time for stall detection
     last_output_time = [time.time()]  # Mutable list so monitor can read it
+    # Track last N lines for error context
+    last_lines = []
     
     health_monitor = asyncio.create_task(
         monitor_process_health(
@@ -178,6 +181,10 @@ async def run_subprocess_streaming(
         if process.stdout:
             async for line in read_stream_with_buffer(process.stdout):
                 last_output_time[0] = time.time()  # Update on each output
+                # Keep last 20 lines for error context
+                last_lines.append(line)
+                if len(last_lines) > 20:
+                    last_lines.pop(0)
                 yield line
     finally:
         health_monitor.cancel()
@@ -197,4 +204,6 @@ async def run_subprocess_streaming(
     
     exit_code = await process.wait()
     if exit_code != 0:
-        raise RuntimeError(f"{tool_name} exited with code {exit_code}")
+        # Include last output lines for error context
+        context = "\n".join(last_lines[-5:]) if last_lines else "No output captured"
+        raise RuntimeError(f"{tool_name} exited with code {exit_code}\nLast output:\n{context}")
