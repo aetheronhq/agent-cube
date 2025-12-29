@@ -61,8 +61,8 @@ class SingleAgentLayout(BaseThinkingLayout):
         """Add thinking text."""
         with cls._lock:
             if cls._instance:
-                # Base class expects box_id, which is always 'agent' here
-                cls._instance.add_thinking("agent", text)
+                # Call parent class method to avoid recursion
+                BaseThinkingLayout.add_thinking(cls._instance, "agent", text)
 
     @classmethod
     def update_thinking(cls, text: str) -> None:
@@ -73,30 +73,34 @@ class SingleAgentLayout(BaseThinkingLayout):
     def add_assistant_message(cls, content: str, label: str, color: str) -> None:
         with cls._lock:
             if cls._instance:
-                # Base class expects key, which is always 'agent' here
-                cls._instance.add_assistant_message("agent", content, label, color)
+                # Call parent class method to avoid recursion
+                BaseThinkingLayout.add_assistant_message(cls._instance, "agent", content, label, color)
 
     @classmethod
     def add_output(cls, line: str) -> None:
         with cls._lock:
             if cls._instance:
-                cls._instance.add_output(line)
+                # Call parent class method to avoid recursion
+                BaseThinkingLayout.add_output(cls._instance, line)
     
     @classmethod
     def mark_complete(cls, status: Optional[str] = None) -> None:
         with cls._lock:
             if cls._instance:
-                cls._instance.mark_complete("agent", status)
+                # Call parent class method to avoid recursion
+                BaseThinkingLayout.mark_complete(cls._instance, "agent", status)
 
     @classmethod
     def close(cls) -> None:
         with cls._lock:
             if cls._instance:
-                cls._instance.close()
+                # Call parent class's close method to avoid recursion
+                BaseThinkingLayout.close(cls._instance)
                 cls._instance = None
     
     @classmethod
     def start(cls) -> None:
         with cls._lock:
             if cls._instance:
-                cls._instance.start()
+                # Call parent class's start method to avoid recursion
+                BaseThinkingLayout.start(cls._instance)
