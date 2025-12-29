@@ -127,7 +127,7 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
         else:
             raise RuntimeError(f"Cannot resume from phase {resume_from}: No aggregated decision found. Run Phase 5 first.")
 
-    peer_status = run_decide_peer_review(task_id)
+    peer_status = run_decide_peer_review(task_id, require_decisions=False)
     has_peer_review_issues = not peer_status.get("approved") and peer_status.get("decisions_found", 0) > 0
 
     effective_path = result["next_action"]
