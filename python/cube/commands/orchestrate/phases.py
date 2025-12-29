@@ -84,28 +84,30 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
         layout = SingleAgentLayout(title="Prompter")
         layout.start()
 
-        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
+        try:
+            stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
 
-        async for line in stream:
-            msg = parser.parse(line)
-            if msg:
-                formatted = format_stream_message(msg, "Prompter", "cyan")
-                if formatted:
-                    if formatted.startswith("[thinking]"):
-                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking(thinking_text)
-                    elif msg.type == "assistant" and msg.content:
-                        layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
-                    else:
-                        layout.add_output(formatted)
+            async for line in stream:
+                msg = parser.parse(line)
+                if msg:
+                    formatted = format_stream_message(msg, "Prompter", "cyan")
+                    if formatted:
+                        if formatted.startswith("[thinking]"):
+                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                            layout.add_thinking(thinking_text)
+                        elif msg.type == "assistant" and msg.content:
+                            layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
+                        else:
+                            layout.add_output(formatted)
 
-            if synthesis_path.exists():
-                layout.close()
-                print_success(f"Created: {synthesis_path}")
-                break
+                if synthesis_path.exists():
+                    print_success(f"Created: {synthesis_path}")
+                    break
 
-        if not synthesis_path.exists():
-            raise RuntimeError(f"Prompter failed to generate synthesis prompt at {synthesis_path}")
+            if not synthesis_path.exists():
+                raise RuntimeError(f"Prompter failed to generate synthesis prompt at {synthesis_path}")
+        finally:
+            layout.close()
 
     print_info(f"Sending synthesis to Writer {winner_name}")
     from ..feedback import send_feedback_async
@@ -157,28 +159,30 @@ Include the worktree location and git commands for reviewing."""
         layout = SingleAgentLayout(title="Prompter")
         layout.start()
 
-        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
+        try:
+            stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
 
-        async for line in stream:
-            msg = parser.parse(line)
-            if msg:
-                formatted = format_stream_message(msg, "Prompter", "cyan")
-                if formatted:
-                    if formatted.startswith("[thinking]"):
-                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking(thinking_text)
-                    elif msg.type == "assistant" and msg.content:
-                        layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
-                    else:
-                        layout.add_output(formatted)
+            async for line in stream:
+                msg = parser.parse(line)
+                if msg:
+                    formatted = format_stream_message(msg, "Prompter", "cyan")
+                    if formatted:
+                        if formatted.startswith("[thinking]"):
+                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                            layout.add_thinking(thinking_text)
+                        elif msg.type == "assistant" and msg.content:
+                            layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
+                        else:
+                            layout.add_output(formatted)
 
-            if peer_review_path.exists():
-                layout.close()
-                print_success(f"Created: {peer_review_path}")
-                break
+                if peer_review_path.exists():
+                    print_success(f"Created: {peer_review_path}")
+                    break
 
-        if not peer_review_path.exists():
-            raise RuntimeError(f"Prompter failed to generate peer review prompt at {peer_review_path}")
+            if not peer_review_path.exists():
+                raise RuntimeError(f"Prompter failed to generate peer review prompt at {peer_review_path}")
+        finally:
+            layout.close()
 
     print_info(f"Launching peer review for Winner: Writer {winner_name}")
     await launch_judge_panel(task_id, peer_review_path, "peer-review", resume_mode=False, winner=winner_name)
@@ -219,29 +223,30 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
     layout = SingleAgentLayout(title="Prompter")
     layout.start()
 
-    stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
+    try:
+        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
 
-    async for line in stream:
-        msg = parser.parse(line)
-        if msg:
-            formatted = format_stream_message(msg, "Prompter", "cyan")
-            if formatted:
-                if formatted.startswith("[thinking]"):
-                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                    layout.add_thinking(thinking_text)
-                elif msg.type == "assistant" and msg.content:
-                    layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
-                else:
-                    layout.add_output(formatted)
+        async for line in stream:
+            msg = parser.parse(line)
+            if msg:
+                formatted = format_stream_message(msg, "Prompter", "cyan")
+                if formatted:
+                    if formatted.startswith("[thinking]"):
+                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                        layout.add_thinking(thinking_text)
+                    elif msg.type == "assistant" and msg.content:
+                        layout.add_assistant_message("agent", msg.content, "Prompter", "cyan")
+                    else:
+                        layout.add_output(formatted)
 
-        if minor_fixes_path.exists():
-            layout.close()
-            print_success(f"Created: {minor_fixes_path}")
-            break
+            if minor_fixes_path.exists():
+                print_success(f"Created: {minor_fixes_path}")
+                break
 
-    if not minor_fixes_path.exists():
+        if not minor_fixes_path.exists():
+            raise RuntimeError(f"Failed to generate minor fixes prompt for {winner_name} (task: {task_id})")
+    finally:
         layout.close()
-        raise RuntimeError(f"Failed to generate minor fixes prompt for {winner_name} (task: {task_id})")
 
     from ..feedback import send_feedback_async
     from ...core.session import load_session
