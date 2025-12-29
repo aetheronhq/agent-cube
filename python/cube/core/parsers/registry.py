@@ -1,10 +1,10 @@
 """Parser registry."""
 
 from typing import Dict, Type
-from ..parser_adapter import ParserAdapter
-from .cursor_parser import CursorParser
-from .gemini_parser import GeminiParser
-from .cli_review_parser import CLIReviewParser
+from .base import ParserAdapter
+from .cursor import CursorParser
+from .gemini import GeminiParser
+from .cli_review import CLIReviewParser
 
 _PARSERS: Dict[str, Type[ParserAdapter]] = {
     "cursor-agent": CursorParser,
