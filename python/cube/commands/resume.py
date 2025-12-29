@@ -50,7 +50,7 @@ async def resume_async(
                     thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                     layout.add_thinking(thinking_text)
                 elif msg.type == "assistant" and msg.content:
-                    layout.add_assistant_message("agent", msg.content, target_label, color)
+                    layout.add_assistant_message(msg.content, target_label, color)
                 else:
                     layout.add_output(formatted)
     

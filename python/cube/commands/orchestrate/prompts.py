@@ -357,7 +357,7 @@ Task: {task_id}
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                             layout.add_thinking(thinking_text)
                         elif msg.type == "assistant" and msg.content:
-                            layout.add_assistant_message("agent", msg.content, entry["label"], entry["color"])
+                            layout.add_assistant_message(msg.content, entry["label"], entry["color"])
                         else:
                             layout.add_output(formatted)
                 if entry["path"].exists():
