@@ -37,6 +37,22 @@ def get_decision_file_path(
     
     return root / ".prompts" / "decisions" / f"{judge_key.replace('_', '-')}-{task_id}-{review_type}.json"
 
+
+def parse_single_decision_file(filepath: Path) -> Optional[Dict[str, Any]]:
+    """Parse a single decision JSON file and return raw data.
+    
+    Returns None if file doesn't exist or is invalid JSON.
+    Use this when you need raw JSON data, not a JudgeDecision object.
+    """
+    if not filepath.exists():
+        return None
+    try:
+        with open(filepath) as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        return None
+
+
 def parse_judge_decision(
     judge_key: str, 
     task_id: str,
@@ -259,6 +275,57 @@ def aggregate_decisions(decisions: List[JudgeDecision]) -> Dict[str, Any]:
         "blocker_issues": all_blockers,
         "next_action": next_action,
         "decisions": decisions
+    }
+
+
+def get_peer_review_status(
+    task_id: str,
+    project_root: Optional[Union[str, Path]] = None,
+    require_decisions: bool = True
+) -> Dict[str, Any]:
+    """Get peer review approval status and remaining issues."""
+    from .user_config import get_judge_configs
+    
+    all_issues = []
+    approvals = 0
+    decisions_found = 0
+    judge_decisions = {}
+    
+    judge_configs = get_judge_configs()
+    
+    for jconfig in judge_configs:
+        decision_file = get_decision_file_path(
+            jconfig.key, task_id, 
+            project_root=project_root, 
+            review_type="peer-review"
+        )
+        
+        data = parse_single_decision_file(decision_file)
+        if data is None:
+            continue
+            
+        decisions_found += 1
+        decision = data.get("decision", "UNKNOWN")
+        remaining = data.get("remaining_issues", [])
+        blockers = data.get("blocker_issues", [])
+        issues = remaining + blockers
+        
+        judge_decisions[jconfig.key] = decision
+        
+        if issues:
+            all_issues.extend(issues)
+        
+        if decision == "APPROVED":
+            approvals += 1
+        elif decision == "SKIPPED":
+            approvals += 1  # Tool failure, not a code issue
+    
+    return {
+        "approved": approvals == decisions_found and decisions_found > 0,
+        "remaining_issues": all_issues,
+        "decisions_found": decisions_found,
+        "approvals": approvals,
+        "judge_decisions": judge_decisions
     }
 
 

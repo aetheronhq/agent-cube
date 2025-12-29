@@ -33,72 +33,25 @@ def clear_peer_review_decisions(task_id: str) -> None:
 
 
 def run_decide_peer_review(task_id: str, require_decisions: bool = True) -> dict:
-    """Check peer review decisions and extract any remaining issues.
-    
-    Args:
-        task_id: Identifier of the current task.
-        require_decisions: When False, missing peer-review files won't raise
-            warnings (useful before peer review runs).
-    
-    Only checks judges that have peer-review decision files (not all judges).
-    """
+    """Check peer review decisions and extract any remaining issues."""
+    from ...core.decision_parser import get_peer_review_status, get_decision_file_path
     from ...core.user_config import get_judge_configs
-    from ...core.decision_parser import get_decision_file_path
-
-    all_issues = []
-    approvals = 0
-    decisions_found = 0
-    judge_decisions = {}
-
+    
     console.print(f"[cyan]📊 Checking peer review decisions for: {task_id}[/cyan]")
     console.print()
-
-    judge_configs = get_judge_configs()
-    peer_review_judges = [j for j in judge_configs if j.peer_review_only]
-    judge_nums = [j.key for j in judge_configs]
     
-    # Count expected peer-review judges (only peer_review_only judges run in peer review)
-    total_peer_judges = len(peer_review_judges) if peer_review_judges else len(judge_configs)
-
-    for judge_key in judge_nums:
-        peer_file = get_decision_file_path(judge_key, task_id, review_type="peer-review")
-
-        if peer_file.exists():
-            decisions_found += 1
-            with open(peer_file) as f:
-                data = json.load(f)
-                decision = data.get("decision", "UNKNOWN")
-                remaining = data.get("remaining_issues", [])
-                blockers = data.get("blocker_issues", [])
-                issues = remaining + blockers
-
-                judge_decisions[f"{judge_key}_decision"] = decision
-
-                judge_label = judge_key.replace("_", "-")
-                console.print(f"Judge {judge_label}: {decision}")
-                if issues:
-                    console.print(f"  Issues: {len(issues)}")
-                    for issue in issues[:3]:
-                        truncated = issue[:100] + "..." if len(issue) > 100 else issue
-                        console.print(f"    • {truncated}")
-                    if len(issues) > 3:
-                        console.print(f"    [dim]... and {len(issues) - 3} more[/dim]")
-                    all_issues.extend(issues)
-
-                if decision == "APPROVED":
-                    approvals += 1
-                elif decision == "SKIPPED":
-                    # Tool failure (rate limit, etc.) - not a code issue, count as non-blocking
-                    approvals += 1
-                    console.print(f"  [dim](tool skipped - not blocking)[/dim]")
-                elif decision == "REQUEST_CHANGES":
-                    if not issues:
-                        console.print("  [yellow]⚠️  No issues listed (malformed decision)[/yellow]")
-                        all_issues.append(f"Judge {judge_label} requested changes but didn't specify issues")
+    result = get_peer_review_status(task_id, require_decisions=require_decisions)
+    
+    # Display per-judge status
+    for judge_key, decision in result["judge_decisions"].items():
+        judge_label = judge_key.replace("_", "-")
+        console.print(f"Judge {judge_label}: {decision}")
 
     console.print()
+    
+    judge_configs = get_judge_configs()
 
-    if decisions_found == 0:
+    if result["decisions_found"] == 0:
         if require_decisions:
             print_warning("No peer review decisions found!")
             peer_review_judges = [j for j in judge_configs if j.peer_review_only]
@@ -106,31 +59,28 @@ def run_decide_peer_review(task_id: str, require_decisions: bool = True) -> dict
                 console.print("Expected files from peer-review judges:")
                 for judge_cfg in peer_review_judges:
                     judge_label = judge_cfg.key.replace("_", "-")
-                    console.print(f"  .prompts/decisions/{judge_label}-{task_id}-peer-review.json")
+                    fpath = get_decision_file_path(judge_cfg.key, task_id, review_type="peer-review")
+                    console.print(f"  {fpath.relative_to(PROJECT_ROOT)}")
             else:
                 console.print("No peer_review_only judges configured - all judges:")
-                for judge_key in judge_nums:
-                    judge_label = judge_key.replace("_", "-")
-                    console.print(f"  .prompts/decisions/{judge_label}-{task_id}-peer-review.json")
+                for jc in judge_configs:
+                    judge_label = jc.key.replace("_", "-")
+                    fpath = get_decision_file_path(jc.key, task_id, review_type="peer-review")
+                    console.print(f"  {fpath.relative_to(PROJECT_ROOT)}")
             console.print()
-        return {"approved": False, "remaining_issues": [], "decisions_found": 0, "approvals": 0}
-
-    console.print(f"Decisions: {decisions_found}/{total_peer_judges}, Approvals: {approvals}/{decisions_found}")
-
-    approved = approvals == decisions_found
-
-    if approved:
+        return result
+    
+    peer_review_judges = [j for j in judge_configs if j.peer_review_only]
+    total_peer_judges = len(peer_review_judges) if peer_review_judges else len(judge_configs)
+    
+    console.print(f"Decisions: {result['decisions_found']}/{total_peer_judges}, Approvals: {result['approvals']}/{result['decisions_found']}")
+    
+    if result["approved"]:
         console.print()
         print_info("All judges approved!")
-    elif approvals > 0:
+    elif result["approvals"] > 0:
         console.print()
-        print_warning(f"Not unanimous: {approvals}/{decisions_found} approved, {len(all_issues)} issue(s) to address")
-
-    result = {
-        "approved": approved,
-        "remaining_issues": all_issues,
-        "decisions_found": decisions_found,
-        "approvals": approvals
-    }
-    result.update(judge_decisions)
+        print_warning(f"Not unanimous: {result['approvals']}/{result['decisions_found']} approved, {len(result['remaining_issues'])} issue(s)")
+    
     return result
+
