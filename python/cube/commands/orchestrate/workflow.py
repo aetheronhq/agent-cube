@@ -404,7 +404,14 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
                         console.print()
                         print_warning(f"Still {len(remaining)} issue(s) after fixes")
                         console.print()
-                        winner = result.get("winner", "writer_b").replace("writer_", "")
+                        winner_key = result.get("winner", "")
+                        from ...core.user_config import load_config
+                        try:
+                            config = load_config()
+                            idx = config.writer_order.index(winner_key) if winner_key in config.writer_order else -1
+                            winner = chr(ord('a') + idx) if idx >= 0 else winner_key
+                        except Exception:
+                            winner = winner_key.replace("writer_", "") if winner_key else "unknown"
                         console.print("Send targeted feedback to address remaining issues:")
                         console.print(f"  cube feedback {winner} {task_id} \"<fix instructions>\"")
                         console.print(f"  cube auto {task_id} --resume-from peer-review")

@@ -13,7 +13,7 @@ from ..core.git import (
 from ..core.session import save_session, load_session
 from ..core.output import print_info, print_success, print_warning, print_error, console
 from ..core.config import PROJECT_ROOT
-from ..core.user_config import get_writer_config
+from ..core.user_config import get_writer_config, load_config
 from ..models.types import WriterInfo
 
 async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None:
@@ -61,14 +61,13 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
             if msg:
                 if msg.session_id and not writer_info.session_id:
                     writer_info.session_id = msg.session_id
-                    # Save session immediately when captured
-                    # Extract letter from key (writer_a -> A, writer_b -> B)
-                    letter = writer_info.key.split('_')[-1].upper()
+                    # Save session using config key directly (e.g., WRITER_A)
+                    session_prefix = writer_info.key.upper()
                     save_session(
-                        f"WRITER_{letter}",
+                        session_prefix,
                         writer_info.task_id,
                         msg.session_id,
-                        f"Writer {letter} ({writer_info.model})"
+                        f"{writer_info.label} ({writer_info.model})"
                     )
                 
                 formatted = format_stream_message(msg, writer_info.label, writer_info.color)
@@ -122,9 +121,8 @@ async def launch_dual_writers(
     # Create fresh layout for this run (closes previous if exists)
     from ..core.dynamic_layout import DynamicLayout
     
-    writer_a = get_writer_config("writer_a")
-    writer_b = get_writer_config("writer_b")
-    boxes = {"writer_a": writer_a.label, "writer_b": writer_b.label}
+    config = load_config()
+    boxes = {key: config.writers[key].label for key in config.writer_order}
     DynamicLayout.initialize(boxes, lines_per_box=3)
     layout = DynamicLayout
     
@@ -144,8 +142,8 @@ async def launch_dual_writers(
     project_name = Path(PROJECT_ROOT).name
     
     writers = []
-    for writer_key in ["writer_a", "writer_b"]:
-        wconfig = get_writer_config(writer_key)
+    for writer_key in config.writer_order:
+        wconfig = config.writers[writer_key]
         worktree = create_worktree(task_id, wconfig.name)
         branch = f"writer-{wconfig.name}/{task_id}"
         
@@ -161,7 +159,6 @@ async def launch_dual_writers(
             model=wconfig.model,
             color=wconfig.color,
             label=wconfig.label,
-            letter=wconfig.letter,
             task_id=task_id,
             worktree=worktree,
             branch=branch,
@@ -187,16 +184,13 @@ async def launch_dual_writers(
     console.print()
     
     # Show which models/CLIs are being used
-    from ..core.user_config import load_config
-    config = load_config()
     for w in writers:
         cli_name = config.cli_tools.get(w.model, "cursor-agent")
         console.print(f"[dim]{w.label}: Starting with model {w.model} (CLI: {cli_name})...[/dim]")
     console.print()
     
     results = await asyncio.gather(
-        run_writer(writers[0], prompt, resume_mode),
-        run_writer(writers[1], prompt, resume_mode),
+        *(run_writer(writer, prompt, resume_mode) for writer in writers),
         return_exceptions=True
     )
     
@@ -215,13 +209,13 @@ async def launch_dual_writers(
         for writer, error in errors:
             console.print(f"  [{writer.color}]{writer.label}[/{writer.color}]: {error}")
         
-        if len(errors) == 2:
-            raise RuntimeError("Both writers failed")
+        if len(errors) == len(writers):
+            raise RuntimeError("All writers failed")
         else:
-            print_warning("One writer failed but the other completed successfully")
+            print_warning(f"{len(errors)} writer(s) failed but {len(writers) - len(errors)} completed successfully")
             console.print()
     else:
-        console.print("✅ Both writers completed successfully")
+        console.print(f"✅ All {len(writers)} writer(s) completed successfully")
     
     console.print()
     

@@ -6,6 +6,49 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Union
 
 from .config import PROJECT_ROOT
+from .user_config import load_config, get_writer_by_key_or_letter
+
+def normalize_winner(winner_str: str) -> str:
+    """Normalize winner string to config key.
+    
+    Handles: "A", "B", "writer_a", "writer_b", "Writer A", etc.
+    Returns: config key (e.g., "writer_a") or "TIE"
+    """
+    if not winner_str:
+        return "TIE"
+    
+    winner_lower = winner_str.lower().strip()
+    
+    if winner_lower == "tie":
+        return "TIE"
+    
+    try:
+        config = load_config()
+    except Exception:
+        return "TIE"
+    
+    # Try direct config key match
+    for key in config.writer_order:
+        if key.lower() == winner_lower:
+            return key
+    
+    # Try letter match (A, B, C, etc.) by position
+    if len(winner_lower) == 1 and winner_lower.isalpha():
+        idx = ord(winner_lower) - ord('a')
+        if 0 <= idx < len(config.writer_order):
+            return config.writer_order[idx]
+    
+    # Try partial matches (e.g., "writer a" -> "writer_a", "Writer A" -> "writer_a")
+    normalized = winner_lower.replace(" ", "_").replace("-", "_")
+    for key in config.writer_order:
+        if key.lower() == normalized:
+            return key
+        # Also check if key is contained in winner string
+        if key.lower() in winner_lower:
+            return key
+    
+    return "TIE"
+
 
 @dataclass
 class JudgeDecision:
@@ -98,27 +141,31 @@ def parse_judge_decision(
         
         # Normalize winner format to writer keys
         if isinstance(winner, str):
-            winner_lower = winner.lower()
-            if "writer_a" in winner_lower or winner_lower == "a":
-                winner = "writer_a"
-            elif "writer_b" in winner_lower or winner_lower == "b":
-                winner = "writer_b"
-            else:
-                winner = "TIE"
+            winner = normalize_winner(winner)
         
         # Extract scores (try standard location, then nested reviews)
-        scores_a = data.get("scores", {}).get("writer_a", {})
-        scores_b = data.get("scores", {}).get("writer_b", {})
+        # Use config writer keys dynamically
+        try:
+            config = load_config()
+            writer_keys = config.writer_order
+        except Exception:
+            writer_keys = ["writer_a", "writer_b"]  # Fallback for testing
+        
+        key_a = writer_keys[0] if len(writer_keys) > 0 else "writer_a"
+        key_b = writer_keys[1] if len(writer_keys) > 1 else "writer_b"
+        
+        scores_a = data.get("scores", {}).get(key_a, {})
+        scores_b = data.get("scores", {}).get(key_b, {})
         
         # If scores not in standard location, try nested reviews
         if not scores_a and "reviews" in data:
-            scores_a = data["reviews"].get("writer_a", {}).get("scores", {})
-            scores_b = data["reviews"].get("writer_b", {}).get("scores", {})
+            scores_a = data["reviews"].get(key_a, {}).get("scores", {})
+            scores_b = data["reviews"].get(key_b, {}).get("scores", {})
         
         # Extract total score (try multiple field names and locations)
         total_a = scores_a.get("total_weighted") or scores_a.get("total")
         if total_a is None and "total_score" in data:
-            total_a = data["total_score"].get("writer_a")
+            total_a = data["total_score"].get(key_a)
         if total_a is None:
             # Calculate from individual scores
             total_a = sum([
@@ -131,7 +178,7 @@ def parse_judge_decision(
         
         total_b = scores_b.get("total_weighted") or scores_b.get("total")
         if total_b is None and "total_score" in data:
-            total_b = data["total_score"].get("writer_b")
+            total_b = data["total_score"].get(key_b)
         if total_b is None:
             # Calculate from individual scores
             total_b = sum([
@@ -149,8 +196,8 @@ def parse_judge_decision(
         if remaining and isinstance(remaining, list):
             blockers = blockers + remaining
         if not blockers and "reviews" in data:
-            blockers_a = data["reviews"].get("writer_a", {}).get("critical_issues", [])
-            blockers_b = data["reviews"].get("writer_b", {}).get("critical_issues", [])
+            blockers_a = data["reviews"].get(key_a, {}).get("critical_issues", [])
+            blockers_b = data["reviews"].get(key_b, {}).get("critical_issues", [])
             blockers = blockers_a + blockers_b
         if not isinstance(blockers, list):
             blockers = [str(blockers)] if blockers else []
@@ -225,14 +272,37 @@ def aggregate_decisions(decisions: List[JudgeDecision]) -> Dict[str, Any]:
             "message": "No decisions found"
         }
     
+    # Get writer keys from config
+    try:
+        config = load_config()
+        writer_keys = config.writer_order
+    except Exception:
+        writer_keys = ["writer_a", "writer_b"]  # Fallback
+    
+    key_a = writer_keys[0] if len(writer_keys) > 0 else "writer_a"
+    key_b = writer_keys[1] if len(writer_keys) > 1 else "writer_b"
+    
     approvals = sum(1 for d in decisions if d.decision == "APPROVED")
     request_changes = sum(1 for d in decisions if d.decision == "REQUEST_CHANGES")
     rejections = sum(1 for d in decisions if d.decision == "REJECTED")
     
-    # Normalize winner field (supports "A", "writer_a", "Writer A", etc.)
-    a_wins = sum(1 for d in decisions if d.winner and d.winner.upper() in ["A", "WRITER_A", "WRITER A"])
-    b_wins = sum(1 for d in decisions if d.winner and d.winner.upper() in ["B", "WRITER_B", "WRITER B"])
-    ties = sum(1 for d in decisions if d.winner and d.winner.upper() == "TIE")
+    # Count votes per writer by normalizing winner strings
+    vote_counts = {key: 0 for key in writer_keys}
+    ties = 0
+    for d in decisions:
+        if d.winner == "TIE":
+            ties += 1
+        elif d.winner in writer_keys:
+            vote_counts[d.winner] += 1
+        else:
+            normalized = normalize_winner(d.winner)
+            if normalized in vote_counts:
+                vote_counts[normalized] += 1
+            elif normalized != "TIE":
+                ties += 1
+    
+    a_wins = vote_counts.get(key_a, 0)
+    b_wins = vote_counts.get(key_b, 0)
     
     avg_score_a = sum(d.scores_a for d in decisions) / len(decisions)
     avg_score_b = sum(d.scores_b for d in decisions) / len(decisions)
@@ -241,7 +311,8 @@ def aggregate_decisions(decisions: List[JudgeDecision]) -> Dict[str, Any]:
     for d in decisions:
         all_blockers.extend(d.blocker_issues)
     
-    winner = "writer_b" if b_wins > a_wins else ("writer_a" if a_wins > b_wins else "TIE")
+    # Determine winner from vote counts
+    winner = key_b if b_wins > a_wins else (key_a if a_wins > b_wins else "TIE")
     
     has_clear_winner = (a_wins >= 2 or b_wins >= 2)
     

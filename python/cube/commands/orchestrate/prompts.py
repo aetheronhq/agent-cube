@@ -7,7 +7,7 @@ from ...core.output import print_success, print_info, console
 from ...core.config import PROJECT_ROOT
 from ...core.agent import run_agent
 from ...core.parsers.registry import get_parser
-from ...core.user_config import get_prompter_model
+from ...core.user_config import get_prompter_model, load_config
 from ...automation.stream import format_stream_message
 
 
@@ -258,10 +258,9 @@ async def generate_dual_feedback(
     """
     from ...core.dynamic_layout import DynamicLayout
     from ...core.single_layout import SingleAgentLayout
-    from ...core.user_config import get_writer_config
 
-    feedback_a_path = prompts_dir / f"feedback-a-{task_id}.md"
-    feedback_b_path = prompts_dir / f"feedback-b-{task_id}.md"
+    config = load_config()
+    writers = [(key, config.writers[key]) for key in config.writer_order]
 
     prompt_base = """## Available Information
 
@@ -270,15 +269,15 @@ async def generate_dual_feedback(
 - `.prompts/decisions/judge_2-{task_id}-decision.json`
 - `.prompts/decisions/judge_3-{task_id}-decision.json`
 
-Read these to see what issues judges found for Writer {writer}.
+Read these to see what issues judges found for Writer {writer_letter_upper}.
 
-**Writer {writer}'s Work:**
+**Writer {writer_letter_upper}'s Work:**
 Branch: `writer-{writer_slug}/{task_id}`
 Location: `~/.cube/worktrees/PROJECT/writer-{writer_slug}-{task_id}/`
 
 ## Your Task
 
-Create a targeted feedback prompt for Writer {writer} that tells them to:
+Create a targeted feedback prompt for Writer {writer_letter_upper} that tells them to:
 1. **First**: Merge latest main (`git fetch origin main && git merge origin/main --no-edit`) and fix any conflicts programmatically using read_file/write_file (no interactive editors!)
 2. Lists specific issues judges found
 3. Provides concrete fix suggestions
@@ -288,55 +287,47 @@ Create a targeted feedback prompt for Writer {writer} that tells them to:
 
 Save to: `.prompts/feedback-{writer_letter}-{task_id}.md`"""
 
-    writer_a = get_writer_config("writer_a")
-    writer_b = get_writer_config("writer_b")
-
     prompt_intro = (
         "Both writers need changes based on judge reviews."
         if not winner_only else
         "Judges requested fixes for this writer."
     )
 
-    prompt_a = f"""Generate a feedback prompt for {writer_a.label}.
-
-Task: {task_id}
-{prompt_intro}
-
-{prompt_base.format(task_id=task_id, writer="A", writer_slug=writer_a.name, writer_letter="a")}"""
-
-    prompt_b = f"""Generate a feedback prompt for {writer_b.label}.
-
-Task: {task_id}
-{prompt_intro}
-
-{prompt_base.format(task_id=task_id, writer="B", writer_slug=writer_b.name, writer_letter="b")}"""
-
     parser = get_parser("cursor-agent")
+    
+    # Build entries dynamically from config
+    colors = ["green", "blue", "magenta", "cyan", "yellow"]
+    entries = []
+    for idx, (writer_key, wcfg) in enumerate(writers):
+        letter = chr(ord('a') + idx)
+        letter_upper = letter.upper()
+        feedback_path = prompts_dir / f"feedback-{letter}-{task_id}.md"
+        
+        prompt_text = f"""Generate a feedback prompt for {wcfg.label}.
 
-    entries = [
-        {
-            "key": "writer_a",
-            "cfg": writer_a,
-            "path": feedback_a_path,
-            "prompt": prompt_a,
-            "box_id": "prompter_a",
-            "label": f"Prompter A ({writer_a.label})",
-            "color": "green"
-        },
-        {
-            "key": "writer_b",
-            "cfg": writer_b,
-            "path": feedback_b_path,
-            "prompt": prompt_b,
-            "box_id": "prompter_b",
-            "label": f"Prompter B ({writer_b.label})",
-            "color": "blue"
-        },
-    ]
+Task: {task_id}
+{prompt_intro}
+
+{prompt_base.format(
+    task_id=task_id, 
+    writer_letter_upper=letter_upper, 
+    writer_slug=wcfg.name, 
+    writer_letter=letter
+)}"""
+
+        entries.append({
+            "key": writer_key,
+            "cfg": wcfg,
+            "path": feedback_path,
+            "prompt": prompt_text,
+            "box_id": f"prompter_{letter}",
+            "label": f"Prompter {letter_upper} ({wcfg.label})",
+            "color": colors[idx % len(colors)]
+        })
 
     if winner_only:
-        if winner_key not in ("writer_a", "writer_b"):
-            raise ValueError("winner_key must be 'writer_a' or 'writer_b' when winner_only=True")
+        if winner_key not in config.writer_order:
+            raise ValueError(f"winner_key must be one of {config.writer_order} when winner_only=True")
         entries = [entry for entry in entries if entry["key"] == winner_key]
 
     if len(entries) == 1:
@@ -369,7 +360,8 @@ Task: {task_id}
         from ...core.config import WORKTREE_BASE
         from ..feedback import send_feedback_async
 
-        session = load_session(f"WRITER_{entry['cfg'].letter}", task_id)
+        # Load session using the config key directly (e.g., WRITER_A)
+        session = load_session(entry['cfg'].key.upper(), task_id)
         if not session:
             raise RuntimeError("No session found for winner. Cannot send feedback.")
 
@@ -407,13 +399,11 @@ Task: {task_id}
 
     layout.close()
 
-    if not feedback_a_path.exists():
-        raise RuntimeError(f"Prompter A failed to generate feedback at {feedback_a_path}")
-    if not feedback_b_path.exists():
-        raise RuntimeError(f"Prompter B failed to generate feedback at {feedback_b_path}")
-
-    print_success(f"Created: {feedback_a_path}")
-    print_success(f"Created: {feedback_b_path}")
+    # Verify all feedback files were created
+    for entry in entries:
+        if not entry["path"].exists():
+            raise RuntimeError(f"{entry['label']} failed to generate feedback at {entry['path']}")
+        print_success(f"Created: {entry['path']}")
 
     console.print()
     print_info("Sending feedback to writers...")
@@ -422,31 +412,30 @@ Task: {task_id}
     from ...core.config import WORKTREE_BASE
     from ...core.output import print_warning
 
-    session_a = load_session("WRITER_A", task_id)
-    session_b = load_session("WRITER_B", task_id)
+    # Load sessions for all writers
+    sessions = {}
+    for entry in entries:
+        session_key = entry['cfg'].key.upper()
+        sessions[entry['key']] = load_session(session_key, task_id)
 
-    if not session_a and not session_b:
-        print_warning("No sessions found for either writer. Feedback files generated but not sent.")
+    if not any(sessions.values()):
+        print_warning("No sessions found for any writer. Feedback files generated but not sent.")
         print_info("Writers will need to manually read and address feedback:")
-        console.print(f"  Writer A: {feedback_a_path}")
-        console.print(f"  Writer B: {feedback_b_path}")
+        for entry in entries:
+            console.print(f"  {entry['label']}: {entry['path']}")
         return
 
     project_name = Path(PROJECT_ROOT).name
-    worktree_a = WORKTREE_BASE / project_name / f"writer-{writer_a.name}-{task_id}"
-    worktree_b = WORKTREE_BASE / project_name / f"writer-{writer_b.name}-{task_id}"
-
+    
     # Send feedback to each writer that has a session
     tasks = []
-    if session_a:
-        tasks.append(send_feedback_async(writer_a.name, task_id, feedback_a_path, session_a, worktree_a))
-    else:
-        print_warning(f"No session found for Writer A. Feedback generated at {feedback_a_path} but not sent.")
-    
-    if session_b:
-        tasks.append(send_feedback_async(writer_b.name, task_id, feedback_b_path, session_b, worktree_b))
-    else:
-        print_warning(f"No session found for Writer B. Feedback generated at {feedback_b_path} but not sent.")
+    for entry in entries:
+        session = sessions.get(entry['key'])
+        if session:
+            worktree = WORKTREE_BASE / project_name / f"writer-{entry['cfg'].name}-{task_id}"
+            tasks.append(send_feedback_async(entry['cfg'].name, task_id, entry['path'], session, worktree))
+        else:
+            print_warning(f"No session found for {entry['label']}. Feedback generated at {entry['path']} but not sent.")
 
     if tasks:
         await asyncio.gather(*tasks)

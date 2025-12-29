@@ -24,10 +24,14 @@ STREAM_HEADERS = {
     "X-Accel-Buffering": "no",
 }
 
-WRITER_BOXES = {
-    "writer_a": "Writer A",
-    "writer_b": "Writer B",
-}
+def _get_writer_boxes() -> dict:
+    """Get writer boxes dynamically from config."""
+    try:
+        from cube.core.user_config import load_config
+        config = load_config()
+        return {key: config.writers[key].label for key in config.writer_order}
+    except Exception:
+        return {"writer_a": "Writer A", "writer_b": "Writer B"}
 
 JUDGE_BOXES = {
     "judge_1": "Judge 1",
@@ -142,7 +146,7 @@ class TaskStreamState:
         # the streaming integration self-contained while guaranteeing parity with
         # the CLI experience.
         # ----------------------------------------------------------------------
-        layout = SSELayout(self.task_id, WRITER_BOXES, self.queue)
+        layout = SSELayout(self.task_id, _get_writer_boxes(), self.queue)
         DynamicLayout._instance = layout  # type: ignore[attr-defined]
         self._layouts["writers"] = layout
 

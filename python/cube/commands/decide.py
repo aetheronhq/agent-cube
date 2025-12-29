@@ -140,12 +140,18 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     
     # Format winner display
     winner_display = result['winner']
-    if winner_display == "writer_a":
-        winner_display = "A"
-    elif winner_display == "writer_b":
-        winner_display = "B"
+    if winner_display and winner_display != "TIE":
+        from ..core.user_config import load_config, get_writer_by_key_or_letter
+        try:
+            winner_cfg = get_writer_by_key_or_letter(winner_display)
+            winner_display = winner_cfg.label
+        except KeyError:
+            config = load_config()
+            idx = config.writer_order.index(winner_display) if winner_display in config.writer_order else -1
+            if idx >= 0:
+                winner_display = chr(ord('A') + idx)
     
-    console.print(f"[bold]🏆 Winner: Writer {winner_display}[/bold]")
+    console.print(f"[bold]🏆 Winner: {winner_display}[/bold]")
     console.print(f"📊 Average Scores: A={result['avg_score_a']:.1f}, B={result['avg_score_b']:.1f}")
     console.print()
     

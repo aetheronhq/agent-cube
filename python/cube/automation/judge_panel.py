@@ -49,10 +49,10 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
         winner_cfg = get_writer_by_key_or_letter(winner)
         return {winner_cfg.label: get_worktree_path(project_name, winner_cfg.name, task_id)}
     
-    writers = [get_writer_config("writer_a"), get_writer_config("writer_b")]
+    config = load_config()
     return {
-        "Writer A": get_worktree_path(project_name, writers[0].name, task_id),
-        "Writer B": get_worktree_path(project_name, writers[1].name, task_id)
+        config.writers[key].label: get_worktree_path(project_name, config.writers[key].name, task_id)
+        for key in config.writer_order
     }
 
 
@@ -156,8 +156,13 @@ def _parse_decision_status(judge_info: JudgeInfo) -> str:
     blocker_issues = data.get("blocker_issues", [])
     
     scores = data.get("scores", {})
-    score_a = scores.get("writer_a", {}).get("total_weighted") or scores.get("writer_a", {}).get("total")
-    score_b = scores.get("writer_b", {}).get("total_weighted") or scores.get("writer_b", {}).get("total")
+    config = load_config()
+    writer_scores = []
+    for writer_key in config.writer_order:
+        ws = scores.get(writer_key, {})
+        writer_scores.append(ws.get("total_weighted") or ws.get("total"))
+    score_a = writer_scores[0] if len(writer_scores) > 0 else None
+    score_b = writer_scores[1] if len(writer_scores) > 1 else None
     
     if judge_info.review_type == "peer-review":
         return _format_peer_review_status(decision, remaining_issues)
@@ -196,17 +201,11 @@ def _get_winner_text(winner: str) -> str:
     """Get human-readable winner text."""
     if winner == "TIE":
         return "TIE"
-    if winner in ["A", "writer_a", "Writer A"]:
-        try:
-            return f"{get_writer_config('writer_a').label} wins"
-        except Exception:
-            return "Writer A wins"
-    if winner in ["B", "writer_b", "Writer B"]:
-        try:
-            return f"{get_writer_config('writer_b').label} wins"
-        except Exception:
-            return "Writer B wins"
-    return f"Winner: {winner}"
+    try:
+        winner_cfg = get_writer_by_key_or_letter(winner)
+        return f"{winner_cfg.label} wins"
+    except KeyError:
+        return f"Winner: {winner}"
 
 async def launch_judge_panel(
     task_id: str,
@@ -343,50 +342,60 @@ Example: If you are `judge_1`, create `.prompts/decisions/judge_1-{task_id}-peer
 
 """
     else:
-        writer_a = get_writer_config("writer_a")
-        writer_b = get_writer_config("writer_b")
+        config = load_config()
+        writers = [config.writers[key] for key in config.writer_order]
+        
+        # Build fetch commands dynamically
+        fetch_commands = []
+        for idx, w in enumerate(writers):
+            letter = chr(ord('A') + idx)
+            fetch_commands.append(f"""# Fetch Writer {letter}'s latest
+cd {WORKTREE_BASE}/{project_name}/writer-{w.name}-{task_id}/
+git fetch origin
+git reset --hard origin/writer-{w.name}/{task_id}""")
+        
+        # Build writer sections dynamically
+        writer_sections = []
+        for idx, w in enumerate(writers):
+            letter = chr(ord('A') + idx)
+            writer_sections.append(f"""## Writer {letter} ({w.label}) Implementation
+
+**Branch:** `writer-{w.name}/{task_id}`  
+**Location:** `{WORKTREE_BASE}/{project_name}/writer-{w.name}-{task_id}/`
+
+Review commits since main:
+```bash
+cd {WORKTREE_BASE}/{project_name}/writer-{w.name}-{task_id}/
+git log --oneline main..HEAD
+git diff main...HEAD --stat
+```""")
+        
+        # Build scores template dynamically
+        scores_template = []
+        for writer_key in config.writer_order:
+            scores_template.append(f'''    "{writer_key}": {{
+      "kiss_compliance": 0-10,
+      "architecture": 0-10,
+      "type_safety": 0-10,
+      "tests": 0-10,
+      "production_ready": 0-10,
+      "total_weighted": 0-10
+    }}''')
+        
+        # Build winner options dynamically
+        winner_options = " | ".join([f'"{chr(ord("A") + i)}"' for i in range(len(writers))] + ['"TIE"'])
         
         review_instructions = f"""# Code Review Locations
 
 ## ⚠️ CRITICAL: Fetch Latest Code First
 
-**BEFORE reviewing either writer, you MUST fetch the latest commits:**
+**BEFORE reviewing any writer, you MUST fetch the latest commits:**
 
 ```bash
-# Fetch Writer A's latest
-cd {WORKTREE_BASE}/{project_name}/writer-{writer_a.name}-{task_id}/
-git fetch origin
-git reset --hard origin/writer-{writer_a.name}/{task_id}
-
-# Fetch Writer B's latest  
-cd {WORKTREE_BASE}/{project_name}/writer-{writer_b.name}-{task_id}/
-git fetch origin
-git reset --hard origin/writer-{writer_b.name}/{task_id}
+{chr(10).join(fetch_commands)}
 ```
 
-## Writer A ({writer_a.label}) Implementation
-
-**Branch:** `writer-{writer_a.name}/{task_id}`  
-**Location:** `{WORKTREE_BASE}/{project_name}/writer-{writer_a.name}-{task_id}/`
-
-Review commits since main:
-```bash
-cd {WORKTREE_BASE}/{project_name}/writer-{writer_a.name}-{task_id}/
-git log --oneline main..HEAD
-git diff main...HEAD --stat
-```
-
-## Writer B ({writer_b.label}) Implementation
-
-**Branch:** `writer-{writer_b.name}/{task_id}`  
-**Location:** `{WORKTREE_BASE}/{project_name}/writer-{writer_b.name}-{task_id}/`
-
-Review commits since main:
-```bash
-cd {WORKTREE_BASE}/{project_name}/writer-{writer_b.name}-{task_id}/
-git log --oneline main..HEAD
-git diff main...HEAD --stat
-```
+{chr(10).join(writer_sections)}
 
 Use read_file or git commands to view their actual code changes.
 
@@ -396,48 +405,33 @@ Use read_file or git commands to view their actual code changes.
 
 **You MUST create this JSON file at the end of your review:**
 
-**File:** `.prompts/decisions/{{judge_key}}-{task_id}-decision.json`
+**File:** `.prompts/decisions/{{{{judge_key}}}}-{task_id}-decision.json`
 
 ⚠️ **EXACT FILENAME REQUIRED** - Use your judge key exactly as shown (e.g., `judge_1`, `judge_2`).
 Example: If you are `judge_1`, create `.prompts/decisions/judge_1-{task_id}-decision.json`
 
 **CRITICAL for Gemini users:**
 You're running from `~/.cube`. You MUST write your decision to:
-- `{PROJECT_ROOT}/.prompts/decisions/{{judge_key}}-{task_id}-decision.json`
+- `{PROJECT_ROOT}/.prompts/decisions/{{{{judge_key}}}}-{task_id}-decision.json`
 
 Use absolute path when writing the file. The project root is available in your workspace context.
 
 **Format:**
 ```json
-{{
-  "judge": "{{judge_key}}",
+{{{{
+  "judge": "{{{{judge_key}}}}",
   "task_id": "{task_id}",
-  "timestamp": "{{current-iso-timestamp}}",
+  "timestamp": "{{{{current-iso-timestamp}}}}",
   "decision": "APPROVED" | "REQUEST_CHANGES" | "REJECTED",
-  "winner": "A" | "B" | "TIE",
-  "scores": {{
-    "writer_a": {{
-      "kiss_compliance": 0-10,
-      "architecture": 0-10,
-      "type_safety": 0-10,
-      "tests": 0-10,
-      "production_ready": 0-10,
-      "total_weighted": 0-10
-    }},
-    "writer_b": {{
-      "kiss_compliance": 0-10,
-      "architecture": 0-10,
-      "type_safety": 0-10,
-      "tests": 0-10,
-      "production_ready": 0-10,
-      "total_weighted": 0-10
-    }}
-  }},
+  "winner": {winner_options},
+  "scores": {{{{
+{(","+chr(10)).join(scores_template)}
+  }}}},
   "blocker_issues": [
     "Description of blocking issues that must be fixed"
   ],
   "recommendation": "Brief explanation of why winner was chosen"
-}}
+}}}}
 ```
 
 ---

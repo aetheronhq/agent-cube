@@ -22,10 +22,23 @@ def _get_winner_from_aggregated(task_id: str) -> Optional[str]:
     try:
         data = json.loads(aggregated_path.read_text())
         winner = data.get("winner")
-        if winner in ["A", "writer_a", "Writer A"]:
-            return "A"
-        elif winner in ["B", "writer_b", "Writer B"]:
-            return "B"
+        if not winner or winner == "TIE":
+            return winner
+        
+        # Try to resolve to a letter for display (A, B, C, etc.)
+        from ..core.user_config import load_config
+        try:
+            config = load_config()
+            if winner in config.writer_order:
+                idx = config.writer_order.index(winner)
+                return chr(ord('A') + idx)
+        except Exception:
+            pass
+        
+        # If it's already a single letter, return it
+        if len(winner) == 1 and winner.isalpha():
+            return winner.upper()
+        
         return winner
     except (json.JSONDecodeError, KeyError):
         return None
