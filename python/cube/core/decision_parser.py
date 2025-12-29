@@ -16,13 +16,6 @@ def normalize_winner(winner_str: str) -> str:
     config = load_config()
     winner_lower = winner_str.lower()
     
-    # Handle "A", "B", etc. by position
-    for key in config.writer_order:
-        idx = config.writer_order.index(key)
-        letter = chr(ord('a') + idx)
-        if winner_lower == letter:
-            return key
-    
     # Handle key formats
     for key in config.writer_order:
         if key in winner_lower or winner_lower.replace(" ", "_") == key:

@@ -171,7 +171,7 @@ Include: context, requirements, steps, constraints, anti-patterns, success crite
 2. **Last step**: Commit and push when complete!"""
 
     parser = get_parser("cursor-agent")
-    layout = SingleAgentLayout
+    layout = SingleAgentLayout()
     layout.initialize("Prompter")
     layout.start()
 
@@ -218,7 +218,7 @@ Review both writer implementations and create: `.prompts/panel-prompt-{task_id}.
 Include evaluation criteria, scoring rubric, and decision JSON format."""
 
     parser = get_parser("cursor-agent")
-    layout = SingleAgentLayout
+    layout = SingleAgentLayout()
     layout.initialize("Prompter")
     layout.start()
 
@@ -327,7 +327,7 @@ Task: {task_id}
 
     if len(entries) == 1:
         entry = entries[0]
-        layout = SingleAgentLayout
+        layout = SingleAgentLayout()
         layout.initialize(entry["label"])
         layout.start()
         try:
@@ -341,7 +341,7 @@ Task: {task_id}
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                             layout.add_thinking(thinking_text)
                         elif msg.type == "assistant" and msg.content:
-                            layout.add_assistant_message("agent", msg.content, entry["label"], entry["color"])
+                            layout.add_assistant_message(msg.content, entry["label"], entry["color"])
                         else:
                             layout.add_output(formatted)
                 if entry["path"].exists():
