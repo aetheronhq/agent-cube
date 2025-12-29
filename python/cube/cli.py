@@ -282,12 +282,17 @@ def orchestrate(
         typer.Option("--resume-from", help=f"Resume from phase number or alias ({PHASE_ALIAS_SUMMARY})")
     ] = None,
     resume: Annotated[bool, typer.Option("--resume", help="Auto-resume from last checkpoint")] = False,
-    reset: Annotated[bool, typer.Option("--reset", help="Clear state and start fresh")] = False
+    reset: Annotated[bool, typer.Option("--reset", help="Clear state and start fresh")] = False,
+    single: Annotated[bool, typer.Option("--single", help="Run with single writer instead of dual")] = False,
+    writer: Annotated[Optional[str], typer.Option("--writer", "-w", help="Specific writer for single mode (opus, codex, a, b)")] = None,
 ):
     """Generate orchestrator prompt or run autonomous orchestration."""
     if subcommand == "prompt":
         orchestrate_prompt_command(task_file, copy)
     elif subcommand == "auto":
+        from .core.user_config import resolve_writer_alias, is_single_mode_default, get_default_writer
+        from .core.output import print_error, print_info
+
         task_id = extract_task_id_from_file(task_file)
         
         if reset:
@@ -296,11 +301,33 @@ def orchestrate(
             from .core.output import print_success
             print_success(f"Cleared state for {task_id}")
         
+        # Determine mode (single or dual)
+        single_mode = single or writer is not None or is_single_mode_default()
+        writer_key = None
+        if single_mode:
+            try:
+                # If --writer is specified, use it. Otherwise, use config default.
+                writer_to_resolve = writer if writer else get_default_writer()
+                writer_config = resolve_writer_alias(writer_to_resolve)
+                writer_key = writer_config.key
+                print_info(f"Running in single-writer mode with [bold cyan]{writer_config.name}[/bold cyan]")
+            except KeyError as e:
+                print_error(str(e))
+                raise typer.Exit(1) from e
+        else:
+            print_info("Running in dual-writer mode")
+
         resolved_resume_from, resume_alias = _resolve_resume_from(task_id, resume, resume_from)
         
         try:
             import asyncio
-            asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from, resume_alias=resume_alias))
+            asyncio.run(orchestrate_auto_command(
+                task_file, 
+                resolved_resume_from, 
+                resume_alias=resume_alias,
+                single_mode=single_mode,
+                writer_key=writer_key
+            ))
         except Exception as e:
             from .core.output import console_err
             console_err.print(f"\n[bold red]❌ Error:[/bold red] {e}\n")
@@ -397,14 +424,34 @@ def auto(
         typer.Option("--resume-from", help=f"Resume from phase number or alias ({PHASE_ALIAS_SUMMARY})")
     ] = None,
     resume: Annotated[bool, typer.Option("--resume", help="Auto-resume from last checkpoint")] = False,
-    reset: Annotated[bool, typer.Option("--reset", help="Clear state and start fresh")] = False
+    reset: Annotated[bool, typer.Option("--reset", help="Clear state and start fresh")] = False,
+    single: Annotated[bool, typer.Option("--single", help="Run with single writer instead of dual")] = False,
+    writer: Annotated[Optional[str], typer.Option("--writer", "-w", help="Specific writer for single mode (opus, codex, a, b)")] = None,
 ):
     """Shortcut for: cube orchestrate auto <task-file>
     
     If --resume is passed without a task file, resumes the last task from this terminal.
     """
     from .core.config import set_current_task_id, get_current_task_id
+    from .core.user_config import resolve_writer_alias, is_single_mode_default, get_default_writer
     from .core.output import print_error, print_info
+
+    # Determine mode (single or dual)
+    single_mode = single or writer is not None or is_single_mode_default()
+    writer_key = None
+    if single_mode:
+        try:
+            # If --writer is specified, use it. Otherwise, use config default.
+            writer_to_resolve = writer if writer else get_default_writer()
+            writer_config = resolve_writer_alias(writer_to_resolve)
+            writer_key = writer_config.key
+            print_info(f"Running in single-writer mode with [bold cyan]{writer_config.name}[/bold cyan]")
+        except KeyError as e:
+            print_error(str(e))
+            raise typer.Exit(1) from e
+    else:
+        print_info("Running in dual-writer mode")
+
     
     # If no task file provided, try to get from saved state
     if not task_file:
@@ -451,7 +498,14 @@ def auto(
     
     try:
         import asyncio
-        asyncio.run(orchestrate_auto_command(task_file, resolved_resume_from, task_id=task_id, resume_alias=resume_alias))
+        asyncio.run(orchestrate_auto_command(
+            task_file, 
+            resolved_resume_from, 
+            task_id=task_id, 
+            resume_alias=resume_alias,
+            single_mode=single_mode,
+            writer_key=writer_key
+        ))
     except Exception as e:
         _print_error(e)
         sys.exit(1)

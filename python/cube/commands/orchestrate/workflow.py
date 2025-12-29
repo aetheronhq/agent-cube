@@ -15,6 +15,117 @@ from .decisions import run_decide_and_get_result, run_decide_peer_review, clear_
 from .pr import create_pr
 
 
+async def _orchestrate_single_writer_impl(
+    task_file: str,
+    resume_from: int,
+    task_id: str,
+    writer_key: str,
+    resume_alias: str | None = None
+) -> None:
+    """Workflow for single-writer mode."""
+    from ...core.state import update_phase
+    from ...core.master_log import get_master_log
+    from ...automation.single_writer import launch_single_writer
+    from .prompts import generate_writer_prompt
+    from .phases import run_peer_review, run_minor_fixes
+    from .decisions import run_decide_peer_review, clear_peer_review_decisions
+    from .pr import create_pr
+
+    master_log = get_master_log()
+
+    prompts_dir = PROJECT_ROOT / ".prompts"
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+
+    console.print(f"[bold cyan]🤖 Agent Cube Single-Writer Orchestration[/bold cyan]")
+    console.print(f"Task: {task_id}")
+    console.print(f"Writer: {writer_key}")
+
+    def log_phase(phase_num: int, phase_name: str):
+        if master_log:
+            master_log.write_phase_start(phase_num, phase_name)
+
+    writer_prompt_path = prompts_dir / f"writer-prompt-{task_id}.md"
+
+    # Phase 1: Generate Writer Prompt
+    if resume_from <= 1:
+        console.print("[yellow]═══ Phase 1: Generate Writer Prompt ═══[/yellow]")
+        log_phase(1, "Generate Writer Prompt")
+        if not task_file:
+            print_error("Task file required for Phase 1.")
+            raise typer.Exit(1)
+        task_path = resolve_path(task_file)
+        writer_prompt_path = await generate_writer_prompt(task_id, task_path.read_text(), prompts_dir)
+        update_phase(task_id, 1, path="SINGLE", mode="single", writer_key=writer_key, project_root=str(PROJECT_ROOT))
+
+    # Phase 2: Run Single Writer
+    if resume_from <= 2:
+        console.print()
+        console.print("[yellow]═══ Phase 2: Run Single Writer ═══[/yellow]")
+        log_phase(2, "Run Single Writer")
+        await launch_single_writer(task_id, writer_prompt_path, writer_key, resume_mode=(resume_from == 2))
+        update_phase(task_id, 2, writers_complete=True)
+
+    # Phase 3: Peer Review
+    if resume_from <= 3:
+        console.print()
+        console.print("[yellow]═══ Phase 3: Peer Review ═══[/yellow]")
+        log_phase(3, "Peer Review")
+        clear_peer_review_decisions(task_id)
+        # This is a bit of a hack, but run_peer_review expects a "result" dict with a "winner"
+        fake_result = {"winner": writer_key} 
+        await run_peer_review(task_id, fake_result, prompts_dir)
+        update_phase(task_id, 3, peer_review_complete=True)
+
+    # Phase 4: Minor Fixes Loop
+    if resume_from <= 4:
+        console.print()
+        console.print("[yellow]═══ Phase 4: Minor Fixes ═══[/yellow]")
+        log_phase(4, "Address Minor Issues")
+        
+        final_result = run_decide_peer_review(task_id)
+        update_phase(task_id, 4)
+
+        if final_result["approved"] and not final_result["remaining_issues"]:
+            print_success("All judges approved with no issues - skipping minor fixes")
+        elif not final_result["remaining_issues"]:
+            print_warning("No specific issues listed - skipping minor fixes")
+        else:
+            print_info(f"Found {len(final_result['remaining_issues'])} issues to address.")
+            # another hack, run_minor_fixes expects a "result" dict
+            fake_result = {"winner": writer_key}
+            await run_minor_fixes(task_id, fake_result, final_result["remaining_issues"], prompts_dir)
+            
+            # Re-run peer review after fixes
+            console.print()
+            console.print("[yellow]═══ Re-running Peer Review ═══[/yellow]")
+            clear_peer_review_decisions(task_id)
+            await run_peer_review(task_id, fake_result, prompts_dir)
+            update_phase(task_id, 4, peer_review_complete=True)
+
+
+    # Phase 5: Create PR
+    if resume_from <= 5:
+        console.print()
+        console.print("[yellow]═══ Phase 5: Create PR ═══[/yellow]")
+        log_phase(5, "Create PR")
+
+        final_check = run_decide_peer_review(task_id)
+        if final_check["approved"]:
+            print_success("Peer review approved. Creating PR.")
+            await create_pr(task_id, writer_key)
+        else:
+            issues = final_check.get("remaining_issues", [])
+            print_warning(f"Cannot create PR - {len(issues)} issue(s) outstanding.")
+            if issues:
+                for issue in issues[:3]:
+                    console.print(f"  • {issue[:80]}")
+            console.print()
+            console.print("Fix issues first, then resume:")
+            console.print(f"  cube auto {task_id} --resume-from 4")
+            return
+        update_phase(task_id, 5)
+
+
 def extract_task_id_from_file(task_file: str) -> str:
     """Extract task ID from filename."""
     name = Path(task_file).stem
@@ -35,7 +146,14 @@ def extract_task_id_from_file(task_file: str) -> str:
     return task_id
 
 
-async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str, resume_alias: str | None = None) -> None:
+async def _orchestrate_auto_impl(
+    task_file: str, 
+    resume_from: int, 
+    task_id: str, 
+    resume_alias: str | None = None,
+    single_mode: bool = False,
+    writer_key: str | None = None
+) -> None:
     """Internal implementation of orchestrate_auto_command."""
     from ...core.state import validate_resume, update_phase, load_state, get_progress
     from ...core.master_log import get_master_log
@@ -49,6 +167,23 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
     console.print(f"Task: {task_id}")
 
     existing_state = load_state(task_id)
+
+    # Check if we are resuming a single-writer mode task
+    if existing_state and existing_state.mode == "single":
+        single_mode = True
+        writer_key = existing_state.writer_key
+        print_info(f"Resuming in single-writer mode with [bold cyan]{writer_key}[/bold cyan]")
+
+    if single_mode:
+        if not writer_key:
+            from ...core.user_config import get_default_writer
+            writer_key = get_default_writer()
+        await _orchestrate_single_writer_impl(
+            task_file, resume_from, task_id, 
+            writer_key,
+            resume_alias
+        )
+        return
 
     if not existing_state and resume_from > 1:
         from ...core.state_backfill import backfill_state_from_artifacts

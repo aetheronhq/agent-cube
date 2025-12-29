@@ -29,6 +29,6 @@ async def run_agent(
 
 def check_cursor_agent() -> bool:
     """Check if cursor-agent is installed (legacy function)."""
-    from .adapters.cursor_adapter import CursorAdapter
+    from .adapters.cursor import CursorAdapter
     return CursorAdapter().check_installed()
 
