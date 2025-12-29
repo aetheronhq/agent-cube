@@ -164,7 +164,9 @@ def load_config() -> CubeConfig:
     writers: Dict[str, WriterConfig] = {}
     for idx, (key, w) in enumerate(data.get("writers", {}).items()):
         writer_order.append(key)
-        letter = chr(65 + idx)  # A, B, C...
+        # Derive letter from key suffix (writer_a -> A, writer_b -> B)
+        # This ensures stable session keys even if config order changes
+        letter = key.split('_')[-1].upper()
         writers[key] = WriterConfig(
             key=key,
             name=w["name"],
