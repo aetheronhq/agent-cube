@@ -42,17 +42,30 @@ def find_decision_file(
     if primary_path.exists():
         return primary_path
     
-    # Check fallback locations (e.g., ~/.cube for Gemini judges)
+    # Check fallback locations (e.g., ~/.cube for Gemini judges, worktrees for synthesis agents)
     fallback_paths = [
         WORKTREE_BASE.parent / ".prompts" / "decisions" / filename,
         Path.home() / ".cube" / ".prompts" / "decisions" / filename,
     ]
+    
+    # Also check all worktrees for this task_id
+    if WORKTREE_BASE.exists():
+        # Worktrees are in ~/.cube/worktrees/{project_name}/writer-{name}-{task_id}/
+        for project_dir in WORKTREE_BASE.iterdir():
+            if project_dir.is_dir():
+                for worktree_dir in project_dir.iterdir():
+                    if worktree_dir.is_dir() and task_id in worktree_dir.name:
+                        worktree_decision = worktree_dir / ".prompts" / "decisions" / filename
+                        if worktree_decision.exists():
+                            fallback_paths.insert(0, worktree_decision)
     
     for fallback in fallback_paths:
         if fallback.exists():
             import shutil
             primary_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(fallback, primary_path)
+            # Delete source after copying (move operation) to avoid stale data
+            fallback.unlink()
             return primary_path
     
     return None

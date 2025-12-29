@@ -64,12 +64,13 @@ Optional: Read for deeper understanding of judge concerns.
 ## Your Task
 
 Create a synthesis prompt that:
-1. **Points writer to their review file** (from `review_output_files` in CodeRabbit decision)
-2. Lists blocker issues that MUST be fixed
-3. References specific files/lines from winner's code  
-4. Tells writer to READ the review file for full context and "Prompt for AI Agent" sections
-5. Preserves what judges liked (winner's architecture)
-6. Tells writer to commit and push when complete
+1. **First step**: Tell writer to merge latest main (`git fetch origin main && git merge origin/main --no-edit`) and fix any conflicts programmatically using read_file/write_file (no interactive editors!)
+2. **Points writer to their review file** (from `review_output_files` in CodeRabbit decision)
+3. Lists blocker issues that MUST be fixed
+4. References specific files/lines from winner's code  
+5. Tells writer to READ the review file for full context and "Prompt for AI Agent" sections
+6. Preserves what judges liked (winner's architecture)
+7. Tells writer to commit and push when complete
 
 **CRITICAL:** The CodeRabbit review file contains:
 - Full output with code diffs
@@ -212,8 +213,11 @@ Winner: Writer {result['winner']} ({winner_cfg.label})
 
 ## Your Task
 
-Create a brief prompt telling the winner to address these minor issues.
-Keep their implementation intact, just fix these specific points.
+Create a brief prompt telling the winner to:
+1. **First**: Merge latest main (`git fetch origin main && git merge origin/main --no-edit`) and fix any conflicts programmatically using read_file/write_file (no interactive editors!)
+2. Address the minor issues listed above
+3. Keep their implementation intact, just fix these specific points
+4. Commit and push when complete
 
 Save to: `.prompts/minor-fixes-{task_id}.md`"""
 
