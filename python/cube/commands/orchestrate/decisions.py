@@ -77,7 +77,7 @@ def run_decide_peer_review(task_id: str, require_decisions: bool = True) -> dict
                     console.print(f"    [dim]... and {len(issues) - 3} more[/dim]")
             
             if decision == "SKIPPED":
-                console.print(f"  [dim](tool skipped - not blocking)[/dim]")
+                console.print("  [dim](tool skipped - not blocking)[/dim]")
             elif decision == "REQUEST_CHANGES" and not issues:
                 console.print("  [yellow]⚠️  No issues listed (malformed decision)[/yellow]")
 
