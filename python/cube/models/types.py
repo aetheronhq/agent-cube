@@ -7,11 +7,11 @@ from typing import Optional
 @dataclass
 class WriterInfo:
     """Information about a writer agent."""
+    key: str
     name: str
     model: str
     color: str
     label: str
-    letter: str
     task_id: str
     worktree: Path
     branch: str

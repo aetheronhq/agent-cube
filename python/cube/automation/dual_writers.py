@@ -16,7 +16,7 @@ from ..core.config import PROJECT_ROOT
 from ..core.user_config import get_writer_config
 from ..models.types import WriterInfo
 
-async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None:
+async def run_writer(wconfig: WriterConfig, writer_info: WriterInfo, prompt: str, resume: bool) -> None:
     """Run a single writer agent."""
     from ..automation.stream import format_stream_message
     from ..core.user_config import load_config as load_user_config
@@ -43,16 +43,16 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
     )
     
     # Box key for layout operations
-    box_key = "writer_a" if writer_info.letter == "A" else "writer_b"
+    box_key = wconfig.key
     
     # Use generic logging context
     async with agent_logging_context(
         agent_type="writer",
         agent_name=writer_info.name,
         task_id=writer_info.task_id,
-        session_key=f"WRITER_{writer_info.letter}",
+        session_key=wconfig.session_key(),
         session_task_key=writer_info.task_id,
-        metadata=f"Writer {writer_info.letter} ({writer_info.model}) - {writer_info.task_id} - {datetime.now()}"
+        metadata=f"{writer_info.label} ({writer_info.model}) - {writer_info.task_id} - {datetime.now()}"
     ) as logger:
         async for line in stream:
             logger.write_line(line)
@@ -134,36 +134,38 @@ async def launch_dual_writers(
     prompt = prompt_file.read_text()
     project_name = Path(PROJECT_ROOT).name
     
-    writers = []
+    writers_info = []
+    writer_configs = []
     for writer_key in ["writer_a", "writer_b"]:
         wconfig = get_writer_config(writer_key)
+        writer_configs.append(wconfig)
         worktree = create_worktree(task_id, wconfig.name)
         branch = f"writer-{wconfig.name}/{task_id}"
         
         session_id = None
         if resume_mode:
-            session_id = load_session(f"WRITER_{wconfig.letter}", task_id)
+            session_id = load_session(wconfig.session_key(), task_id)
             if not session_id:
                 raise RuntimeError(f"No session found for writer {wconfig.name}")
         
         writer = WriterInfo(
+            key=wconfig.key,
             name=wconfig.name,
             model=wconfig.model,
             color=wconfig.color,
             label=wconfig.label,
-            letter=wconfig.letter,
             task_id=task_id,
             worktree=worktree,
             branch=branch,
             session_id=session_id
         )
-        writers.append(writer)
+        writers_info.append(writer)
     
     if resume_mode:
         print_info(f"Resuming Dual Writers for Task: {task_id}")
         console.print()
         console.print("[yellow]📋 Found existing sessions to resume:[/yellow]")
-        for writer in writers:
+        for writer in writers_info:
             console.print(f"  [{writer.color}]{writer.label}[/{writer.color}]: {writer.session_id}")
         console.print()
     else:
@@ -179,14 +181,14 @@ async def launch_dual_writers(
     # Show which models/CLIs are being used
     from ..core.user_config import load_config
     config = load_config()
-    for w in writers:
+    for w in writers_info:
         cli_name = config.cli_tools.get(w.model, "cursor-agent")
         console.print(f"[dim]{w.label}: Starting with model {w.model} (CLI: {cli_name})...[/dim]")
     console.print()
     
     results = await asyncio.gather(
-        run_writer(writers[0], prompt, resume_mode),
-        run_writer(writers[1], prompt, resume_mode),
+        run_writer(writer_configs[0], writers_info[0], prompt, resume_mode),
+        run_writer(writer_configs[1], writers_info[1], prompt, resume_mode),
         return_exceptions=True
     )
     
@@ -196,7 +198,7 @@ async def launch_dual_writers(
     errors = []
     for i, result in enumerate(results):
         if isinstance(result, Exception):
-            errors.append((writers[i], result))
+            errors.append((writers_info[i], result))
     
     console.print()
     
@@ -228,7 +230,7 @@ async def launch_dual_writers(
     console.print("📤 Ensuring all changes are committed and pushed...")
     console.print()
     
-    for writer in writers:
+    for writer in writers_info:
         if has_uncommitted_changes(writer.worktree):
             print_info(f"{writer.label}: Committing uncommitted changes...")
             message = f"{writer.label} ({writer.model}) - Task: {task_id}\n\nAuto-commit of remaining changes at end of session."
@@ -242,11 +244,4 @@ async def launch_dual_writers(
             if has_unpushed_commits(writer.worktree, writer.branch):
                 print_info(f"{writer.label}: Pushing unpushed commits...")
                 commit_and_push(writer.worktree, writer.branch, "")
-    
-    console.print()
-    print_success("All changes committed and pushed!")
-    console.print()
-    console.print("Next steps:")
-    console.print(f"  1. Review both branches")
-    console.print(f"  2. Run: cube-py panel {task_id} <panel-prompt-file>")
 

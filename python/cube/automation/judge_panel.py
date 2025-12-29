@@ -11,7 +11,7 @@ from ..core.git import fetch_branches, get_commit_hash, branch_exists, sync_work
 from ..core.session import save_session, load_session
 from ..core.output import print_info, print_success, print_warning, print_error, console
 from ..core.config import PROJECT_ROOT, WORKTREE_BASE, get_worktree_path, get_project_root
-from ..core.user_config import get_judge_config, get_writer_config, load_config, get_judge_configs, get_writer_by_key_or_letter
+from ..core.user_config import get_judge_config, get_writer_config, load_config, get_judge_configs, resolve_writer_alias
 from ..core.dynamic_layout import DynamicLayout
 from ..core.adapters.registry import get_adapter
 from ..core.parsers.registry import get_parser
@@ -25,7 +25,7 @@ async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
     project_name = Path(PROJECT_ROOT).name
     
     if winner:
-        winner_cfg = get_writer_by_key_or_letter(winner)
+        winner_cfg = resolve_writer_alias(winner)
         writers = [(winner_cfg.name, f"writer-{winner_cfg.name}/{task_id}")]
     else:
         writers = [
@@ -47,17 +47,17 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
     project_name = Path(get_project_root()).name
     
     if winner:
-        winner_cfg = get_writer_by_key_or_letter(winner)
+        winner_cfg = resolve_writer_alias(winner)
         return {winner_cfg.label: get_worktree_path(project_name, winner_cfg.name, task_id)}
     
-    writers = [get_writer_config("writer_a"), get_writer_config("writer_b")]
+    writers = [resolve_writer_alias("writer_a"), resolve_writer_alias("writer_b")]
     return {
-        "Writer A": get_worktree_path(project_name, writers[0].name, task_id),
-        "Writer B": get_worktree_path(project_name, writers[1].name, task_id)
+        writers[0].label: get_worktree_path(project_name, writers[0].name, task_id),
+        writers[1].label: get_worktree_path(project_name, writers[1].name, task_id)
     }
 
 
-async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, winner: str = None) -> int:
+async def run_judge(jconfig: "JudgeConfig", judge_info: JudgeInfo, prompt: str, resume: bool, layout, winner: str = None) -> int:
     """Run a single judge agent and return line count."""
     config = load_config()
     
@@ -89,14 +89,16 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
         resume=resume
     )
     
+    session_key = jconfig.session_key(judge_info.review_type)
+    
     # Use generic logging context
     async with agent_logging_context(
         agent_type="judge",
         agent_name=judge_info.key,
         task_id=judge_info.task_id,
         suffix=judge_info.review_type,
-        session_key=judge_info.key.upper(),
-        session_task_key=f"{judge_info.task_id}_{judge_info.review_type}",
+        session_key=session_key,
+        session_task_key=judge_info.task_id,
         metadata=f"{judge_info.label} ({judge_info.key}) - {judge_info.task_id} - {judge_info.review_type} - {datetime.now()}"
     ) as logger:
         async for line in stream:
@@ -108,8 +110,8 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
                     judge_info.session_id = msg.session_id
                     # Save session immediately when captured
                     save_session(
-                        judge_info.key.upper(),
-                        f"{judge_info.task_id}_{judge_info.review_type}",
+                        session_key,
+                        judge_info.task_id,
                         msg.session_id,
                         f"{judge_info.label} ({judge_info.model})"
                     )
@@ -202,17 +204,11 @@ def _get_winner_text(winner: str) -> str:
     """Get human-readable winner text."""
     if winner == "TIE":
         return "TIE"
-    if winner in ["A", "writer_a", "Writer A"]:
-        try:
-            return f"{get_writer_config('writer_a').label} wins"
-        except Exception:
-            return "Writer A wins"
-    if winner in ["B", "writer_b", "Writer B"]:
-        try:
-            return f"{get_writer_config('writer_b').label} wins"
-        except Exception:
-            return "Writer B wins"
-    return f"Winner: {winner}"
+    try:
+        writer = resolve_writer_alias(winner)
+        return f"{writer.label} wins"
+    except (KeyError, Exception):
+        return f"Winner: {winner}"
 
 async def launch_judge_panel(
     task_id: str,
