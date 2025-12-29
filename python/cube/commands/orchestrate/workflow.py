@@ -143,11 +143,12 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
         effective_path = "SYNTHESIS"
 
     if effective_path == "SYNTHESIS":
+        send_both_feedback = result.get("winner") and result.get("next_action") == "SYNTHESIS"
         if resume_from <= 6:
             console.print()
             console.print("[yellow]═══ Phase 6: Synthesis ═══[/yellow]")
             log_phase(6, "Synthesis")
-            await run_synthesis(task_id, result, prompts_dir)
+            await run_synthesis(task_id, result, prompts_dir, both_writers=send_both_feedback)
             update_phase(task_id, 6, synthesis_complete=True)
 
         if resume_from <= 7:
@@ -286,11 +287,20 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
                 console.print(f"  cube auto --resume-from 6")
 
     elif result["next_action"] == "FEEDBACK":
+        split_feedback = (
+            result.get("winner") == "tie"
+            or any("Writer B" in issue for issue in result.get("blocker_issues", []))
+        )
         if resume_from <= 6:
             console.print()
-            console.print("[yellow]═══ Phase 6: Generate Feedback for Both Writers ═══[/yellow]")
-            log_phase(6, "Generate Feedback")
-            await generate_dual_feedback(task_id, prompts_dir)
+            if split_feedback:
+                console.print("[yellow]═══ Phase 6: Generate Feedback for Both Writers ═══[/yellow]")
+                log_phase(6, "Generate Dual Feedback")
+                await generate_dual_feedback(task_id, prompts_dir)
+            else:
+                console.print("[yellow]═══ Phase 6: Generate Feedback for Winner ═══[/yellow]")
+                log_phase(6, "Generate Winner Feedback")
+                await generate_dual_feedback(task_id, prompts_dir, winner_only=True)
             update_phase(task_id, 6, path="FEEDBACK")
 
         console.print()

@@ -239,9 +239,18 @@ Include evaluation criteria, scoring rubric, and decision JSON format."""
     return panel_prompt_path
 
 
-async def generate_dual_feedback(task_id: str, prompts_dir: Path):
-    """Generate feedback prompts for both writers in parallel with dual layout."""
+async def generate_dual_feedback(
+    task_id: str,
+    prompts_dir: Path,
+    winner_only: bool = False,
+    winner_key: str | None = None
+):
+    """Generate feedback prompts.
+    
+    When winner_only=True, only generate/send feedback for the winning writer.
+    """
     from ...core.dynamic_layout import DynamicLayout
+    from ...core.single_layout import SingleAgentLayout
     from ...core.user_config import get_writer_config
 
     feedback_a_path = prompts_dir / f"feedback-a-{task_id}.md"
@@ -273,70 +282,119 @@ Save to: `.prompts/feedback-{writer_letter}-{task_id}.md`"""
     writer_a = get_writer_config("writer_a")
     writer_b = get_writer_config("writer_b")
 
+    prompt_intro = (
+        "Both writers need changes based on judge reviews."
+        if not winner_only else
+        "Judges requested fixes for this writer."
+    )
+
     prompt_a = f"""Generate a feedback prompt for {writer_a.label}.
 
 Task: {task_id}
-Both writers need changes based on judge reviews.
+{prompt_intro}
 
 {prompt_base.format(task_id=task_id, writer=writer_a.letter, writer_slug=writer_a.name, writer_letter=writer_a.letter.lower())}"""
 
     prompt_b = f"""Generate a feedback prompt for {writer_b.label}.
 
 Task: {task_id}
-Both writers need changes based on judge reviews.
+{prompt_intro}
 
 {prompt_base.format(task_id=task_id, writer=writer_b.letter, writer_slug=writer_b.name, writer_letter=writer_b.letter.lower())}"""
+
+    parser = get_parser("cursor-agent")
+
+    entries = [
+        {
+            "key": "writer_a",
+            "cfg": writer_a,
+            "path": feedback_a_path,
+            "prompt": prompt_a,
+            "box_id": "prompter_a",
+            "label": f"Prompter A ({writer_a.label})",
+            "color": "green"
+        },
+        {
+            "key": "writer_b",
+            "cfg": writer_b,
+            "path": feedback_b_path,
+            "prompt": prompt_b,
+            "box_id": "prompter_b",
+            "label": f"Prompter B ({writer_b.label})",
+            "color": "blue"
+        },
+    ]
+
+    if winner_only:
+        if winner_key not in ("writer_a", "writer_b"):
+            raise ValueError("winner_key must be 'writer_a' or 'writer_b' when winner_only=True")
+        entries = [entry for entry in entries if entry["key"] == winner_key]
+
+    if len(entries) == 1:
+        entry = entries[0]
+        layout = SingleAgentLayout(title=entry["label"])
+        layout.start()
+        try:
+            stream = run_agent(PROJECT_ROOT, get_prompter_model(), entry["prompt"], session_id=None, resume=False)
+            async for line in stream:
+                msg = parser.parse(line)
+                if msg:
+                    formatted = format_stream_message(msg, entry["label"], entry["color"])
+                    if formatted:
+                        if formatted.startswith("[thinking]"):
+                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                            layout.add_thinking(thinking_text)
+                        elif msg.type == "assistant" and msg.content:
+                            layout.add_assistant_message("agent", msg.content, entry["label"], entry["color"])
+                        else:
+                            layout.add_output(formatted)
+                if entry["path"].exists():
+                    break
+            if not entry["path"].exists():
+                raise RuntimeError(f"Failed to generate feedback at {entry['path']}")
+        finally:
+            layout.close()
+
+        print_success(f"Created: {entry['path']}")
+        from ...core.session import load_session
+        from ...core.config import WORKTREE_BASE
+        from ..feedback import send_feedback_async
+
+        session = load_session(f"WRITER_{entry['cfg'].letter}", task_id)
+        if not session:
+            raise RuntimeError("No session found for winner. Cannot send feedback.")
+
+        project_name = Path(PROJECT_ROOT).name
+        worktree = WORKTREE_BASE / project_name / f"writer-{entry['cfg'].name}-{task_id}"
+        await send_feedback_async(entry["cfg"].name, task_id, entry["path"], session, worktree)
+        return
 
     console.print("Generating feedback for both writers in parallel...")
     console.print()
 
-    boxes = {"prompter_a": f"Prompter A ({writer_a.label})", "prompter_b": f"Prompter B ({writer_b.label})"}
+    boxes = {entry["box_id"]: entry["label"] for entry in entries}
     DynamicLayout.initialize(boxes, lines_per_box=2)
     layout = DynamicLayout
     layout.start()
 
-    parser = get_parser("cursor-agent")
-
-    async def generate_feedback_a():
-        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt_a, session_id=None, resume=False)
+    async def generate_entry(entry):
+        stream = run_agent(PROJECT_ROOT, get_prompter_model(), entry["prompt"], session_id=None, resume=False)
         async for line in stream:
             msg = parser.parse(line)
             if msg:
-                formatted = format_stream_message(msg, "Prompter A", "green")
+                formatted = format_stream_message(msg, entry["label"], entry["color"])
                 if formatted:
                     if formatted.startswith("[thinking]"):
                         thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking("prompter_a", thinking_text)
+                        layout.add_thinking(entry["box_id"], thinking_text)
                     elif msg.type == "assistant" and msg.content:
-                        layout.add_assistant_message("prompter_a", msg.content, "Prompter A", "green")
+                        layout.add_assistant_message(entry["box_id"], msg.content, entry["label"], entry["color"])
                     else:
                         layout.add_output(formatted)
-
-            if feedback_a_path.exists():
+            if entry["path"].exists():
                 return
 
-    async def generate_feedback_b():
-        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt_b, session_id=None, resume=False)
-        async for line in stream:
-            msg = parser.parse(line)
-            if msg:
-                formatted = format_stream_message(msg, "Prompter B", "blue")
-                if formatted:
-                    if formatted.startswith("[thinking]"):
-                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking("prompter_b", thinking_text)
-                    elif msg.type == "assistant" and msg.content:
-                        layout.add_assistant_message("prompter_b", msg.content, "Prompter B", "blue")
-                    else:
-                        layout.add_output(formatted)
-
-            if feedback_b_path.exists():
-                return
-
-    await asyncio.gather(
-        generate_feedback_a(),
-        generate_feedback_b()
-    )
+    await asyncio.gather(*(generate_entry(entry) for entry in entries))
 
     layout.close()
 
@@ -348,29 +406,25 @@ Both writers need changes based on judge reviews.
     print_success(f"Created: {feedback_a_path}")
     print_success(f"Created: {feedback_b_path}")
 
-    if feedback_a_path.exists() and feedback_b_path.exists():
-        console.print()
-        print_info("Sending feedback to both writers...")
-        from ...automation.dual_feedback import send_dual_feedback
-        from ...core.session import load_session
-        from ...core.config import WORKTREE_BASE
+    console.print()
+    print_info("Sending feedback to both writers...")
+    from ...automation.dual_feedback import send_dual_feedback
+    from ...core.session import load_session
+    from ...core.config import WORKTREE_BASE
 
-        session_a = load_session("WRITER_A", task_id)
-        session_b = load_session("WRITER_B", task_id)
+    session_a = load_session("WRITER_A", task_id)
+    session_b = load_session("WRITER_B", task_id)
 
-        if not session_a:
-            raise RuntimeError("No session found for Writer A. Cannot send feedback.")
-        if not session_b:
-            raise RuntimeError("No session found for Writer B. Cannot send feedback.")
+    if not session_a:
+        raise RuntimeError("No session found for Writer A. Cannot send feedback.")
+    if not session_b:
+        raise RuntimeError("No session found for Writer B. Cannot send feedback.")
 
-        writer_a = get_writer_config("writer_a")
-        writer_b = get_writer_config("writer_b")
+    project_name = Path(PROJECT_ROOT).name
+    worktree_a = WORKTREE_BASE / project_name / f"writer-{writer_a.name}-{task_id}"
+    worktree_b = WORKTREE_BASE / project_name / f"writer-{writer_b.name}-{task_id}"
 
-        project_name = Path(PROJECT_ROOT).name
-        worktree_a = WORKTREE_BASE / project_name / f"writer-{writer_a.name}-{task_id}"
-        worktree_b = WORKTREE_BASE / project_name / f"writer-{writer_b.name}-{task_id}"
-
-        await send_dual_feedback(
-            task_id, feedback_a_path, feedback_b_path,
-            session_a, session_b, worktree_a, worktree_b
-        )
+    await send_dual_feedback(
+        task_id, feedback_a_path, feedback_b_path,
+        session_a, session_b, worktree_a, worktree_b
+    )
