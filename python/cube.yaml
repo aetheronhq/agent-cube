@@ -8,6 +8,8 @@ prompter:
   model: "opus-4.5-thinking"
 
 # CLI tool to use for each model
+# claude-code CLI: npm install -g @anthropic-ai/claude-code
+# Then authenticate: claude auth
 # gemini CLI: npm install -g @google/gemini-cli
 # Then authenticate: gemini (choose Login with Google)
 # Note: Gemini CLI now supports session resume via --resume latest (v0.17+)
@@ -20,6 +22,9 @@ cli_tools:
   gemini-2.5-pro: gemini
   gemini-3-pro: cursor-agent
   gemini-3-pro-preview: gemini
+  # Claude Code CLI models (direct Anthropic API)
+  claude-4-opus: claude-code
+  claude-4-sonnet: claude-code
 
 # Writer personas
 writers:
