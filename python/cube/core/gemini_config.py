@@ -17,7 +17,8 @@ def load_gemini_settings() -> Dict[str, Any]:
     
     try:
         with open(settings_file) as f:
-            return json.load(f)
+            result: Dict[str, Any] = json.load(f)
+            return result
     except Exception:
         return {}
 

@@ -35,7 +35,7 @@ def extract_task_id_from_file(task_file: str) -> str:
     return task_id
 
 
-async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str, resume_alias: str | None = None) -> None:
+async def _orchestrate_auto_impl(task_file: str | None, resume_from: int, task_id: str, resume_alias: str | None = None) -> None:
     """Internal implementation of orchestrate_auto_command."""
     from ...core.state import validate_resume, update_phase, load_state, get_progress
     from ...core.master_log import get_master_log

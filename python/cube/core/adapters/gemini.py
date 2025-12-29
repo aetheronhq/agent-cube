@@ -11,7 +11,7 @@ from .base import CLIAdapter, run_subprocess_streaming
 class GeminiAdapter(CLIAdapter):
     """Adapter for gemini CLI (https://github.com/google-gemini/gemini-cli)."""
     
-    async def run(
+    async def run(  # type: ignore[override]
         self,
         worktree: Path,
         model: str,

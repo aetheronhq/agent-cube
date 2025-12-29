@@ -4,11 +4,12 @@ import typer
 import subprocess
 from pathlib import Path
 from datetime import datetime, timedelta
+from typing import Optional
 from ..core.output import print_success, print_info, print_warning, print_error, console
 from ..core.config import PROJECT_ROOT, get_sessions_dir, WORKTREE_BASE
 
 def clean_command(
-    task_id: str = None,
+    task_id: Optional[str] = None,
     old: bool = False,
     all_tasks: bool = False,
     full: bool = False,

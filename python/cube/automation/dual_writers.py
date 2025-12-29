@@ -227,13 +227,13 @@ async def launch_dual_writers(
     
     # Update state file
     from ..core.state import load_state, save_state
-    state = load_state(task_id)
-    if state:
-        state.writers_complete = True
-        state.current_phase = 2
-        if 2 not in state.completed_phases:
-            state.completed_phases.append(2)
-        save_state(state)
+    loaded_state = load_state(task_id)
+    if loaded_state:
+        loaded_state.writers_complete = True
+        loaded_state.current_phase = 2
+        if 2 not in loaded_state.completed_phases:
+            loaded_state.completed_phases.append(2)
+        save_state(loaded_state)
     
     console.print("📤 Ensuring all changes are committed and pushed...")
     console.print()

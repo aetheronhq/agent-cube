@@ -61,6 +61,26 @@ pytest tests/cli/test_commands.py
 pytest --cov=cube tests/
 ```
 
+### Type Checking
+
+We use mypy for static type checking. Run before committing:
+
+```bash
+mypy python/cube --ignore-missing-imports
+```
+
+Or with full dev setup:
+
+```bash
+pip install -e ".[dev]"
+mypy python/cube
+```
+
+Common fixes:
+- Use `Optional[str]` instead of `str = None`
+- Add type hints to variables: `data: dict[str, Any] = {}`
+- Handle Optional values before method calls
+
 ### Areas We Need Help
 
 - **CLI Adapters**: Support for more AI CLIs (Claude Code, etc.)

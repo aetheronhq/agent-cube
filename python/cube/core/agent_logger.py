@@ -4,7 +4,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import AsyncIterator, Optional, Callable
+from typing import AsyncIterator, Optional, Callable, Any, TextIO
 
 from .session import SessionWatcher
 
@@ -80,7 +80,7 @@ class AgentLogger:
         self.log_filename = create_log_filename(agent_type, agent_name, task_id, suffix)
         self.log_file = self.logs_dir / self.log_filename
         
-        self._file_handle = None
+        self._file_handle: Any = None
         self._watcher: Optional[SessionWatcher] = None
         self._line_count = 0
     

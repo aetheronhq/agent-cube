@@ -43,6 +43,6 @@ class SingleAgentLayout(BaseThinkingLayout):
         boxes = {"agent": title}
         super().__init__(boxes, lines_per_box=3)
     
-    def add_thinking(self, text: str) -> None:
-        super().add_thinking("agent", text)
+    def add_thinking(self, text: str, box_id: str = "agent") -> None:  # type: ignore[override]
+        super().add_thinking(box_id, text)
 

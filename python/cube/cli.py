@@ -73,6 +73,7 @@ def _resolve_resume_from(task_id: str, resume_flag: bool, resume_from_value: Opt
                 console.print(f"[cyan]Auto-resuming from Phase {parsed_phase} (FEEDBACK path loop)[/cyan]")
             # MERGE path ends at phase 7 (PR created)
             elif path == "MERGE" and current >= 7:
+                from .core.output import print_success
                 print_success(f"Task {task_id} complete! PR already created.")
                 parsed_phase = 7  # Will exit immediately
             else:
@@ -236,10 +237,10 @@ def peer_review(
         resolved_task_id = task_id_or_prompt
         prompt_arg = peer_review_prompt_file
     elif task_id_or_prompt and (Path(task_id_or_prompt).exists() or " " in task_id_or_prompt):
-        resolved_task_id = env_task_id or resolve_task_id(None)
+        resolved_task_id = env_task_id or ""
         prompt_arg = task_id_or_prompt
     else:
-        resolved_task_id = task_id_or_prompt
+        resolved_task_id = task_id_or_prompt or ""
         prompt_arg = peer_review_prompt_file
     
     if not resolved_task_id:

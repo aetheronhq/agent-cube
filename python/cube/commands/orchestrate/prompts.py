@@ -313,99 +313,112 @@ Task: {task_id}
 
     parser = get_parser("cursor-agent")
 
-    entries = [
-        {
-            "key": "writer_a",
-            "cfg": writer_a,
-            "path": feedback_a_path,
-            "prompt": prompt_a,
-            "box_id": "prompter_a",
-            "label": f"Prompter A ({writer_a.label})",
-            "color": "green"
-        },
-        {
-            "key": "writer_b",
-            "cfg": writer_b,
-            "path": feedback_b_path,
-            "prompt": prompt_b,
-            "box_id": "prompter_b",
-            "label": f"Prompter B ({writer_b.label})",
-            "color": "blue"
-        },
+    from ...core.user_config import WriterConfig
+    from dataclasses import dataclass
+    
+    @dataclass
+    class FeedbackEntry:
+        key: str
+        cfg: WriterConfig
+        path: Path
+        prompt: str
+        box_id: str
+        label: str
+        color: str
+    
+    entries: list[FeedbackEntry] = [
+        FeedbackEntry(
+            key="writer_a",
+            cfg=writer_a,
+            path=feedback_a_path,
+            prompt=prompt_a,
+            box_id="prompter_a",
+            label=f"Prompter A ({writer_a.label})",
+            color="green"
+        ),
+        FeedbackEntry(
+            key="writer_b",
+            cfg=writer_b,
+            path=feedback_b_path,
+            prompt=prompt_b,
+            box_id="prompter_b",
+            label=f"Prompter B ({writer_b.label})",
+            color="blue"
+        ),
     ]
 
     if winner_only:
         if winner_key not in ("writer_a", "writer_b"):
             raise ValueError("winner_key must be 'writer_a' or 'writer_b' when winner_only=True")
-        entries = [entry for entry in entries if entry["key"] == winner_key]
+        entries = [entry for entry in entries if entry.key == winner_key]
 
     if len(entries) == 1:
         entry = entries[0]
-        layout = SingleAgentLayout(title=entry["label"])
+        layout = SingleAgentLayout(title=entry.label)
         layout.start()
         try:
-            stream = run_agent(PROJECT_ROOT, get_prompter_model(), entry["prompt"], session_id=None, resume=False)
+            stream = run_agent(PROJECT_ROOT, get_prompter_model(), entry.prompt, session_id=None, resume=False)
             async for line in stream:
                 msg = parser.parse(line)
                 if msg:
-                    formatted = format_stream_message(msg, entry["label"], entry["color"])
+                    formatted = format_stream_message(msg, entry.label, entry.color)
                     if formatted:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                             layout.add_thinking(thinking_text)
                         elif msg.type == "assistant" and msg.content:
-                            layout.add_assistant_message("agent", msg.content, entry["label"], entry["color"])
+                            layout.add_assistant_message("agent", msg.content, entry.label, entry.color)
                         else:
                             layout.add_output(formatted)
-                if entry["path"].exists():
+                if entry.path.exists():
                     break
-            if not entry["path"].exists():
-                raise RuntimeError(f"Failed to generate feedback at {entry['path']}")
+            if not entry.path.exists():
+                raise RuntimeError(f"Failed to generate feedback at {entry.path}")
         finally:
             layout.close()
 
-        print_success(f"Created: {entry['path']}")
+        print_success(f"Created: {entry.path}")
         from ...core.session import load_session
         from ...core.config import WORKTREE_BASE
         from ..feedback import send_feedback_async
 
-        session = load_session(f"WRITER_{entry['cfg'].letter}", task_id)
+        session = load_session(f"WRITER_{entry.cfg.letter}", task_id)
         if not session:
             raise RuntimeError("No session found for winner. Cannot send feedback.")
 
         project_name = Path(PROJECT_ROOT).name
-        worktree = WORKTREE_BASE / project_name / f"writer-{entry['cfg'].name}-{task_id}"
-        await send_feedback_async(entry["cfg"].name, task_id, entry["path"], session, worktree)
+        worktree = WORKTREE_BASE / project_name / f"writer-{entry.cfg.name}-{task_id}"
+        await send_feedback_async(entry.cfg.name, task_id, entry.path, session, worktree)
         return
 
     console.print("Generating feedback for both writers in parallel...")
     console.print()
 
-    boxes = {entry["box_id"]: entry["label"] for entry in entries}
+    boxes = {entry.box_id: entry.label for entry in entries}
     DynamicLayout.initialize(boxes, lines_per_box=2)
-    layout = DynamicLayout
-    layout.start()
+    dyn_layout = DynamicLayout
+    dyn_layout.start()
 
-    async def generate_entry(entry):
-        stream = run_agent(PROJECT_ROOT, get_prompter_model(), entry["prompt"], session_id=None, resume=False)
+    async def generate_entry(entry: FeedbackEntry):
+        stream = run_agent(PROJECT_ROOT, get_prompter_model(), entry.prompt, session_id=None, resume=False)
         async for line in stream:
             msg = parser.parse(line)
             if msg:
-                formatted = format_stream_message(msg, entry["label"], entry["color"])
+                formatted = format_stream_message(msg, entry.label, entry.color)
                 if formatted:
                     if formatted.startswith("[thinking]"):
                         thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking(entry["box_id"], thinking_text)
+                        dyn_layout.add_thinking(entry.box_id, thinking_text)
                     elif msg.type == "assistant" and msg.content:
-                        layout.add_assistant_message(entry["box_id"], msg.content, entry["label"], entry["color"])
+                        dyn_layout.add_assistant_message(entry.box_id, msg.content, entry.label, entry.color)
                     else:
-                        layout.add_output(formatted)
-            if entry["path"].exists():
+                        dyn_layout.add_output(formatted)
+            if entry.path.exists():
                 return
 
     await asyncio.gather(*(generate_entry(entry) for entry in entries))
 
-    layout.close()
+    dyn_layout.close()
 
     if not feedback_a_path.exists():
         raise RuntimeError(f"Prompter A failed to generate feedback at {feedback_a_path}")

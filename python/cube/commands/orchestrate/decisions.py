@@ -7,13 +7,16 @@ from ...core.config import PROJECT_ROOT
 from ..decide import decide_command
 
 
-def run_decide_and_get_result(task_id: str) -> dict:
+from typing import Any
+
+def run_decide_and_get_result(task_id: str) -> dict[str, Any]:
     """Run decide for panel decisions and return parsed result."""
     decide_command(task_id, review_type="panel")
 
     result_file = PROJECT_ROOT / ".prompts" / "decisions" / f"{task_id}-aggregated.json"
     with open(result_file) as f:
-        return json.load(f)
+        result: dict[str, Any] = json.load(f)
+        return result
 
 
 def clear_peer_review_decisions(task_id: str) -> None:

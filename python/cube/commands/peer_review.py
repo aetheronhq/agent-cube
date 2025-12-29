@@ -26,7 +26,9 @@ def _get_winner_from_aggregated(task_id: str) -> Optional[str]:
             return "A"
         elif winner in ["B", "writer_b", "Writer B"]:
             return "B"
-        return winner
+        if isinstance(winner, str):
+            return winner
+        return None
     except (json.JSONDecodeError, KeyError):
         return None
 

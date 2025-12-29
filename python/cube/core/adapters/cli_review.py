@@ -14,13 +14,14 @@ class CLIReviewAdapter(CLIAdapter):
     
     def __init__(self, config: Dict[str, Any]):
         """Initialize with tool configuration."""
-        self.tool_cmd = config.get("cmd")
+        cmd = config.get("cmd")
         
-        if not self.tool_cmd:
+        if not cmd:
             raise ValueError("CLIReviewAdapter requires 'cmd' config")
-            
-        self.tool_name = config.get("name") or self.tool_cmd.split()[0]
-        self.writer_worktrees = {}  # Set via set_writer_worktrees() before run()
+        
+        self.tool_cmd: str = cmd
+        self.tool_name: str = config.get("name") or self.tool_cmd.split()[0]
+        self.writer_worktrees: Dict[str, Path] = {}  # Set via set_writer_worktrees() before run()
     
     def set_writer_worktrees(self, worktrees: Dict[str, Path]) -> None:
         """Set writer worktree paths programmatically.
@@ -30,7 +31,7 @@ class CLIReviewAdapter(CLIAdapter):
         """
         self.writer_worktrees = worktrees
 
-    async def run(
+    async def run(  # type: ignore[override]
         self,
         worktree: Path,
         model: str,
@@ -56,14 +57,14 @@ class CLIReviewAdapter(CLIAdapter):
         else:
             yield json.dumps({"type": "assistant", "content": f"🔍 Running {self.tool_name} on {num_writers} writers in parallel..."})
         
-        reviews = {}
-        output_buffers = {writer: [] for writer in self.writer_worktrees}
-        line_counts = {writer: 0 for writer in self.writer_worktrees}
+        reviews: Dict[str, str] = {}
+        output_buffers: Dict[str, list[str]] = {writer: [] for writer in self.writer_worktrees}
+        line_counts: Dict[str, int] = {writer: 0 for writer in self.writer_worktrees}
         errors = set()
         
-        async def stream_tool_output(writer: str, wt_path: Path, queue: asyncio.Queue):
+        async def stream_tool_output(writer: str, wt_path: Path, queue: "asyncio.Queue[tuple[str, str, Optional[str]]]"):
             """Run tool and push output to shared queue."""
-            cmd_str = self.tool_cmd.replace("{{worktree}}", str(wt_path))
+            cmd_str: str = self.tool_cmd.replace("{{worktree}}", str(wt_path))
             import shlex
             cmd_args = shlex.split(cmd_str)
             last_error_line = None  # Capture actual error messages from output
@@ -90,12 +91,12 @@ class CLIReviewAdapter(CLIAdapter):
                 await queue.put((writer, "done", None))
         
         # Create queue and start both tasks
-        queue = asyncio.Queue()
+        queue: asyncio.Queue[tuple[str, str, Optional[str]]] = asyncio.Queue()
         tasks = [stream_tool_output(w, p, queue) for w, p in self.writer_worktrees.items()]
         worker_tasks = [asyncio.create_task(t) for t in tasks]
         
         # Stream output as it arrives
-        completed = set()
+        completed: set[str] = set()
         while len(completed) < len(self.writer_worktrees):
             writer, msg_type, content = await queue.get()
             
@@ -239,8 +240,9 @@ Note: Use "SKIPPED" only for tool failures (rate limit, errors). SKIPPED = no co
 
     def check_installed(self) -> bool:
         import shutil
-        cmd_base = self.tool_cmd.split()[0]
+        cmd_base: str = self.tool_cmd.split()[0]
         return shutil.which(cmd_base) is not None
 
     def get_install_instructions(self) -> str:
-        return f"Please install {self.tool_cmd.split()[0]} manually."
+        cmd_base: str = self.tool_cmd.split()[0]
+        return f"Please install {cmd_base} manually."

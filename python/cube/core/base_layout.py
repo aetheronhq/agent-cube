@@ -29,7 +29,7 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.console import Console
 from rich.text import Text
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 
 class BaseThinkingLayout:
@@ -57,17 +57,17 @@ class BaseThinkingLayout:
     def __init__(self, boxes: Dict[str, str], lines_per_box: int = 3):
         self.boxes = boxes
         self.lines_per_box = lines_per_box
-        self.thinking_buffers = {box_id: deque(maxlen=lines_per_box) for box_id in boxes}
-        self.thinking_current = {box_id: "" for box_id in boxes}
-        self.output_lines = deque(maxlen=500)
-        self.assistant_buf = {}
-        self.assistant_meta = {}
+        self.thinking_buffers: dict[str, deque[str]] = {box_id: deque(maxlen=lines_per_box) for box_id in boxes}
+        self.thinking_current: dict[str, str] = {box_id: "" for box_id in boxes}
+        self.output_lines: deque[str] = deque(maxlen=500)
+        self.assistant_buf: dict[str, str] = {}
+        self.assistant_meta: dict[str, tuple[str, str]] = {}
         self.completed = {box_id: False for box_id in boxes}
-        self.completion_status = {box_id: None for box_id in boxes}
+        self.completion_status: dict[str, Optional[str]] = {box_id: None for box_id in boxes}
         
         self.console = Console()
-        self.live = None
-        self.layout = None
+        self.live: Optional[Live] = None
+        self.layout: Optional[Layout] = None
         self.started = False
         self.lock = Lock()
     

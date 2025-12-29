@@ -2,6 +2,7 @@
 
 import asyncio
 from pathlib import Path
+from typing import Optional
 import typer
 
 from ..core.agent import check_cursor_agent, run_agent
@@ -58,7 +59,7 @@ async def resume_async(
 def resume_command(
     target: str,
     task_id: str,
-    message: str = None
+    message: Optional[str] = None
 ) -> None:
     """Resume a writer or judge session with a message."""
     
@@ -110,7 +111,7 @@ def resume_command(
         worktree = PROJECT_ROOT
         target_label = judge_cfg.label
         color = judge_cfg.color
-    else:
+    elif writer_cfg:
         target_label = writer_cfg.label
         color = writer_cfg.color
         session_id = load_session(writer_cfg.key.upper(), task_id)
@@ -122,6 +123,9 @@ def resume_command(
         
         project_name = Path(PROJECT_ROOT).name
         worktree = get_worktree_path(project_name, writer_cfg.name, task_id)
+    else:
+        print_error(f"Invalid target: {target}")
+        raise typer.Exit(1)
     
     if not worktree.exists():
         print_error(f"Worktree not found: {worktree}")
@@ -133,6 +137,10 @@ def resume_command(
     console.print(f"  Session ID: [cyan]{session_id}[/cyan]")
     console.print(f"  Message: {message}")
     console.print()
+    
+    if model is None:
+        print_error(f"Could not determine model for {target}")
+        raise typer.Exit(1)
     
     try:
         asyncio.run(resume_async(target_label, task_id, message, session_id, worktree, model, color))

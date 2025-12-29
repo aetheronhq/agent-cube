@@ -129,7 +129,7 @@ def load_config() -> CubeConfig:
     if _config_cache:
         return _config_cache
     
-    data = {}
+    data: dict[str, Any] = {}
     
     base_config, global_config, repo_config = find_config_files()
     

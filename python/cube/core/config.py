@@ -89,16 +89,16 @@ class _ProjectRootProxy:
     def __fspath__(self) -> str:
         return str(get_project_root())
     
-    def __truediv__(self, other) -> Path:
+    def __truediv__(self, other: str) -> Path:
         return get_project_root() / other
     
-    def __rtruediv__(self, other) -> Path:
+    def __rtruediv__(self, other: Path) -> Path:
         return other / get_project_root()
     
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         return get_project_root() == other
     
-    def __ne__(self, other) -> bool:
+    def __ne__(self, other: object) -> bool:
         return get_project_root() != other
     
     def __hash__(self) -> int:

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 import typer
 
-from ..core.output import print_info, print_success, print_warning, print_error
+from ..core.output import print_info, print_success, print_warning, print_error, console
 
 def install_command() -> None:
     """Install cube-py CLI to PATH."""

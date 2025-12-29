@@ -16,7 +16,7 @@ class CursorAdapter(CLIAdapter):
         config_file = Path.home() / ".cursor" / "cli-config.json"
         return config_file.exists()
     
-    async def run(
+    async def run(  # type: ignore[override]
         self,
         worktree: Path,
         model: str,

@@ -48,7 +48,8 @@ def parse_single_decision_file(filepath: Path) -> Optional[Dict[str, Any]]:
         return None
     try:
         with open(filepath) as f:
-            return json.load(f)
+            result: Dict[str, Any] = json.load(f)
+            return result
     except json.JSONDecodeError:
         return None
 

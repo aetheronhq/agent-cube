@@ -4,7 +4,7 @@ import json
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TextIO
 import contextlib
 
 _master_log_instance: Optional["MasterLog"] = None
@@ -19,7 +19,7 @@ class MasterLog:
         self.log_dir = Path.home() / ".cube" / "logs"
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.log_file = self.log_dir / f"master-{task_id}.log"
-        self._file_handle = None
+        self._file_handle: Any = None
         self._lock = threading.Lock()
     
     def __enter__(self):

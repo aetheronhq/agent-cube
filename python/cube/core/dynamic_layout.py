@@ -82,7 +82,7 @@ class DynamicLayout:
             cls._instance.add_output(line)
     
     @classmethod
-    def mark_complete(cls, key: str, status: str = None):
+    def mark_complete(cls, key: str, status: Optional[str] = None):
         """Mark a box as complete."""
         if cls._instance:
             cls._instance.mark_complete(key, status)
@@ -105,4 +105,9 @@ class DynamicLayout:
         if cls._instance:
             cls._instance.close()
             cls._instance = None
+    
+    @classmethod
+    def reset(cls):
+        """Reset layout (alias for close, used by SSE integration)."""
+        cls.close()
 

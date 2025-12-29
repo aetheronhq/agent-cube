@@ -64,8 +64,13 @@ async def orchestrate_auto_command(task_file: str | None, resume_from: int = 1, 
     """
     from ...core.master_log import master_log_context
 
+    final_task_id: str
     if task_id is None:
-        task_id = extract_task_id_from_file(task_file)
+        if task_file is None:
+            raise ValueError("Either task_id or task_file must be provided")
+        final_task_id = extract_task_id_from_file(task_file)
+    else:
+        final_task_id = task_id
 
-    with master_log_context(task_id):
-        await _orchestrate_auto_impl(task_file, resume_from, task_id, resume_alias)
+    with master_log_context(final_task_id):
+        await _orchestrate_auto_impl(task_file, resume_from, final_task_id, resume_alias)

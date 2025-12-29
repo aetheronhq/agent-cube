@@ -31,16 +31,16 @@ class SSELayout(BaseThinkingLayout):
         self.queue = queue
         self._agent_labels = set(boxes.values())
 
-    def start(self) -> None:  # type: ignore[override]
+    def start(self) -> None:
         """Override start to skip Rich live rendering in SSE context."""
         with self.lock:
             self.started = True
 
-    def _update(self) -> None:  # type: ignore[override]
+    def _update(self) -> None:
         """Disable Rich UI updates for SSE layout."""
         return
 
-    def add_thinking(self, box_id: str, text: str) -> None:  # type: ignore[override]
+    def add_thinking(self, box_id: str, text: str) -> None:
         super().add_thinking(box_id, text)
         cleaned = _strip_markup(text)
         if not cleaned:
@@ -55,7 +55,7 @@ class SSELayout(BaseThinkingLayout):
         }
         asyncio.create_task(self.queue.put(payload))
 
-    def add_output(self, line: str) -> None:  # type: ignore[override]
+    def add_output(self, line: str) -> None:
         super().add_output(line)
         cleaned = _strip_markup(line)
         if not cleaned:

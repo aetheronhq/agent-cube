@@ -143,7 +143,7 @@ class TaskStreamState:
         # the CLI experience.
         # ----------------------------------------------------------------------
         layout = SSELayout(self.task_id, WRITER_BOXES, self.queue)
-        DynamicLayout._instance = layout  # type: ignore[attr-defined]
+        DynamicLayout._instance = layout
         self._layouts["writers"] = layout
 
     def release_writers_layout(self) -> None:
@@ -159,7 +159,7 @@ class TaskStreamState:
             return
         DynamicLayout.reset()
         layout = SSELayout(self.task_id, JUDGE_BOXES, self.queue)
-        DynamicLayout._instance = layout  # type: ignore[attr-defined]
+        DynamicLayout._instance = layout
         self._layouts["judges"] = layout
 
     def release_judges_layout(self) -> None:

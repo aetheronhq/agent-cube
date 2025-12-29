@@ -1,11 +1,12 @@
 """Status command - show workflow progress."""
 
 from pathlib import Path
+from typing import Optional
 from ..core.output import print_info, print_success, print_warning, console
 from ..core.config import PROJECT_ROOT
 from ..core.session import load_session
 
-def status_command(task_id: str = None) -> None:
+def status_command(task_id: Optional[str] = None) -> None:
     """Show workflow status for a task or all active work."""
     
     if task_id:
@@ -112,7 +113,7 @@ def show_all_status():
     
     session_files = list(sessions_dir.glob("*SESSION_ID.txt"))
     
-    tasks = {}
+    tasks: dict[str, dict[str, list[str]]] = {}
     for sf in session_files:
         parts = sf.stem.replace("_SESSION_ID", "").split("_")
         if len(parts) >= 2:
