@@ -8,16 +8,35 @@ from ..decide import decide_command
 
 
 def run_decide_and_get_result(task_id: str) -> dict:
-    """Run decide and return parsed result."""
-    decide_command(task_id)
+    """Run decide for panel decisions and return parsed result."""
+    # Force panel review type - Phase 5 needs panel aggregation
+    decide_command(task_id, review_type="panel")
 
     result_file = PROJECT_ROOT / ".prompts" / "decisions" / f"{task_id}-aggregated.json"
     with open(result_file) as f:
         return json.load(f)
 
 
+def clear_peer_review_decisions(task_id: str) -> None:
+    """Delete existing peer-review decision files to prevent append/concatenation.
+    
+    Some agents append to existing files instead of overwriting, causing
+    invalid JSON with multiple root objects. Clear before each peer-review run.
+    """
+    from ...core.user_config import get_judge_configs
+    from ...core.decision_parser import get_decision_file_path
+    
+    for judge in get_judge_configs():
+        peer_file = get_decision_file_path(judge.key, task_id, review_type="peer-review")
+        if peer_file.exists():
+            peer_file.unlink()
+
+
 def run_decide_peer_review(task_id: str) -> dict:
-    """Check peer review decisions and extract any remaining issues."""
+    """Check peer review decisions and extract any remaining issues.
+    
+    Only checks judges that have peer-review decision files (not all judges).
+    """
     from ...core.user_config import get_judge_configs
     from ...core.decision_parser import get_decision_file_path
 
@@ -31,7 +50,14 @@ def run_decide_peer_review(task_id: str) -> dict:
 
     judge_configs = get_judge_configs()
     judge_nums = [j.key for j in judge_configs]
-    total_judges = len(judge_nums)
+    
+    # Count judges that actually have peer-review files (not all judges)
+    judges_with_files = []
+    for judge_key in judge_nums:
+        peer_file = get_decision_file_path(judge_key, task_id, review_type="peer-review")
+        if peer_file.exists():
+            judges_with_files.append(judge_key)
+    total_judges = len(judges_with_files) if judges_with_files else 1
 
     for judge_key in judge_nums:
         peer_file = get_decision_file_path(judge_key, task_id, review_type="peer-review")
@@ -51,10 +77,19 @@ def run_decide_peer_review(task_id: str) -> dict:
                 console.print(f"Judge {judge_label}: {decision}")
                 if issues:
                     console.print(f"  Issues: {len(issues)}")
+                    for issue in issues[:3]:
+                        truncated = issue[:100] + "..." if len(issue) > 100 else issue
+                        console.print(f"    • {truncated}")
+                    if len(issues) > 3:
+                        console.print(f"    [dim]... and {len(issues) - 3} more[/dim]")
                     all_issues.extend(issues)
 
                 if decision == "APPROVED":
                     approvals += 1
+                elif decision == "SKIPPED":
+                    # Tool failure (rate limit, etc.) - not a code issue, count as non-blocking
+                    approvals += 1
+                    console.print(f"  [dim](tool skipped - not blocking)[/dim]")
                 elif decision == "REQUEST_CHANGES":
                     if not issues:
                         console.print("  [yellow]⚠️  No issues listed (malformed decision)[/yellow]")

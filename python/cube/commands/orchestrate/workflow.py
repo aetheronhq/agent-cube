@@ -305,12 +305,16 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
             temp_prompt = prompts_dir / f"temp-peer-review-{task_id}.md"
             temp_prompt.write_text(task_id)
 
+            # Clear existing peer-review decision files to prevent concatenation
+            clear_peer_review_decisions(task_id)
+
             await launch_judge_panel(task_id, temp_prompt, "peer-review", resume_mode=False, winner=result["winner"])
 
             auto_result = run_decide_peer_review(task_id)
 
             if auto_result.get("approved") and auto_result.get("decisions_found", 0) > 0:
                 print_info("✅ Automated review passed!")
+                update_phase(task_id, 6, path="MERGE", peer_review_complete=True)
             else:
                 issues = auto_result.get("remaining_issues", [])
                 decisions_found = auto_result.get("decisions_found", 0)
@@ -318,15 +322,44 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
 
                 console.print()
                 if issues:
-                    print_warning(f"Automated review found {len(issues)} issue(s):")
+                    print_warning(f"Automated review found {len(issues)} issue(s) - running minor fixes")
                     for issue in issues[:5]:
                         console.print(f"  • {issue[:100]}")
                     if len(issues) > 5:
                         console.print(f"  ... and {len(issues) - 5} more")
+                    
+                    # Run minor fixes for the automated review issues
+                    await run_minor_fixes(task_id, result, issues, prompts_dir)
+                    update_phase(task_id, 6, path="MERGE")
+                    
+                    # Re-run automated review after fixes
+                    console.print()
+                    console.print("[yellow]═══ Re-running Automated Review ═══[/yellow]")
+                    clear_peer_review_decisions(task_id)
+                    await launch_judge_panel(task_id, temp_prompt, "peer-review", resume_mode=False, winner=result["winner"])
+                    
+                    recheck = run_decide_peer_review(task_id)
+                    if recheck.get("approved"):
+                        print_success("✅ Automated review passed after fixes!")
+                        update_phase(task_id, 6, path="MERGE", peer_review_complete=True)
+                    else:
+                        remaining = recheck.get("remaining_issues", [])
+                        console.print()
+                        print_warning(f"Still {len(remaining)} issue(s) after fixes")
+                        console.print()
+                        winner = result.get("winner", "writer_b").replace("writer_", "")
+                        console.print("Send targeted feedback to address remaining issues:")
+                        console.print(f"  cube feedback {winner} {task_id} \"<fix instructions>\"")
+                        console.print(f"  cube auto {task_id} --resume-from peer-review")
+                        return
                 elif decisions_found == 0:
                     print_warning("No automated review decisions found!")
+                    console.print("Retry:")
+                    console.print(f"  cube auto {task_id} --resume-from peer-review")
+                    return
                 else:
                     print_warning(f"Automated review not approved ({approvals}/{decisions_found} approved)")
+                    update_phase(task_id, 6, path="MERGE", peer_review_complete=True)
 
                 console.print()
                 console.print("Fix issues or wait for decisions, then resume:")

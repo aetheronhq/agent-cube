@@ -241,7 +241,13 @@ async def launch_judge_panel(
         if not judge_configs:
             raise ValueError(f"Judge not found: {single_judge}. Available: {[j.key for j in all_judges]}")
     elif review_type == "panel":
+        # Panel review: exclude peer_review_only judges (they only do peer review)
         judge_configs = [j for j in all_judges if not j.peer_review_only]
+    elif review_type == "peer-review":
+        # Peer review in MERGE path: only run peer_review_only judges (e.g. CodeRabbit)
+        peer_only = [j for j in all_judges if j.peer_review_only]
+        # If no peer_review_only judges configured, fall back to all judges
+        judge_configs = peer_only if peer_only else all_judges
     else:
         judge_configs = all_judges
     
@@ -451,9 +457,7 @@ Use absolute path when writing the file. The project root is available in your w
         winner_cfg = get_writer_by_key_or_letter(winner)
         prompt = prompt.replace("{winner}", winner_cfg.name)
     
-    # Don't re-filter if single_judge was specified (already filtered above)
-    if not single_judge:
-        judge_configs = [j for j in all_judges if not j.peer_review_only] if review_type == "panel" else all_judges
+    # Don't re-filter - already filtered correctly above based on review_type and single_judge
     
     judges: List[JudgeInfo] = []
     for jconfig in judge_configs:
