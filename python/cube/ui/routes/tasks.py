@@ -19,8 +19,6 @@ from cube.core.decision_parser import JudgeDecision, aggregate_decisions, parse_
 from cube.core.session import load_session
 from cube.core.state import WorkflowState, load_state
 
-MAX_FILE_PREVIEW_SIZE = 10 * 1024  # 10 KB preview limit for UI
-
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 logger = logging.getLogger(__name__)
@@ -189,8 +187,8 @@ async def get_task_prompts(task_id: str) -> dict[str, Any]:
             try:
                 prompts[key] = {
                     "filename": filename,
-                    "content": filepath.read_text()[:MAX_FILE_PREVIEW_SIZE],
-                    "truncated": filepath.stat().st_size > MAX_FILE_PREVIEW_SIZE,
+                    "content": filepath.read_text()[:10000],
+                    "truncated": filepath.stat().st_size > 10000,
                 }
             except (OSError, IOError):
                 pass
@@ -211,8 +209,8 @@ async def get_task_prompts(task_id: str) -> dict[str, Any]:
             try:
                 prompts[key] = {
                     "filename": filename,
-                    "content": filepath.read_text()[:MAX_FILE_PREVIEW_SIZE],
-                    "truncated": filepath.stat().st_size > MAX_FILE_PREVIEW_SIZE,
+                    "content": filepath.read_text()[:10000],
+                    "truncated": filepath.stat().st_size > 10000,
                 }
             except (OSError, IOError):
                 pass
@@ -230,8 +228,8 @@ async def get_task_prompts(task_id: str) -> dict[str, Any]:
                 try:
                     prompts[key] = {
                         "filename": filename,
-                        "content": filepath.read_text()[:MAX_FILE_PREVIEW_SIZE],
-                        "truncated": filepath.stat().st_size > MAX_FILE_PREVIEW_SIZE,
+                        "content": filepath.read_text()[:10000],
+                        "truncated": filepath.stat().st_size > 10000,
                     }
                 except (OSError, IOError):
                     pass

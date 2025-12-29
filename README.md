@@ -106,21 +106,6 @@ cube auto task --resume
 
 ---
 
-## 🔬 **Research Foundation**
-
-Agent Cube isn't experimental—it's built on proven techniques:
-
-| Research | Finding | Application |
-|----------|---------|-------------|
-| **Best-of-N Sampling** (Anthropic, 2022) | N=2 reduces errors by 35% | 2 writers = different blind spots |
-| **LLM-as-Judge** (Zheng et al., 2023) | AI judges achieve 85% agreement with humans | Scalable, consistent code review |
-| **Self-Refine** (Madaan et al., 2023) | Iterative critique → revision improves quality | Feedback rounds until approved |
-| **Ensemble Methods** (Dietterich, 2000) | Different models = different strengths | Sonnet + Codex + Gemini diversity |
-
-**Plus:** Modern models (GPT-5 Codex, Sonnet 4.5 Thinking) are good enough to work largely unassisted. This wasn't possible 6 months ago.
-
----
-
 ## 🏗️ **Architecture**
 
 ### **Agents³ = Cube**
@@ -265,19 +250,9 @@ Like pair programming × 5. Multiple perspectives, ideas you wouldn't have thoug
 
 ## 🐛 **Known Limitations**
 
-### **The Human Catch**
-
-Real example from v2:
-- **Task:** API client scaffold
-- **All 3 AI judges:** APPROVED ✅
-- **Human review:** REJECTED ❌
-
-**What went wrong:** Built a custom HTTP client (good code quality). Needed an OpenAPI code generator (wrong approach). Judges focused on code quality, missed strategy.
-
-**The lesson:** AI judges catch bugs. Humans catch strategy misalignment. Both needed.
-
-### **Current Issues:**
-- ~5 interventions per complex feature (improving!)
+**Current Issues:**
+- Gemini decision filing: ~30% failure rate (improving!)
+- Requires cursor-agent CLI setup
 - $200-400 per feature LLM costs (4-5x ROI though)
 - Learning curve for planning docs
 - Human validation always required
