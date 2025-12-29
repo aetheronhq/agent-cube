@@ -5,11 +5,13 @@ from .base import CLIAdapter
 from .cursor import CursorAdapter
 from .gemini import GeminiAdapter
 from .cli_review import CLIReviewAdapter
+from .claude_code import ClaudeCodeAdapter
 
 _ADAPTERS: Dict[str, Type[CLIAdapter]] = {
     "cursor-agent": CursorAdapter,
     "gemini": GeminiAdapter,
     "cli-review": CLIReviewAdapter,
+    "claude-code": ClaudeCodeAdapter,
 }
 
 def get_adapter(cli_name: str, config: Optional[Dict[str, Any]] = None) -> CLIAdapter:

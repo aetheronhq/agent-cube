@@ -5,11 +5,13 @@ from .base import ParserAdapter
 from .cursor import CursorParser
 from .gemini import GeminiParser
 from .cli_review import CLIReviewParser
+from .claude_code import ClaudeCodeParser
 
 _PARSERS: Dict[str, Type[ParserAdapter]] = {
     "cursor-agent": CursorParser,
     "gemini": GeminiParser,
     "cli-review": CLIReviewParser,
+    "claude-code": ClaudeCodeParser,
 }
 
 def get_parser(cli_name: str) -> ParserAdapter:
