@@ -287,8 +287,9 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
                 console.print(f"  cube auto --resume-from 6")
 
     elif result["next_action"] == "FEEDBACK":
+        winner_key = result.get("winner")
         split_feedback = (
-            result.get("winner") == "tie"
+            winner_key == "tie"
             or any("Writer B" in issue for issue in result.get("blocker_issues", []))
         )
         if resume_from <= 6:
@@ -300,7 +301,12 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
             else:
                 console.print("[yellow]═══ Phase 6: Generate Feedback for Winner ═══[/yellow]")
                 log_phase(6, "Generate Winner Feedback")
-                await generate_dual_feedback(task_id, prompts_dir, winner_only=True)
+                await generate_dual_feedback(
+                    task_id,
+                    prompts_dir,
+                    winner_only=True,
+                    winner_key=winner_key
+                )
             update_phase(task_id, 6, path="FEEDBACK")
 
         console.print()
