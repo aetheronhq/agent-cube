@@ -16,9 +16,11 @@ def normalize_winner(winner_str: str) -> str:
     config = load_config()
     winner_lower = winner_str.lower()
     
-    # Try direct key match
+    # Handle "A", "B", etc. by position
     for key in config.writer_order:
-        if key.lower() == winner_lower:
+        idx = config.writer_order.index(key)
+        letter = chr(ord('a') + idx)
+        if winner_lower == letter:
             return key
     
     # Handle key formats
@@ -256,9 +258,14 @@ def aggregate_decisions(decisions: List[JudgeDecision]) -> Dict[str, Any]:
     
     # Determine winner by votes
     sorted_winners = sorted(winner_votes.items(), key=lambda item: item[1], reverse=True)
-    winner = sorted_winners[0][0]
     
-    has_clear_winner = sorted_winners[0][1] >= 2
+    # If no votes (e.g. all empty or invalid), default to TIE
+    if not sorted_winners or sorted_winners[0][1] == 0:
+        winner = "TIE"
+        has_clear_winner = False
+    else:
+        winner = sorted_winners[0][0]
+        has_clear_winner = sorted_winners[0][1] >= 2
     
     if winner == "TIE":
         next_action = "FEEDBACK"  # Both writers need changes

@@ -269,7 +269,11 @@ def resolve_writer_alias(alias: str) -> WriterConfig:
         if key.replace("_", "-") == alias_lower:
             return w
     
-    # Single letter (a -> writer_a, b -> writer_b) - REMOVED
+    # Single letter (a -> writer_a, b -> writer_b)
+    if len(alias_lower) == 1 and alias_lower.isalpha():
+        idx = ord(alias_lower) - ord('a')
+        if 0 <= idx < len(config.writer_order):
+            return config.writers[config.writer_order[idx]]
 
     
     raise KeyError(f"Unknown writer: {alias}")

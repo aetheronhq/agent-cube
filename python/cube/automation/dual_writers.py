@@ -219,10 +219,12 @@ async def launch_dual_writers(
         for writer, error in errors:
             console.print(f"  [{writer.color}]{writer.label}[/{writer.color}]: {error}")
         
-        if len(errors) == 2:
-            raise RuntimeError("Both writers failed")
+        if len(errors) == len(writers):
+            raise RuntimeError("All writers failed")
         else:
-            print_warning("One writer failed but the other completed successfully")
+            failed_count = len(errors)
+            success_count = len(writers) - failed_count
+            print_warning(f"{failed_count} writer(s) failed but {success_count} completed successfully")
             console.print()
     else:
         console.print("✅ Both writers completed successfully")
