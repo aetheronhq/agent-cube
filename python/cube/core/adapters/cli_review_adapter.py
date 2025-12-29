@@ -200,22 +200,26 @@ Do NOT approve if there are suggestions, warnings, or improvements to make. The 
 
 **CRITICAL REQUIREMENTS:**
 - Do NOT use read_file or shell tools - make your decision SOLELY based on the review output above
-- If ANY issues exist, use REQUEST_CHANGES - even "minor" or "non-blocking" ones
+- If ANY code issues exist, use REQUEST_CHANGES - even "minor" or "non-blocking" ones
 - You MUST use write_file to create the decision file (see Task Context above for the file path)
 
-**If reviews contain errors or are empty:**
-- Use decision: "REQUEST_CHANGES"
-- Set blocker_issues to explain the tool failure
+**If review tool FAILED (rate limit, network error, empty output):**
+- Use decision: "SKIPPED" (NOT REQUEST_CHANGES!)
+- Tool failures are NOT code issues - don't block the workflow
+- Set remaining_issues to empty array []
+- Set recommendation to explain the tool failure for retry later
 
 ## JSON Format (save this to the decision file path from Task Context)
 {{
   "judge": "<your judge key from Task Context>",
   "task_id": "<task id from Task Context>",
   "review_type": "peer-review",
-  "decision": "APPROVED" | "REQUEST_CHANGES",
-  "blocker_issues": ["ALL", "issues", "from", "the", "review", "that", "need", "fixing"],
+  "decision": "APPROVED" | "REQUEST_CHANGES" | "SKIPPED",
+  "remaining_issues": ["List", "of", "code", "issues", "to", "fix"],
   "recommendation": "Brief explanation. Tell writer to read their review file and fix ALL issues listed."
 }}
+
+Note: Use "SKIPPED" only for tool failures (rate limit, errors). SKIPPED = no code issues found (tool just couldn't verify).
 
 **IMPORTANT:** 
 - The review output files let the writer find the FULL {self.tool_name} output

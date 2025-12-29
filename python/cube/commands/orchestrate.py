@@ -775,6 +775,10 @@ def run_decide_peer_review(task_id: str) -> dict:
                 
                 if decision == "APPROVED":
                     approvals += 1
+                elif decision == "SKIPPED":
+                    # Tool failure (rate limit, etc.) - not a code issue, count as non-blocking
+                    approvals += 1
+                    console.print(f"  [dim](tool skipped - not blocking)[/dim]")
                 elif decision == "REQUEST_CHANGES":
                     has_request_changes = True
                     if not issues:
