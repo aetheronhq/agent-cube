@@ -64,8 +64,16 @@ def _resolve_resume_from(task_id: str, resume_flag: bool, resume_from_value: Opt
 
         state = load_state(task_id)
         if state:
-            parsed_phase = state.current_phase + 1 if state.current_phase < 10 else state.current_phase
-            console.print(f"[cyan]Auto-resuming from Phase {parsed_phase}[/cyan]")
+            current = state.current_phase
+            path = getattr(state, 'path', None)
+            
+            # FEEDBACK path only has phases 6-8, loop back if at end
+            if path == "FEEDBACK" and current >= 8:
+                parsed_phase = 6
+                console.print(f"[cyan]Auto-resuming from Phase {parsed_phase} (FEEDBACK path loop)[/cyan]")
+            else:
+                parsed_phase = current + 1 if current < 10 else current
+                console.print(f"[cyan]Auto-resuming from Phase {parsed_phase}[/cyan]")
         else:
             parsed_phase = 1
     elif parsed_phase is None:

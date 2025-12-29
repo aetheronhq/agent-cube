@@ -11,7 +11,7 @@ from ...automation.judge_panel import launch_judge_panel
 
 from .prompts import generate_writer_prompt, generate_panel_prompt, generate_dual_feedback
 from .phases import run_synthesis, run_peer_review, run_minor_fixes
-from .decisions import run_decide_and_get_result, run_decide_peer_review
+from .decisions import run_decide_and_get_result, run_decide_peer_review, clear_peer_review_decisions
 from .pr import create_pr
 
 
@@ -143,17 +143,19 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
         effective_path = "SYNTHESIS"
 
     if effective_path == "SYNTHESIS":
+        send_both_feedback = result.get("winner") and result.get("next_action") == "SYNTHESIS"
         if resume_from <= 6:
             console.print()
             console.print("[yellow]═══ Phase 6: Synthesis ═══[/yellow]")
             log_phase(6, "Synthesis")
-            await run_synthesis(task_id, result, prompts_dir)
+            await run_synthesis(task_id, result, prompts_dir, both_writers=send_both_feedback)
             update_phase(task_id, 6, synthesis_complete=True)
 
         if resume_from <= 7:
             console.print()
             console.print("[yellow]═══ Phase 7: Peer Review ═══[/yellow]")
             log_phase(7, "Peer Review")
+            clear_peer_review_decisions(task_id)
             await run_peer_review(task_id, result, prompts_dir)
             update_phase(task_id, 7, peer_review_complete=True)
 
@@ -166,11 +168,12 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
             update_phase(task_id, 8)
 
             from ...core.user_config import get_judge_configs
-            total_judges = len(get_judge_configs())
+            peer_review_judges = [j for j in get_judge_configs() if j.peer_review_only]
+            total_peer_judges = len(peer_review_judges) if peer_review_judges else 1
             decisions_found = final_result.get("decisions_found", 0)
 
-            if decisions_found < total_judges:
-                print_warning(f"Only {decisions_found}/{total_judges} judges have decisions")
+            if decisions_found < total_peer_judges:
+                print_warning(f"Only {decisions_found}/{total_peer_judges} peer-review judges have decisions")
                 print_warning("Run peer-review to get all judge decisions before proceeding")
                 console.print()
                 console.print("[cyan]To run missing judges:[/cyan]")
@@ -196,11 +199,12 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
                 final_result = run_decide_peer_review(task_id)
 
             from ...core.user_config import get_judge_configs
-            total_judges = len(get_judge_configs())
+            peer_review_judges = [j for j in get_judge_configs() if j.peer_review_only]
+            total_peer_judges = len(peer_review_judges) if peer_review_judges else 1
             decisions_found = final_result.get("decisions_found", 0)
 
-            if decisions_found < total_judges:
-                print_warning(f"Only {decisions_found}/{total_judges} judges have decisions")
+            if decisions_found < total_peer_judges:
+                print_warning(f"Only {decisions_found}/{total_peer_judges} peer-review judges have decisions")
                 print_warning("Run peer-review to get all judge decisions before proceeding")
                 console.print()
                 console.print("[cyan]To run missing judges:[/cyan]")
@@ -221,6 +225,7 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
             console.print()
             console.print("[yellow]═══ Phase 10: Final Peer Review ═══[/yellow]")
             log_phase(10, "Final Peer Review")
+            clear_peer_review_decisions(task_id)
             await run_peer_review(task_id, result, prompts_dir)
             update_phase(task_id, 10)
 
@@ -240,24 +245,24 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
             console.print()
             from ...core.user_config import get_judge_configs
             judge_configs = get_judge_configs()
-            judge_nums = [j.key for j in judge_configs]
-            total_judges = len(judge_nums)
+            peer_review_judges = [j for j in judge_configs if j.peer_review_only]
+            total_peer_judges = len(peer_review_judges) if peer_review_judges else 1
 
             decisions_count = final_check.get("decisions_found", 0)
             approvals_count = final_check.get("approvals", 0)
 
-            if decisions_count < total_judges:
-                print_warning(f"Missing peer review decisions ({decisions_count}/{total_judges})")
+            if decisions_count < total_peer_judges:
+                print_warning(f"Missing peer review decisions ({decisions_count}/{total_peer_judges})")
                 console.print()
                 console.print("Options:")
                 console.print(f"  1. Get missing judge(s) to file decisions:")
-                for judge_key in judge_nums:
-                    judge_label = judge_key.replace("_", "-")
+                for judge_cfg in peer_review_judges:
+                    judge_label = judge_cfg.key.replace("_", "-")
                     peer_file = PROJECT_ROOT / ".prompts" / "decisions" / f"{judge_label}-{task_id}-peer-review.json"
                     if not peer_file.exists():
                         console.print(f"     cube resume {judge_label} {task_id} \"Write peer review decision\"")
                 console.print()
-                console.print(f"  2. Continue with {decisions_count}/{total_judges} decisions:")
+                console.print(f"  2. Continue with {decisions_count}/{total_peer_judges} decisions:")
                 console.print(f"     cube auto task.md --resume-from 8")
             else:
                 console.print()
@@ -286,16 +291,60 @@ async def _orchestrate_auto_impl(task_file: str, resume_from: int, task_id: str,
                 console.print(f"  cube auto --resume-from 6")
 
     elif result["next_action"] == "FEEDBACK":
+        # FEEDBACK path only has phases 6-8, adjust if resuming from invalid phase
+        if resume_from > 8:
+            print_info(f"FEEDBACK path only has phases 6-8, adjusting resume from {resume_from} to 7")
+            resume_from = 7
+        
+        winner_key = result.get("winner")
+        split_feedback = (
+            winner_key.upper() == "TIE" if winner_key else False
+            or any("Writer B" in issue for issue in result.get("blocker_issues", []))
+        )
         if resume_from <= 6:
             console.print()
-            console.print("[yellow]═══ Phase 6: Generate Feedback for Both Writers ═══[/yellow]")
-            log_phase(6, "Generate Feedback")
-            await generate_dual_feedback(task_id, prompts_dir)
+            if split_feedback:
+                console.print("[yellow]═══ Phase 6: Generate Feedback for Both Writers ═══[/yellow]")
+                log_phase(6, "Generate Dual Feedback")
+                await generate_dual_feedback(task_id, prompts_dir)
+            else:
+                console.print("[yellow]═══ Phase 6: Generate Feedback for Winner ═══[/yellow]")
+                log_phase(6, "Generate Winner Feedback")
+                await generate_dual_feedback(
+                    task_id,
+                    prompts_dir,
+                    winner_only=True,
+                    winner_key=winner_key
+                )
             update_phase(task_id, 6, path="FEEDBACK")
 
-        console.print()
-        print_warning("Both writers need major changes. Re-run panel after they complete:")
-        console.print(f"  cube panel {task_id} .prompts/panel-prompt-{task_id}.md")
+        if resume_from <= 7:
+            console.print()
+            console.print("[yellow]═══ Phase 7: Re-run Panel Review ═══[/yellow]")
+            log_phase(7, "Re-run Panel Review")
+            await launch_judge_panel(task_id, panel_prompt_path, "panel", resume_mode=False)
+            update_phase(task_id, 7, path="FEEDBACK", panel_complete=True)
+
+        if resume_from <= 8:
+            console.print()
+            console.print("[yellow]═══ Phase 8: Re-aggregate Decisions ═══[/yellow]")
+            log_phase(8, "Re-aggregate Decisions")
+            new_result = run_decide_and_get_result(task_id)
+            update_phase(task_id, 8, path=new_result["next_action"], winner=new_result["winner"])
+
+            if new_result["next_action"] == "MERGE":
+                print_success("Writers addressed feedback - ready for merge!")
+                await create_pr(task_id, new_result["winner"])
+            elif new_result["next_action"] == "SYNTHESIS":
+                print_info("Winner selected after feedback - continuing to synthesis")
+                console.print("Resume with:")
+                console.print(f"  cube auto {task_id} --resume-from 6")
+            elif new_result["next_action"] == "FEEDBACK":
+                print_warning("Still needs FEEDBACK. Send more feedback and re-run panel:")
+                console.print(f"  cube auto {task_id} --resume-from 6")
+            else:
+                print_warning("Unexpected state. Check decisions and decide next action:")
+                console.print(f"  cube decide {task_id}")
 
     elif effective_path == "MERGE":
         from ...core.user_config import get_judge_configs
