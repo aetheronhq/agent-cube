@@ -313,7 +313,7 @@ def orchestrate(
                 print_info(f"Running in single-writer mode with [bold cyan]{writer_config.name}[/bold cyan]")
             except KeyError as e:
                 print_error(str(e))
-                raise typer.Exit(1)
+                raise typer.Exit(1) from e
         else:
             print_info("Running in dual-writer mode")
 
@@ -448,7 +448,7 @@ def auto(
             print_info(f"Running in single-writer mode with [bold cyan]{writer_config.name}[/bold cyan]")
         except KeyError as e:
             print_error(str(e))
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
     else:
         print_info("Running in dual-writer mode")
 

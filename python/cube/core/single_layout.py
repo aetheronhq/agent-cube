@@ -19,7 +19,7 @@ Example:
     layout.close()
 """
 
-from threading import Lock
+from threading import RLock
 from typing import Dict, Optional
 
 from .base_layout import BaseThinkingLayout
@@ -43,7 +43,7 @@ class SingleAgentLayout(BaseThinkingLayout):
     """
     
     _instance: Optional['SingleAgentLayout'] = None
-    _lock = Lock()
+    _lock = RLock()
 
     @classmethod
     def initialize(cls, title: str = "Agent"):
