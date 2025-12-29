@@ -732,6 +732,11 @@ def run_decide_peer_review(task_id: str) -> dict:
                 console.print(f"Judge {judge_label}: {decision}")
                 if issues:
                     console.print(f"  Issues: {len(issues)}")
+                    for issue in issues[:3]:  # Show first 3 issues
+                        truncated = issue[:100] + "..." if len(issue) > 100 else issue
+                        console.print(f"    • {truncated}")
+                    if len(issues) > 3:
+                        console.print(f"    [dim]... and {len(issues) - 3} more[/dim]")
                     all_issues.extend(issues)
                 
                 if decision == "APPROVED":
@@ -764,6 +769,17 @@ def run_decide_peer_review(task_id: str) -> dict:
     elif approvals > 0:
         console.print()
         print_warning(f"Not unanimous: {approvals}/{decisions_found} approved, {len(all_issues)} issue(s) to address")
+    
+    # Show deduplicated key issues summary
+    if all_issues and not approved:
+        unique_issues = list(dict.fromkeys(all_issues))  # Dedup while preserving order
+        console.print()
+        console.print("[bold]Key issues to address:[/bold]")
+        for i, issue in enumerate(unique_issues[:5], 1):
+            truncated = issue[:120] + "..." if len(issue) > 120 else issue
+            console.print(f"  {i}. {truncated}")
+        if len(unique_issues) > 5:
+            console.print(f"  [dim]... and {len(unique_issues) - 5} more unique issues[/dim]")
     
     result = {
         "approved": approved,
