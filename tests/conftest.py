@@ -65,7 +65,7 @@ def backend_server(backend_port, mock_home):
             time.sleep(0.1)
     else:
         proc.kill()
-        stdout, stderr = proc.communicate()
+        _stdout, stderr = proc.communicate()
         raise RuntimeError(f"Backend failed to start:\n{stderr.decode()}")
 
     yield f"http://127.0.0.1:{backend_port}"
@@ -119,7 +119,7 @@ def frontend_server(frontend_port, backend_port):
             time.sleep(0.5)
     else:
         proc.kill()
-        stdout, stderr = proc.communicate() 
+        _stdout, stderr = proc.communicate() 
         # Don't read all stdout/stderr as it might be huge if it's just hanging
         if stderr:
             print(f"Frontend stderr: {stderr.decode()}")
