@@ -1,10 +1,51 @@
-"""Dynamic layout that adapts to any number of boxes."""
+"""Singleton layout wrapper for parallel agent displays.
+
+This module provides a class-level singleton wrapper around BaseThinkingLayout,
+enabling process-wide shared display state for parallel agent execution.
+
+When to use:
+    - Parallel writer agents (dual_writers.py)
+    - Judge panels with multiple concurrent judges
+    - Any scenario where multiple callers need shared display state
+
+Why a singleton:
+    Rich Live displays don't support multiple concurrent instances. DynamicLayout
+    ensures only one Live display exists, with proper cleanup between uses.
+
+Related modules:
+    - base_layout.py: Core implementation (wrapped, not inherited)
+    - single_layout.py: For single-agent sequential runs
+
+Example:
+    DynamicLayout.initialize({"writer_a": "Writer A", "writer_b": "Writer B"})
+    DynamicLayout.start()
+    DynamicLayout.add_thinking("writer_a", "Working...")
+    DynamicLayout.mark_complete("writer_a", "Done")
+    DynamicLayout.close()
+"""
 
 from .base_layout import BaseThinkingLayout
 from typing import Dict, Optional
 
+
 class DynamicLayout:
-    """Universal layout for any number of thinking boxes (singleton with proper cleanup)."""
+    """Process-wide singleton for parallel agent thinking displays.
+    
+    Wraps BaseThinkingLayout with class-level state to enable shared display
+    across multiple callers (threads/coroutines) during parallel execution.
+    
+    All methods are class methods operating on shared state. Call initialize()
+    before use, and close() when done to clean up resources.
+    
+    Note:
+        Previous instances are automatically closed when initialize() is called,
+        preventing multiple Rich Live displays from conflicting.
+    
+    Example:
+        DynamicLayout.initialize({"judge_1": "Judge 1", "judge_2": "Judge 2"})
+        DynamicLayout.add_thinking("judge_1", "Reviewing code...")
+        DynamicLayout.close()
+    """
     
     _instance: Optional[BaseThinkingLayout] = None
     
