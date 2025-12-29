@@ -71,7 +71,16 @@ class GeminiParser(ParserAdapter):
             
             return None
             
-        except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
+        except json.JSONDecodeError:
+            line = line.strip()
+            if line:
+                return StreamMessage(
+                    type="system",
+                    subtype="log",
+                    content=f"[gemini] {line[:200]}"
+                )
+            return None
+        except (KeyError, TypeError, AttributeError):
             return None
     
     def supports_resume(self) -> bool:
