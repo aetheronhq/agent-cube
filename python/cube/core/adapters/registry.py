@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional, Type
 
 from .base import CLIAdapter
 from .claude import ClaudeAdapter
+from .claude_code import ClaudeCodeAdapter
 from .cli_review import CLIReviewAdapter
 from .cursor import CursorAdapter
 from .gemini import GeminiAdapter
@@ -13,6 +14,7 @@ _ADAPTERS: Dict[str, Type[CLIAdapter]] = {
     "claude": ClaudeAdapter,
     "gemini": GeminiAdapter,
     "cli-review": CLIReviewAdapter,
+    "claude-code": ClaudeCodeAdapter,
 }
 
 

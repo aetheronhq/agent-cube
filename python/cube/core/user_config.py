@@ -177,7 +177,9 @@ def load_config() -> CubeConfig:
     for idx, (key, w) in enumerate(data.get("writers", {}).items()):
         writer_order.append(key)
         letter = chr(65 + idx)  # A, B, C...
-        writers[key] = WriterConfig(key=key, name=w["name"], model=w["model"], label=w["label"], letter=letter, color=w["color"])
+        writers[key] = WriterConfig(
+            key=key, name=w["name"], model=w["model"], label=w["label"], letter=letter, color=w["color"]
+        )
 
     judges: Dict[str, JudgeConfig] = {}
     judge_order: list[str] = []
@@ -309,6 +311,7 @@ def get_writer_by_key_or_metadata(key: str, task_id: str) -> WriterConfig:
                 name=metadata.name,
                 model=metadata.model,
                 label=metadata.label,
+                letter=metadata.key.split("_")[-1].upper(),
                 color=metadata.color,
             )
         raise KeyError(f"Unknown writer: {key}")
