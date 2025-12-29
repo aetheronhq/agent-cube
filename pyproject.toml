@@ -75,3 +75,6 @@ ignore = ["E501"]
 python_version = "3.11"
 warn_return_any = true
 warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
