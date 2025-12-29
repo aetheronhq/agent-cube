@@ -239,14 +239,17 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
             print_success(f"Created: {minor_fixes_path}")
             break
 
-    if minor_fixes_path.exists():
-        from ..feedback import send_feedback_async
-        from ...core.session import load_session
+    if not minor_fixes_path.exists():
+        layout.close()
+        raise RuntimeError(f"Failed to generate minor fixes prompt for {winner_name} (task: {task_id})")
 
-        session_id = load_session(f"WRITER_{winner_cfg.letter}", task_id)
-        if not session_id:
-            raise RuntimeError(f"No session found for Writer {winner_cfg.label}. Cannot send minor fixes.")
+    from ..feedback import send_feedback_async
+    from ...core.session import load_session
 
-        project_name = Path(PROJECT_ROOT).name
-        worktree = WORKTREE_BASE / project_name / f"writer-{winner_name}-{task_id}"
-        await send_feedback_async(winner_name, task_id, minor_fixes_path, session_id, worktree)
+    session_id = load_session(f"WRITER_{winner_cfg.letter}", task_id)
+    if not session_id:
+        raise RuntimeError(f"No session found for Writer {winner_cfg.label}. Cannot send minor fixes.")
+
+    project_name = Path(PROJECT_ROOT).name
+    worktree = WORKTREE_BASE / project_name / f"writer-{winner_name}-{task_id}"
+    await send_feedback_async(winner_name, task_id, minor_fixes_path, session_id, worktree)
