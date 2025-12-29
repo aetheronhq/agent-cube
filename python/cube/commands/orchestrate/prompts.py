@@ -171,7 +171,8 @@ Include: context, requirements, steps, constraints, anti-patterns, success crite
 2. **Last step**: Commit and push when complete!"""
 
     parser = get_parser("cursor-agent")
-    layout = SingleAgentLayout(title="Prompter")
+    layout = SingleAgentLayout
+    layout.initialize("Prompter")
     layout.start()
 
     stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
@@ -217,7 +218,8 @@ Review both writer implementations and create: `.prompts/panel-prompt-{task_id}.
 Include evaluation criteria, scoring rubric, and decision JSON format."""
 
     parser = get_parser("cursor-agent")
-    layout = SingleAgentLayout(title="Prompter")
+    layout = SingleAgentLayout
+    layout.initialize("Prompter")
     layout.start()
 
     stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
@@ -341,7 +343,8 @@ Task: {task_id}
 
     if len(entries) == 1:
         entry = entries[0]
-        layout = SingleAgentLayout(title=entry["label"])
+        layout = SingleAgentLayout
+        layout.initialize(entry["label"])
         layout.start()
         try:
             stream = run_agent(PROJECT_ROOT, get_prompter_model(), entry["prompt"], session_id=None, resume=False)
