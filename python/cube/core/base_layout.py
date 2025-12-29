@@ -1,4 +1,24 @@
-"""Base layout class for thinking displays."""
+"""Base layout class for Rich terminal displays with thinking boxes.
+
+This module provides the core implementation for terminal UI layouts that show
+real-time "thinking" indicators for LLM agents alongside scrolling output.
+
+When to use:
+    - Inherit from BaseThinkingLayout for custom specialized layouts
+    - Instantiate directly when you need full control over box configuration
+
+Related modules:
+    - dynamic_layout.py: Singleton wrapper for process-wide shared layouts
+    - single_layout.py: Convenience subclass for single-agent displays
+
+Example:
+    boxes = {"writer_a": "Writer A", "writer_b": "Writer B"}
+    layout = BaseThinkingLayout(boxes, lines_per_box=3)
+    layout.start()
+    layout.add_thinking("writer_a", "Analyzing the code...")
+    layout.add_output("[green]Progress:[/green] Step 1 complete")
+    layout.close()
+"""
 
 import os
 import time
@@ -13,7 +33,26 @@ from typing import Dict, Optional
 
 
 class BaseThinkingLayout:
-    """Thinking boxes at top + scrolling log output below."""
+    """Rich Live display with thinking boxes and scrolling output.
+    
+    Displays one or more "thinking boxes" at the top of the terminal showing
+    real-time LLM thinking, with a scrolling output region below.
+    
+    Attributes:
+        boxes: Dict mapping box_id to display title
+        lines_per_box: Number of lines per thinking box
+        started: Whether the Live display is active
+    
+    Thread Safety:
+        All public methods are thread-safe via internal locking.
+    
+    Example:
+        layout = BaseThinkingLayout({"agent": "My Agent"})
+        layout.start()
+        layout.add_thinking("agent", "Processing...")
+        layout.mark_complete("agent", "Done")
+        layout.close()
+    """
     
     def __init__(self, boxes: Dict[str, str], lines_per_box: int = 3):
         self.boxes = boxes
