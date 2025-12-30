@@ -24,7 +24,7 @@ async def run_agent(
     
     adapter = get_adapter(cli_name)
     
-    async for line in adapter.run(worktree, model, prompt, session_id, resume):
+    async for line in adapter.run(worktree, model, prompt, session_id, resume):  # type: ignore[attr-defined]
         yield line
 
 def check_cursor_agent() -> bool:
