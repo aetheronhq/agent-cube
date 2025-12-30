@@ -168,6 +168,8 @@ Include: context, requirements, steps, constraints, anti-patterns, success crite
    - `git merge origin/main --no-edit` (non-interactive merge)
    - If conflicts: Use read_file/write_file to fix them programmatically (no interactive editors!)
    - Verify clean with `git status` before proceeding
+2. **Last step**: Commit and push when complete!"""
+
     parser = get_parser("cursor-agent")
     layout = SingleAgentLayout.initialize("Prompter")
     layout.start()

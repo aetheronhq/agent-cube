@@ -432,10 +432,7 @@ async def _orchestrate_auto_impl(
             resume_from = 7
         
         winner_key = result.get("winner")
-        split_feedback = (
-            winner_key.upper() == "TIE" if winner_key else False
-            or any("Writer B" in issue for issue in result.get("blocker_issues", []))
-        )
+        split_feedback = not winner_key or winner_key.upper() == "TIE"
         if resume_from <= 6:
             console.print()
             if split_feedback:
