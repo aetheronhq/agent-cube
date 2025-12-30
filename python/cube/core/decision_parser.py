@@ -335,8 +335,13 @@ def get_peer_review_status(
         elif decision == "SKIPPED":
             approvals += 1  # Tool failure, not a code issue
     
+    total_judges = len(judge_configs)
+    all_submitted = decisions_found == total_judges
+    
     return {
         "approved": approvals == decisions_found and decisions_found > 0,
+        "all_submitted": all_submitted,
+        "total_judges": total_judges,
         "remaining_issues": all_issues,
         "decisions_found": decisions_found,
         "approvals": approvals,

@@ -301,13 +301,10 @@ async def _orchestrate_auto_impl(
             final_result = run_decide_peer_review(task_id)
             update_phase(task_id, 8)
 
-            from ...core.user_config import get_judge_configs
-            peer_review_judges = [j for j in get_judge_configs() if j.peer_review_only]
-            total_peer_judges = len(peer_review_judges) if peer_review_judges else 1
-            decisions_found = final_result.get("decisions_found", 0)
-
-            if decisions_found < total_peer_judges:
-                print_warning(f"Only {decisions_found}/{total_peer_judges} peer-review judges have decisions")
+            if not final_result.get("all_submitted", False):
+                total = final_result.get("total_judges", "?")
+                found = final_result.get("decisions_found", 0)
+                print_warning(f"Only {found}/{total} judges have submitted decisions")
                 print_warning("Run peer-review to get all judge decisions before proceeding")
                 console.print()
                 console.print("[cyan]To run missing judges:[/cyan]")
@@ -332,13 +329,10 @@ async def _orchestrate_auto_impl(
             if resume_from > 8:
                 final_result = run_decide_peer_review(task_id)
 
-            from ...core.user_config import get_judge_configs
-            peer_review_judges = [j for j in get_judge_configs() if j.peer_review_only]
-            total_peer_judges = len(peer_review_judges) if peer_review_judges else 1
-            decisions_found = final_result.get("decisions_found", 0)
-
-            if decisions_found < total_peer_judges:
-                print_warning(f"Only {decisions_found}/{total_peer_judges} peer-review judges have decisions")
+            if not final_result.get("all_submitted", False):
+                total = final_result.get("total_judges", "?")
+                found = final_result.get("decisions_found", 0)
+                print_warning(f"Only {found}/{total} judges have submitted decisions")
                 print_warning("Run peer-review to get all judge decisions before proceeding")
                 console.print()
                 console.print("[cyan]To run missing judges:[/cyan]")
@@ -377,27 +371,19 @@ async def _orchestrate_auto_impl(
             await create_pr(task_id, result["winner"])
         else:
             console.print()
-            from ...core.user_config import get_judge_configs
-            judge_configs = get_judge_configs()
-            peer_review_judges = [j for j in judge_configs if j.peer_review_only]
-            total_peer_judges = len(peer_review_judges) if peer_review_judges else 1
-
             decisions_count = final_check.get("decisions_found", 0)
+            total_judges = final_check.get("total_judges", decisions_count)
             approvals_count = final_check.get("approvals", 0)
 
-            if decisions_count < total_peer_judges:
-                print_warning(f"Missing peer review decisions ({decisions_count}/{total_peer_judges})")
+            if not final_check.get("all_submitted", False):
+                print_warning(f"Missing peer review decisions ({decisions_count}/{total_judges})")
                 console.print()
                 console.print("Options:")
-                console.print(f"  1. Get missing judge(s) to file decisions:")
-                for judge_cfg in peer_review_judges:
-                    judge_label = judge_cfg.key.replace("_", "-")
-                    peer_file = PROJECT_ROOT / ".prompts" / "decisions" / f"{judge_label}-{task_id}-peer-review.json"
-                    if not peer_file.exists():
-                        console.print(f"     cube resume {judge_label} {task_id} \"Write peer review decision\"")
+                console.print(f"  1. Run peer-review to get all decisions:")
+                console.print(f"     cube peer-review {task_id}")
                 console.print()
-                console.print(f"  2. Continue with {decisions_count}/{total_peer_judges} decisions:")
-                console.print(f"     cube auto task.md --resume-from 8")
+                console.print(f"  2. Continue with {decisions_count}/{total_judges} decisions:")
+                console.print(f"     cube auto {task_id} --resume-from 8")
             else:
                 console.print()
                 console.print("[bold red]🔄 Fix Loop Detected[/bold red]")

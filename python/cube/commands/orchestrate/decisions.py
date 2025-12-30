@@ -100,9 +100,14 @@ def run_decide_peer_review(task_id: str, require_decisions: bool = True) -> dict
 
     console.print(f"Decisions: {result['decisions_found']}/{total_judges}, Approvals: {result['approvals']}/{result['decisions_found']}")
 
-    if result["approved"]:
+    all_judges_submitted = result['decisions_found'] == total_judges
+    
+    if result["approved"] and all_judges_submitted:
         console.print()
         print_info("All judges approved!")
+    elif result["approved"] and not all_judges_submitted:
+        console.print()
+        print_warning(f"Only {result['decisions_found']}/{total_judges} judges submitted - missing decisions!")
     elif result["approvals"] > 0:
         console.print()
         print_warning(f"Not unanimous: {result['approvals']}/{result['decisions_found']} approved, {len(result['remaining_issues'])} issue(s) to address")
