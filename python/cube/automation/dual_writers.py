@@ -1,9 +1,9 @@
-"""Parallel dual writer execution."""
+"Parallel dual writer execution."
 
 import asyncio
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from ..core.agent import run_agent
 from ..core.git import (
@@ -62,13 +62,11 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
                 if msg.session_id and not writer_info.session_id:
                     writer_info.session_id = msg.session_id
                     # Save session immediately when captured
-                    # Extract letter from key (writer_a -> A, writer_b -> B)
-                    letter = writer_info.key.split('_')[-1].upper()
                     save_session(
-                        f"WRITER_{letter}",
+                        writer_info.key.upper(),
                         writer_info.task_id,
                         msg.session_id,
-                        f"Writer {letter} ({writer_info.model})"
+                        f"Writer {writer_info.key} ({writer_info.model})"
                     )
                 
                 formatted = format_stream_message(msg, writer_info.label, writer_info.color)
@@ -112,19 +110,27 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
 async def launch_dual_writers(
     task_id: str,
     prompt_file: Path,
-    resume_mode: bool = False
+    resume_mode: bool = False,
+    writer_keys: Optional[List[str]] = None
 ) -> None:
-    """Launch two writers in parallel."""
+    """Launch N writers in parallel (default: all from config)."""
     
     if not prompt_file.exists():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
     
     # Create fresh layout for this run (closes previous if exists)
     from ..core.dynamic_layout import DynamicLayout
+    from ..core.user_config import load_config
     
-    writer_a = get_writer_config("writer_a")
-    writer_b = get_writer_config("writer_b")
-    boxes = {"writer_a": writer_a.label, "writer_b": writer_b.label}
+    config = load_config()
+    keys_to_run = writer_keys or config.writer_order
+    
+    # Build layout boxes dynamically
+    boxes = {}
+    for writer_key in keys_to_run:
+        wconfig = get_writer_config(writer_key)
+        boxes[writer_key] = wconfig.label
+    
     DynamicLayout.initialize(boxes, lines_per_box=3)
     layout = DynamicLayout
     
@@ -144,14 +150,14 @@ async def launch_dual_writers(
     project_name = Path(PROJECT_ROOT).name
     
     writers = []
-    for writer_key in ["writer_a", "writer_b"]:
+    for writer_key in keys_to_run:
         wconfig = get_writer_config(writer_key)
         worktree = create_worktree(task_id, wconfig.name)
         branch = f"writer-{wconfig.name}/{task_id}"
         
         session_id = None
         if resume_mode:
-            session_id = load_session(wconfig.key.upper(), task_id)
+            session_id = load_session(writer_key.upper(), task_id)
             if not session_id:
                 raise RuntimeError(f"No session found for writer {wconfig.name}")
         
@@ -161,7 +167,6 @@ async def launch_dual_writers(
             model=wconfig.model,
             color=wconfig.color,
             label=wconfig.label,
-            letter=wconfig.letter,
             task_id=task_id,
             worktree=worktree,
             branch=branch,
@@ -191,12 +196,11 @@ async def launch_dual_writers(
     config = load_config()
     for w in writers:
         cli_name = config.cli_tools.get(w.model, "cursor-agent")
-        console.print(f"[dim]{w.label}: Starting with model {w.model} (CLI: {cli_name})...[/dim]")
+        console.print(f"[dim]{w.label}: Starting with model {w.model} (CLI: {cli_name})...")
     console.print()
     
     results = await asyncio.gather(
-        run_writer(writers[0], prompt, resume_mode),
-        run_writer(writers[1], prompt, resume_mode),
+        *[run_writer(w, prompt, resume_mode) for w in writers],
         return_exceptions=True
     )
     
@@ -215,13 +219,15 @@ async def launch_dual_writers(
         for writer, error in errors:
             console.print(f"  [{writer.color}]{writer.label}[/{writer.color}]: {error}")
         
-        if len(errors) == 2:
-            raise RuntimeError("Both writers failed")
+        if len(errors) == len(writers):
+            raise RuntimeError("All writers failed")
         else:
-            print_warning("One writer failed but the other completed successfully")
+            failed_count = len(errors)
+            success_count = len(writers) - failed_count
+            print_warning(f"{failed_count} writer(s) failed but {success_count} completed successfully")
             console.print()
     else:
-        console.print("✅ Both writers completed successfully")
+        console.print(f"✅ {len(writers)} writers completed successfully")
     
     console.print()
     
@@ -259,4 +265,3 @@ async def launch_dual_writers(
     console.print("Next steps:")
     console.print(f"  1. Review both branches")
     console.print(f"  2. Run: cube-py panel {task_id} <panel-prompt-file>")
-

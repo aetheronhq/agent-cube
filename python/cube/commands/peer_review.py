@@ -22,11 +22,11 @@ def _get_winner_from_aggregated(task_id: str) -> Optional[str]:
     try:
         data = json.loads(aggregated_path.read_text())
         winner = data.get("winner")
-        if winner in ["A", "writer_a", "Writer A"]:
-            return "A"
-        elif winner in ["B", "writer_b", "Writer B"]:
-            return "B"
-        return winner
+        if not winner:
+            return None
+            
+        from ..core.decision_parser import normalize_winner
+        return normalize_winner(winner)
     except (json.JSONDecodeError, KeyError):
         return None
 

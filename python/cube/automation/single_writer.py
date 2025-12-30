@@ -103,13 +103,17 @@ async def run_single_writer(writer_info: WriterInfo, prompt: str, resume: bool) 
 async def launch_single_writer(
     task_id: str,
     prompt_file: Path,
-    writer_key: str = "writer_a",
+    writer_key: str | None = None,
     resume_mode: bool = False
 ) -> None:
     """Launch a single writer for a task."""
     
     if not prompt_file.exists():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
+
+    if not writer_key:
+        from ..core.user_config import get_default_writer
+        writer_key = get_default_writer()
 
     wconfig = get_writer_config(writer_key)
     

@@ -8,9 +8,9 @@ from ...core.config import PROJECT_ROOT
 
 async def create_pr(task_id: str, winner: str):
     """Create PR automatically."""
-    from ...core.user_config import get_writer_by_key_or_letter
+    from ...core.user_config import get_writer_by_key
 
-    winner_cfg = get_writer_by_key_or_letter(winner)
+    winner_cfg = get_writer_by_key(winner)
     branch = f"writer-{winner_cfg.name}/{task_id}"
 
     console.print(f"[green]✅ Creating PR from: {branch}[/green]")

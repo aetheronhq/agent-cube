@@ -12,10 +12,10 @@ Related modules:
     - single_layout.py: Convenience subclass for single-agent displays
 
 Example:
-    boxes = {"writer_a": "Writer A", "writer_b": "Writer B"}
+    boxes = {"<writer_key>": "<Writer Label>", "judge_1": "Judge 1"}
     layout = BaseThinkingLayout(boxes, lines_per_box=3)
     layout.start()
-    layout.add_thinking("writer_a", "Analyzing the code...")
+    layout.add_thinking("<writer_key>", "Analyzing the code...")
     layout.add_output("[green]Progress:[/green] Step 1 complete")
     layout.close()
 """

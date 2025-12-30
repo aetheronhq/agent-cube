@@ -171,8 +171,7 @@ Include: context, requirements, steps, constraints, anti-patterns, success crite
 2. **Last step**: Commit and push when complete!"""
 
     parser = get_parser("cursor-agent")
-    layout = SingleAgentLayout
-    layout.initialize("Prompter")
+    layout = SingleAgentLayout.initialize("Prompter")
     layout.start()
 
     stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
@@ -218,8 +217,7 @@ Review both writer implementations and create: `.prompts/panel-prompt-{task_id}.
 Include evaluation criteria, scoring rubric, and decision JSON format."""
 
     parser = get_parser("cursor-agent")
-    layout = SingleAgentLayout
-    layout.initialize("Prompter")
+    layout = SingleAgentLayout.initialize("Prompter")
     layout.start()
 
     stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
@@ -260,11 +258,10 @@ async def generate_dual_feedback(
     """
     from ...core.dynamic_layout import DynamicLayout
     from ...core.single_layout import SingleAgentLayout
-    from ...core.user_config import get_writer_config
+    from ...core.user_config import load_config, get_writer_config
 
-    feedback_a_path = prompts_dir / f"feedback-a-{task_id}.md"
-    feedback_b_path = prompts_dir / f"feedback-b-{task_id}.md"
-
+    config = load_config()
+    
     prompt_base = """## Available Information
 
 **Judge Decisions (JSON):**
@@ -272,15 +269,15 @@ async def generate_dual_feedback(
 - `.prompts/decisions/judge_2-{task_id}-decision.json`
 - `.prompts/decisions/judge_3-{task_id}-decision.json`
 
-Read these to see what issues judges found for Writer {writer}.
+Read these to see what issues judges found for Writer {writer_label}.
 
-**Writer {writer}'s Work:**
+**Writer {writer_label}'s Work:**
 Branch: `writer-{writer_slug}/{task_id}`
 Location: `~/.cube/worktrees/PROJECT/writer-{writer_slug}-{task_id}/`
 
 ## Your Task
 
-Create a targeted feedback prompt for Writer {writer} that tells them to:
+Create a targeted feedback prompt for Writer {writer_label} that tells them to:
 1. **First**: Merge latest main (`git fetch origin main && git merge origin/main --no-edit`) and fix any conflicts programmatically using read_file/write_file (no interactive editors!)
 2. Lists specific issues judges found
 3. Provides concrete fix suggestions
@@ -288,63 +285,47 @@ Create a targeted feedback prompt for Writer {writer} that tells them to:
 5. Keeps their good work, fixes problems
 6. Commit and push when complete
 
-Save to: `.prompts/feedback-{writer_letter}-{task_id}.md`"""
+Save to: `.prompts/feedback-{writer_slug}-{task_id}.md`"""
 
-    writer_a = get_writer_config("writer_a")
-    writer_b = get_writer_config("writer_b")
+    entries = []
+    for writer_key in config.writer_order:
+        wconfig = get_writer_config(writer_key)
+        
+        prompt_intro = (
+            "Both writers need changes based on judge reviews."
+            if not winner_only else
+            "Judges requested fixes for this writer."
+        )
 
-    prompt_intro = (
-        "Both writers need changes based on judge reviews."
-        if not winner_only else
-        "Judges requested fixes for this writer."
-    )
-
-    prompt_a = f"""Generate a feedback prompt for {writer_a.label}.
-
-Task: {task_id}
-{prompt_intro}
-
-{prompt_base.format(task_id=task_id, writer="A", writer_slug=writer_a.name, writer_letter="a")}"""
-
-    prompt_b = f"""Generate a feedback prompt for {writer_b.label}.
+        prompt = f"""Generate a feedback prompt for {wconfig.label}.
 
 Task: {task_id}
 {prompt_intro}
 
-{prompt_base.format(task_id=task_id, writer="B", writer_slug=writer_b.name, writer_letter="b")}"""
+{prompt_base.format(
+    task_id=task_id, 
+    writer_label=wconfig.label, 
+    writer_slug=wconfig.name, 
+)}"""
 
-    parser = get_parser("cursor-agent")
-
-    entries = [
-        {
-            "key": "writer_a",
-            "cfg": writer_a,
-            "path": feedback_a_path,
-            "prompt": prompt_a,
-            "box_id": "prompter_a",
-            "label": f"Prompter A ({writer_a.label})",
-            "color": "green"
-        },
-        {
-            "key": "writer_b",
-            "cfg": writer_b,
-            "path": feedback_b_path,
-            "prompt": prompt_b,
-            "box_id": "prompter_b",
-            "label": f"Prompter B ({writer_b.label})",
-            "color": "blue"
-        },
-    ]
+        entries.append({
+            "key": writer_key,
+            "cfg": wconfig,
+            "path": prompts_dir / f"feedback-{wconfig.name}-{task_id}.md",
+            "prompt": prompt,
+            "box_id": f"prompter_{writer_key}",
+            "label": f"Prompter {wconfig.label}",
+            "color": wconfig.color
+        })
 
     if winner_only:
-        if winner_key not in ("writer_a", "writer_b"):
-            raise ValueError("winner_key must be 'writer_a' or 'writer_b' when winner_only=True")
+        if winner_key not in config.writer_order:
+            raise ValueError(f"winner_key '{winner_key}' not found in configured writers: {config.writer_order}")
         entries = [entry for entry in entries if entry["key"] == winner_key]
 
     if len(entries) == 1:
         entry = entries[0]
-        layout = SingleAgentLayout
-        layout.initialize(entry["label"])
+        layout = SingleAgentLayout.initialize(entry["label"])
         layout.start()
         try:
             stream = run_agent(PROJECT_ROOT, get_prompter_model(), entry["prompt"], session_id=None, resume=False)
@@ -357,7 +338,7 @@ Task: {task_id}
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                             layout.add_thinking(thinking_text)
                         elif msg.type == "assistant" and msg.content:
-                            layout.add_assistant_message("agent", msg.content, entry["label"], entry["color"])
+                            layout.add_assistant_message(msg.content, entry["label"], entry["color"])
                         else:
                             layout.add_output(formatted)
                 if entry["path"].exists():
@@ -372,7 +353,7 @@ Task: {task_id}
         from ...core.config import WORKTREE_BASE
         from ..feedback import send_feedback_async
 
-        session = load_session(f"WRITER_{entry['cfg'].letter}", task_id)
+        session = load_session(entry['key'].upper(), task_id)
         if not session:
             raise RuntimeError("No session found for winner. Cannot send feedback.")
 
@@ -381,13 +362,15 @@ Task: {task_id}
         await send_feedback_async(entry["cfg"].name, task_id, entry["path"], session, worktree)
         return
 
-    console.print("Generating feedback for both writers in parallel...")
+    console.print("Generating feedback for all writers in parallel...")
     console.print()
 
     boxes = {entry["box_id"]: entry["label"] for entry in entries}
     DynamicLayout.initialize(boxes, lines_per_box=2)
     layout = DynamicLayout
     layout.start()
+
+    parser = get_parser("cursor-agent")
 
     async def generate_entry(entry):
         stream = run_agent(PROJECT_ROOT, get_prompter_model(), entry["prompt"], session_id=None, resume=False)
@@ -410,13 +393,10 @@ Task: {task_id}
 
     layout.close()
 
-    if not feedback_a_path.exists():
-        raise RuntimeError(f"Prompter A failed to generate feedback at {feedback_a_path}")
-    if not feedback_b_path.exists():
-        raise RuntimeError(f"Prompter B failed to generate feedback at {feedback_b_path}")
-
-    print_success(f"Created: {feedback_a_path}")
-    print_success(f"Created: {feedback_b_path}")
+    for entry in entries:
+        if not entry["path"].exists():
+            raise RuntimeError(f"{entry['label']} failed to generate feedback at {entry['path']}")
+        print_success(f"Created: {entry['path']}")
 
     console.print()
     print_info("Sending feedback to writers...")
@@ -425,31 +405,25 @@ Task: {task_id}
     from ...core.config import WORKTREE_BASE
     from ...core.output import print_warning
 
-    session_a = load_session("WRITER_A", task_id)
-    session_b = load_session("WRITER_B", task_id)
-
-    if not session_a and not session_b:
-        print_warning("No sessions found for either writer. Feedback files generated but not sent.")
-        print_info("Writers will need to manually read and address feedback:")
-        console.print(f"  Writer A: {feedback_a_path}")
-        console.print(f"  Writer B: {feedback_b_path}")
-        return
-
-    project_name = Path(PROJECT_ROOT).name
-    worktree_a = WORKTREE_BASE / project_name / f"writer-{writer_a.name}-{task_id}"
-    worktree_b = WORKTREE_BASE / project_name / f"writer-{writer_b.name}-{task_id}"
-
     # Send feedback to each writer that has a session
     tasks = []
-    if session_a:
-        tasks.append(send_feedback_async(writer_a.name, task_id, feedback_a_path, session_a, worktree_a))
-    else:
-        print_warning(f"No session found for Writer A. Feedback generated at {feedback_a_path} but not sent.")
-    
-    if session_b:
-        tasks.append(send_feedback_async(writer_b.name, task_id, feedback_b_path, session_b, worktree_b))
-    else:
-        print_warning(f"No session found for Writer B. Feedback generated at {feedback_b_path} but not sent.")
+    any_session_found = False
+    for entry in entries:
+        session = load_session(entry['key'].upper(), task_id)
+        if session:
+            any_session_found = True
+            project_name = Path(PROJECT_ROOT).name
+            worktree = WORKTREE_BASE / project_name / f"writer-{entry['cfg'].name}-{task_id}"
+            tasks.append(send_feedback_async(entry['cfg'].name, task_id, entry['path'], session, worktree))
+        else:
+            print_warning(f"No session found for {entry['cfg'].label}. Feedback generated at {entry['path']} but not sent.")
+            
+    if not any_session_found:
+        print_warning("No sessions found for any writer. Feedback files generated but not sent.")
+        print_info("Writers will need to manually read and address feedback:")
+        for entry in entries:
+            console.print(f"  {entry['cfg'].label}: {entry['path']}")
+        return
 
     if tasks:
         await asyncio.gather(*tasks)

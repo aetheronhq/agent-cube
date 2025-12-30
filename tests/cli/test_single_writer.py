@@ -46,8 +46,8 @@ def test_writer_flag_implies_single_mode(mock_orchestrate: MagicMock, task_file:
 
 @patch("cube.cli.orchestrate_auto_command")
 def test_writer_b_alias(mock_orchestrate: MagicMock, task_file: Path):
-    """--writer b should resolve to writer_b."""
-    result = runner.invoke(app, ["auto", str(task_file), "--writer", "b"])
+    """--writer writer_b should resolve to writer_b (full key required)."""
+    result = runner.invoke(app, ["auto", str(task_file), "--writer", "writer_b"])
     assert result.exit_code == 0
     mock_orchestrate.assert_called_once()
     call_args = mock_orchestrate.call_args[1]
@@ -69,5 +69,5 @@ def test_invalid_writer_alias(task_file: Path):
     result = runner.invoke(app, ["auto", str(task_file), "--writer", "invalid-writer"])
     assert result.exit_code != 0
     # Error could be in stdout or formatted differently
-    output = result.stdout + (result.stderr or "")
+    output = result.stdout
     assert "invalid-writer" in output.lower() or "unknown" in output.lower()

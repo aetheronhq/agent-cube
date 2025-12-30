@@ -3,90 +3,73 @@
 import asyncio
 from datetime import datetime
 from pathlib import Path
+from typing import List
+from dataclasses import dataclass
+
 from ..core.agent import run_agent
-from ..core.user_config import load_config, get_writer_config
+from ..core.user_config import get_writer_config
 from ..core.parsers.registry import get_parser
 from ..automation.stream import format_stream_message
 from ..core.output import console
 
+
+@dataclass
+class FeedbackInfo:
+    writer_key: str
+    feedback_path: Path
+    session_id: str
+    worktree: Path
+
 async def send_dual_feedback(
     task_id: str,
-    feedback_a_path: Path,
-    feedback_b_path: Path,
-    session_a: str,
-    session_b: str,
-    worktree_a: Path,
-    worktree_b: Path
+    feedbacks: List[FeedbackInfo]
 ) -> None:
     """Send feedback to both writers in parallel with dual layout."""
     
     # Create fresh layout for feedback prompters (closes previous if exists)
     from ..core.dynamic_layout import DynamicLayout
     
-    writer_a = get_writer_config("writer_a")
-    writer_b = get_writer_config("writer_b")
-    boxes = {"prompter_a": f"Prompter A ({writer_a.label})", "prompter_b": f"Prompter B ({writer_b.label})"}
+    boxes = {}
+    for fb in feedbacks:
+        wconfig = get_writer_config(fb.writer_key)
+        boxes[f"prompter_{fb.writer_key}"] = f"Prompter {wconfig.label}"
+
     DynamicLayout.initialize(boxes, lines_per_box=2)
     layout = DynamicLayout
     layout.start()
     
-    config = load_config()
     parser = get_parser("cursor-agent")
     
     # Create log files for web UI
     logs_dir = Path.home() / ".cube" / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     timestamp = int(datetime.now().timestamp())
-    log_file_a = logs_dir / f"synth-{writer_a.name}-{task_id}-{timestamp}.json"
-    log_file_b = logs_dir / f"synth-{writer_b.name}-{task_id}-{timestamp}.json"
     
-    async def send_to_a():
-        wconfig_a = get_writer_config("writer_a")
-        feedback_a = feedback_a_path.read_text()
+    async def send_to_writer(feedback_info: FeedbackInfo):
+        wconfig = get_writer_config(feedback_info.writer_key)
+        feedback = feedback_info.feedback_path.read_text()
         
-        stream = run_agent(worktree_a, wconfig_a.model, feedback_a, session_id=session_a, resume=True)
+        log_file = logs_dir / f"synth-{wconfig.name}-{task_id}-{timestamp}.json"
         
-        with open(log_file_a, 'w') as f:
+        stream = run_agent(feedback_info.worktree, wconfig.model, feedback, session_id=feedback_info.session_id, resume=True)
+        
+        with open(log_file, 'w') as f:
             async for line in stream:
                 f.write(line + '\n')
                 f.flush()
                 
                 msg = parser.parse(line)
                 if msg:
-                    formatted = format_stream_message(msg, "Prompter A", "green")
+                    formatted = format_stream_message(msg, f"Prompter {wconfig.label}", wconfig.color)
                     if formatted:
                         if formatted.startswith("[thinking]"):
                             thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking("prompter_a", thinking_text)
+                            layout.add_thinking(f"prompter_{feedback_info.writer_key}", thinking_text)
                         elif msg.type == "assistant" and msg.content:
-                            layout.add_assistant_message("prompter_a", msg.content, "Prompter A", "green")
+                            layout.add_assistant_message(f"prompter_{feedback_info.writer_key}", msg.content, f"Prompter {wconfig.label}", wconfig.color)
                         else:
                             layout.add_output(formatted)
-    
-    async def send_to_b():
-        wconfig_b = get_writer_config("writer_b")
-        feedback_b = feedback_b_path.read_text()
-        
-        stream = run_agent(worktree_b, wconfig_b.model, feedback_b, session_id=session_b, resume=True)
-        
-        with open(log_file_b, 'w') as f:
-            async for line in stream:
-                f.write(line + '\n')
-                f.flush()
-                
-                msg = parser.parse(line)
-                if msg:
-                    formatted = format_stream_message(msg, "Prompter B", "blue")
-                    if formatted:
-                        if formatted.startswith("[thinking]"):
-                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking("prompter_b", thinking_text)
-                        elif msg.type == "assistant" and msg.content:
-                            layout.add_assistant_message("prompter_b", msg.content, "Prompter B", "blue")
-                        else:
-                            layout.add_output(formatted)
-    
-    await asyncio.gather(send_to_a(), send_to_b())
+
+    await asyncio.gather(*(send_to_writer(fb) for fb in feedbacks))
     
     layout.close()
-

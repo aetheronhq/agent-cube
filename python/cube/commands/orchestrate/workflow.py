@@ -432,10 +432,7 @@ async def _orchestrate_auto_impl(
             resume_from = 7
         
         winner_key = result.get("winner")
-        split_feedback = (
-            winner_key.upper() == "TIE" if winner_key else False
-            or any("Writer B" in issue for issue in result.get("blocker_issues", []))
-        )
+        split_feedback = not winner_key or winner_key.upper() == "TIE"
         if resume_from <= 6:
             console.print()
             if split_feedback:
@@ -539,7 +536,10 @@ async def _orchestrate_auto_impl(
                         console.print()
                         print_warning(f"Still {len(remaining)} issue(s) after fixes")
                         console.print()
-                        winner = result.get("winner", "writer_b").replace("writer_", "")
+                        from ...core.user_config import load_config
+                        config = load_config()
+                        default_winner = config.writer_order[0] if config.writer_order else ""
+                        winner = result.get("winner", default_winner).replace("writer_", "")
                         console.print("Send targeted feedback to address remaining issues:")
                         console.print(f"  cube feedback {winner} {task_id} \"<fix instructions>\"")
                         console.print(f"  cube auto {task_id} --resume-from peer-review")
