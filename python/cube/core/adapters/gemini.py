@@ -66,12 +66,15 @@ class GeminiAdapter(CLIAdapter):
                 elif line.startswith('{"type":"error"') or line.startswith('Error:'):
                     last_error = line[:200]
                 
-                # Only yield JSON lines (filter out debug spam)
+                # Yield JSON lines; for non-JSON, yield if it looks meaningful
                 if line.startswith('{'):
                     json_started = True
                     yield line
                 elif json_started:
                     yield line  # After JSON starts, yield everything
+                elif line.strip() and not line.startswith('[debug]'):
+                    # Non-JSON preamble - yield so parser can wrap it as log message
+                    yield line
         
         except RuntimeError as e:
             if last_error == "Authentication required":
