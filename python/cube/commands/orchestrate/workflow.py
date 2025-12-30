@@ -490,7 +490,16 @@ async def _orchestrate_auto_impl(
             console.print()
             console.print("[yellow]═══ Phase 6: Automated Review ═══[/yellow]")
             log_phase(6, "Automated Review")
-            print_info(f"Running {len(peer_only_judges)} automated reviewer(s) before PR: {', '.join(j.label for j in peer_only_judges)}")
+            
+            # If user explicitly resumed from peer-review, run ALL judges (not just peer_review_only)
+            # This handles re-review after code changes in SYNTHESIS path
+            run_automated_only = not wants_peer_review
+            
+            if run_automated_only:
+                print_info(f"Running {len(peer_only_judges)} automated reviewer(s) before PR: {', '.join(j.label for j in peer_only_judges)}")
+            else:
+                all_judges = get_judge_configs()
+                print_info(f"Running full peer review with ALL {len(all_judges)} judge(s)")
 
             temp_prompt = prompts_dir / f"temp-peer-review-{task_id}.md"
             temp_prompt.write_text(task_id)
@@ -498,7 +507,7 @@ async def _orchestrate_auto_impl(
             # Clear existing peer-review decision files to prevent concatenation
             clear_peer_review_decisions(task_id)
 
-            await launch_judge_panel(task_id, temp_prompt, "peer-review", resume_mode=False, winner=result["winner"], automated=True)
+            await launch_judge_panel(task_id, temp_prompt, "peer-review", resume_mode=False, winner=result["winner"], automated=run_automated_only)
 
             auto_result = run_decide_peer_review(task_id)
 

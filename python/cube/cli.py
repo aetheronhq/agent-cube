@@ -170,26 +170,39 @@ def panel(
 
 @app.command(name="feedback")
 def feedback(
-    writer: Annotated[str, typer.Argument(help="Writer to send feedback to (sonnet|codex)")],
-    task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None,
-    feedback_file: Annotated[Optional[str], typer.Argument(help="Path to the feedback file")] = None
+    feedback_text: Annotated[str, typer.Argument(help="Feedback message or path to feedback file")],
+    writer: Annotated[Optional[str], typer.Option("--writer", "-w", help="Writer to send feedback to (auto-detects winner if not provided)")] = None,
+    task_id: Annotated[Optional[str], typer.Option("--task", "-t", help="Task ID (auto-detects from state if not provided)")] = None
 ):
-    """Send feedback to a writer (resumes their session)."""
+    """Send feedback to a writer. Auto-detects winner and task from current state.
+    
+    Examples:
+        cube feedback "fix the test failure"
+        cube feedback "check imports" --writer gemini
+        cube feedback path/to/feedback.md --task my-task-id
+    """
     from .core.config import resolve_task_id, set_current_task_id
+    from .core.output import print_error, print_info
+    from .core.state import load_state
+    from pathlib import Path
     
     resolved_task_id = resolve_task_id(task_id)
     if not resolved_task_id:
-        from .core.output import print_error
         print_error("No task ID provided and CUBE_TASK_ID not set")
         raise typer.Exit(1)
     
-    if not feedback_file:
-        from .core.output import print_error
-        print_error("Feedback file is required")
-        raise typer.Exit(1)
+    resolved_writer = writer
+    if not resolved_writer:
+        state = load_state(resolved_task_id)
+        if state and state.winner:
+            resolved_writer = state.winner.replace("writer_", "")
+            print_info(f"Auto-detected winner: {resolved_writer}")
+        else:
+            print_error("No writer specified and no winner found in state. Use --writer to specify.")
+            raise typer.Exit(1)
     
     set_current_task_id(resolved_task_id)
-    feedback_command(writer, resolved_task_id, feedback_file)
+    feedback_command(resolved_writer, resolved_task_id, feedback_text)
 
 @app.command(name="resume")
 def resume(
