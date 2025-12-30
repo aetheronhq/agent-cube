@@ -323,6 +323,8 @@ Task: {task_id}
             raise ValueError(f"winner_key '{winner_key}' not found in configured writers: {config.writer_order}")
         entries = [entry for entry in entries if entry["key"] == winner_key]
 
+    parser = get_parser("cursor-agent")
+    
     if len(entries) == 1:
         entry = entries[0]
         layout = SingleAgentLayout.initialize(entry["label"])

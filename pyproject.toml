@@ -82,7 +82,7 @@ warn_return_any = false
 warn_unused_ignores = false
 check_untyped_defs = false
 disallow_untyped_defs = false
-disable_error_code = ["arg-type", "call-arg", "assignment", "override", "var-annotated", "union-attr", "has-type", "used-before-def"]
+disable_error_code = ["arg-type", "override", "var-annotated", "has-type"]
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"

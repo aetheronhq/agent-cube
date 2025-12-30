@@ -241,6 +241,8 @@ def peer_review(
     from .core.config import resolve_task_id, set_current_task_id
 
     env_task_id = resolve_task_id(None)
+    resolved_task_id: str | None = None
+    prompt_arg: str | None = None
 
     if env_task_id:
         resolved_task_id = env_task_id
