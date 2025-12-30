@@ -27,19 +27,20 @@ def sync_decisions_from_worktrees(task_id: str, decision_type: str = "peer-revie
     
     pattern = f"*-{task_id}-{decision_type}.json"
     
+    # Search ALL worktrees (not just ones with task_id in name)
+    # because judges might run in different worktrees
     for project_dir in WORKTREE_BASE.iterdir():
         if not project_dir.is_dir():
             continue
         for worktree_dir in project_dir.iterdir():
             if not worktree_dir.is_dir():
                 continue
-            if task_id not in worktree_dir.name:
-                continue
             
             decisions_dir = worktree_dir / ".prompts" / "decisions"
             if not decisions_dir.exists():
                 continue
             
+            # Search for any decision files matching the task_id pattern
             for decision_file in decisions_dir.glob(pattern):
                 dest_path = dest_dir / decision_file.name
                 if not dest_path.exists() or decision_file.stat().st_mtime > dest_path.stat().st_mtime:
