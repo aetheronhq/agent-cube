@@ -370,6 +370,8 @@ Task: {task_id}
     layout = DynamicLayout
     layout.start()
 
+    parser = get_parser("cursor-agent")
+
     async def generate_entry(entry):
         stream = run_agent(PROJECT_ROOT, get_prompter_model(), entry["prompt"], session_id=None, resume=False)
         async for line in stream:

@@ -17,10 +17,10 @@ Related modules:
     - single_layout.py: For single-agent sequential runs
 
 Example:
-    DynamicLayout.initialize({"writer_a": "Writer A", "writer_b": "Writer B"})
+    DynamicLayout.initialize({"<writer_key>": "<Writer Label>", "judge_1": "Judge 1"})
     DynamicLayout.start()
-    DynamicLayout.add_thinking("writer_a", "Working...")
-    DynamicLayout.mark_complete("writer_a", "Done")
+    DynamicLayout.add_thinking("<writer_key>", "Working...")
+    DynamicLayout.mark_complete("<writer_key>", "Done")
     DynamicLayout.close()
 """
 
@@ -54,7 +54,7 @@ class DynamicLayout:
         """Initialize layout with specific boxes (closes previous instance if exists).
         
         Args:
-            boxes: Dict of {key: label} e.g. {"judge_1": "Judge Sonnet", "writer_a": "Writer A"}
+            boxes: Dict of {key: label} e.g. {"judge_1": "Judge Sonnet", "<writer_key>": "<Writer Label>"}
             lines_per_box: Number of lines per thinking box
         """
         # Close previous instance to avoid multiple Live() displays

@@ -204,7 +204,7 @@ def load_config() -> CubeConfig:
         auto_update=behavior.get("auto_update", True),
         session_recording_at_start=behavior.get("session_recording_at_start", True),
         default_mode=behavior.get("default_mode", "dual"),
-        default_writer=behavior.get("default_writer", "writer_a"),
+        default_writer=behavior.get("default_writer", writer_order[0] if writer_order else "writer_a"),
     )
     
     return _config_cache

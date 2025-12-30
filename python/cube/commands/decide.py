@@ -66,7 +66,7 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
         for judge_key in panel_judge_keys:
             decision_file = get_decision_file_path(judge_key, task_id)
             if not decision_file.exists():
-                session_id = load_session(f"JUDGE_{judge_key}", f"{task_id}_panel")
+                session_id = load_session(judge_key.upper(), f"{task_id}_panel")
                 if session_id:
                     judge_label = judge_key.replace("_", "-")
                     console.print(f"  [yellow]Judge {judge_label}[/yellow] (session: {session_id})")

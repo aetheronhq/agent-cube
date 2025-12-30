@@ -16,6 +16,9 @@ def status_command(task_id: str = None) -> None:
 def show_task_status(task_id: str):
     """Show detailed status for a specific task."""
     from ..core.state import load_state, get_progress
+    from ..core.user_config import load_config, get_writer_by_key_or_letter
+    
+    config = load_config()
     
     console.print(f"[cyan]📊 Status for Task: {task_id}[/cyan]")
     console.print()
@@ -25,75 +28,107 @@ def show_task_status(task_id: str):
         console.print(f"[green]Progress:[/green] {get_progress(task_id)}")
         console.print(f"[green]Completed phases:[/green] {', '.join(map(str, state.completed_phases))}")
         if state.winner:
-            console.print(f"[green]Winner:[/green] Writer {state.winner}")
+            try:
+                winner_label = get_writer_by_key_or_letter(state.winner).label
+            except (KeyError, ValueError):
+                winner_label = state.winner
+            console.print(f"[green]Winner:[/green] {winner_label}")
         console.print()
-    
-
     
     prompts_dir = PROJECT_ROOT / ".prompts"
     decisions_dir = prompts_dir / "decisions"
     
-    writer_a_session = load_session("WRITER_A", task_id)
-    writer_b_session = load_session("WRITER_B", task_id)
-    
-    judge_1_panel = load_session("JUDGE_1", f"{task_id}_panel")
-    judge_2_panel = load_session("JUDGE_2", f"{task_id}_panel")
-    judge_3_panel = load_session("JUDGE_3", f"{task_id}_panel")
-    
-    judge_1_peer = load_session("JUDGE_1", f"{task_id}_peer-review")
-    judge_2_peer = load_session("JUDGE_2", f"{task_id}_peer-review")
-    judge_3_peer = load_session("JUDGE_3", f"{task_id}_peer-review")
-    
-    decision_1 = (decisions_dir / f"judge_1-{task_id}-decision.json").exists()
-    decision_2 = (decisions_dir / f"judge_2-{task_id}-decision.json").exists()
-    decision_3 = (decisions_dir / f"judge_3-{task_id}-decision.json").exists()
-    
-    peer_1 = (decisions_dir / f"judge_1-{task_id}-peer-review.json").exists()
-    peer_2 = (decisions_dir / f"judge_2-{task_id}-peer-review.json").exists()
-    peer_3 = (decisions_dir / f"judge_3-{task_id}-peer-review.json").exists()
-    
-    aggregated = (decisions_dir / f"{task_id}-aggregated.json").exists()
-    
     console.print("[yellow]Phase 1-2: Writers[/yellow]")
-    console.print(f"  Writer A: {'✅' if writer_a_session else '❌'} {f'Session: {writer_a_session[:8]}...' if writer_a_session else 'Not started'}")
-    console.print(f"  Writer B: {'✅' if writer_b_session else '❌'} {f'Session: {writer_b_session[:8]}...' if writer_b_session else 'Not started'}")
+    writers_active = False
+    for writer_key in config.writer_order:
+        wconfig = config.writers[writer_key]
+        session_id = load_session(writer_key.upper(), task_id)
+        if session_id:
+            writers_active = True
+        status_icon = '✅' if session_id else '❌'
+        status_text = f"Session: {session_id[:8]}..." if session_id else "Not started"
+        console.print(f"  {wconfig.label}: {status_icon} {status_text}")
     console.print()
     
+    # Filter panel judges (exclude peer_review_only)
+    panel_judges = [j for j in config.judges.values() if not j.peer_review_only]
+    
     console.print("[yellow]Phase 3-4: Judge Panel[/yellow]")
-    panel_count = sum([judge_1_panel is not None, judge_2_panel is not None, judge_3_panel is not None])
-    console.print(f"  Sessions: {panel_count}/3")
-    console.print(f"    Judge 1: {'✅' if judge_1_panel else '❌'}")
-    console.print(f"    Judge 2: {'✅' if judge_2_panel else '❌'}")
-    console.print(f"    Judge 3: {'✅' if judge_3_panel else '❌'}")
+    panel_sessions_count = 0
+    for jconfig in panel_judges:
+        session_id = load_session(jconfig.key.upper(), f"{task_id}_panel")
+        if session_id:
+            panel_sessions_count += 1
+        console.print(f"    {jconfig.label}: {'✅' if session_id else '❌'}")
+    console.print(f"  Sessions: {panel_sessions_count}/{len(panel_judges)}")
     console.print()
     
     console.print("[yellow]Phase 5: Decisions[/yellow]")
-    decision_count = sum([decision_1, decision_2, decision_3])
-    console.print(f"  Decision files: {decision_count}/3")
-    console.print(f"    Judge 1: {'✅' if decision_1 else '❌'}")
-    console.print(f"    Judge 2: {'✅' if decision_2 else '❌'}")
-    console.print(f"    Judge 3: {'✅' if decision_3 else '❌'}")
+    decisions_count = 0
+    for jconfig in panel_judges:
+        decision_path = decisions_dir / f"{jconfig.key.replace('_', '-')}-{task_id}-decision.json"
+        exists = decision_path.exists()
+        if exists:
+            decisions_count += 1
+        console.print(f"    {jconfig.label}: {'✅' if exists else '❌'}")
+    console.print(f"  Decision files: {decisions_count}/{len(panel_judges)}")
     
+    aggregated = (decisions_dir / f"{task_id}-aggregated.json").exists()
     if aggregated:
         import json
         with open(decisions_dir / f"{task_id}-aggregated.json") as f:
             result = json.load(f)
         console.print()
         console.print(f"  [green]✅ Aggregated decision:[/green]")
-        console.print(f"    Winner: Writer {result.get('winner', '?')}")
+        winner = result.get('winner', '?')
+        try:
+            winner_display = get_writer_by_key_or_letter(winner).label
+        except (KeyError, ValueError):
+            winner_display = winner
+        console.print(f"    Winner: {winner_display}")
         console.print(f"    Next action: {result.get('next_action', '?')}")
-        console.print(f"    Scores: A={result.get('avg_score_a', 0):.1f}, B={result.get('avg_score_b', 0):.1f}")
+        
+        score_parts = []
+        for key in config.writer_order:
+            wconfig = config.writers[key]
+            score = result.get(f'avg_score_{key}')
+            if score is not None:
+                score_parts.append(f"{wconfig.label}={score:.1f}")
+        if score_parts:
+            console.print(f"    Scores: {', '.join(score_parts)}")
     console.print()
     
-    if judge_1_peer or judge_2_peer or judge_3_peer:
+    # Peer review check (any peer review session exists)
+    peer_review_active = False
+    for jconfig in config.judges.values():
+        if load_session(jconfig.key.upper(), f"{task_id}_peer-review"):
+            peer_review_active = True
+            break
+            
+    if peer_review_active:
         console.print("[yellow]Phase 6-7: Peer Review[/yellow]")
-        peer_session_count = sum([judge_1_peer is not None, judge_2_peer is not None, judge_3_peer is not None])
-        peer_decision_count = sum([peer_1, peer_2, peer_3])
-        console.print(f"  Sessions: {peer_session_count}/3")
-        console.print(f"  Decisions: {peer_decision_count}/3")
+        # Determine which judges are expected for peer review
+        # If peer_review_only judges exist, they are the ones expected. Otherwise all judges.
+        peer_judges = [j for j in config.judges.values() if j.peer_review_only]
+        if not peer_judges:
+            peer_judges = list(config.judges.values())
+            
+        peer_session_count = 0
+        peer_decision_count = 0
+        
+        for jconfig in peer_judges:
+            session_id = load_session(jconfig.key.upper(), f"{task_id}_peer-review")
+            if session_id:
+                peer_session_count += 1
+            decision_path = decisions_dir / f"{jconfig.key.replace('_', '-')}-{task_id}-peer-review.json"
+            if decision_path.exists():
+                peer_decision_count += 1
+                
+        console.print(f"  Sessions: {peer_session_count}/{len(peer_judges)}")
+        console.print(f"  Decisions: {peer_decision_count}/{len(peer_judges)}")
         console.print()
     
-    if not any([writer_a_session, writer_b_session, judge_1_panel]):
+    if not writers_active and not panel_sessions_count:
         print_warning("No active work for this task")
         console.print()
         console.print("Start with:")
@@ -131,6 +166,11 @@ def show_all_status():
         print_info("No active tasks")
         return
     
+    from ..core.user_config import load_config
+    config = load_config()
+    total_writers = len(config.writers)
+    total_judges = len([j for j in config.judges.values() if not j.peer_review_only])
+    
     console.print(f"[cyan]📊 Active Tasks: {len(tasks)}[/cyan]")
     console.print()
     
@@ -140,9 +180,9 @@ def show_all_status():
         
         status_line = f"[yellow]{task_id}[/yellow]"
         if writer_count:
-            status_line += f" | Writers: {writer_count}/2"
+            status_line += f" | Writers: {writer_count}/{total_writers}"
         if judge_count:
-            status_line += f" | Judges: {judge_count}/3"
+            status_line += f" | Judges: {judge_count}/{total_judges}"
         
         console.print(status_line)
     
