@@ -168,11 +168,8 @@ Include: context, requirements, steps, constraints, anti-patterns, success crite
    - `git merge origin/main --no-edit` (non-interactive merge)
    - If conflicts: Use read_file/write_file to fix them programmatically (no interactive editors!)
    - Verify clean with `git status` before proceeding
-2. **Last step**: Commit and push when complete!"""
-
     parser = get_parser("cursor-agent")
-    layout = SingleAgentLayout()
-    layout.initialize("Prompter")
+    layout = SingleAgentLayout.initialize("Prompter")
     layout.start()
 
     stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
@@ -218,8 +215,7 @@ Review both writer implementations and create: `.prompts/panel-prompt-{task_id}.
 Include evaluation criteria, scoring rubric, and decision JSON format."""
 
     parser = get_parser("cursor-agent")
-    layout = SingleAgentLayout()
-    layout.initialize("Prompter")
+    layout = SingleAgentLayout.initialize("Prompter")
     layout.start()
 
     stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
@@ -327,8 +323,7 @@ Task: {task_id}
 
     if len(entries) == 1:
         entry = entries[0]
-        layout = SingleAgentLayout()
-        layout.initialize(entry["label"])
+        layout = SingleAgentLayout.initialize(entry["label"])
         layout.start()
         try:
             stream = run_agent(PROJECT_ROOT, get_prompter_model(), entry["prompt"], session_id=None, resume=False)
