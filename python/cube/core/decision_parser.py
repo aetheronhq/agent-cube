@@ -132,13 +132,14 @@ def parse_judge_decision(
             
             if total is None:
                 # Calculate from individual scores
-                total = sum([
+                score_components = [
                     writer_scores.get("kiss_compliance", 0),
                     writer_scores.get("architecture", 0),
                     writer_scores.get("type_safety", 0),
                     writer_scores.get("tests", 0),
                     writer_scores.get("production_ready", 0)
-                ]) / 5.0
+                ]
+                total = sum(score_components) / len(score_components) if score_components else 0
             scores[writer_key] = float(total)
 
         # Extract blocker issues (try multiple locations)

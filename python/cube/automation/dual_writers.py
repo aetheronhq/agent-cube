@@ -227,7 +227,7 @@ async def launch_dual_writers(
             print_warning(f"{failed_count} writer(s) failed but {success_count} completed successfully")
             console.print()
     else:
-        console.print("✅ Both writers completed successfully")
+        console.print(f"✅ {len(writers)} writers completed successfully")
     
     console.print()
     

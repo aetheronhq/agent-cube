@@ -120,7 +120,7 @@ def backfill_state_from_artifacts(task_id: str) -> WorkflowState:
         completed_phases=sorted(list(set(completed_phases))),
         winner=winner,
         next_action=next_action,
-        writers_complete=writers_active, # Approximation, accurate check done in show_task_status
+        writers_complete=writers_complete,
         panel_complete=decisions_found,
         synthesis_complete=synthesis_file.exists(),
         peer_review_complete=peer_active

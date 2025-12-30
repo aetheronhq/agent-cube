@@ -16,7 +16,7 @@ def status_command(task_id: str = None) -> None:
 def show_task_status(task_id: str):
     """Show detailed status for a specific task."""
     from ..core.state import load_state, get_progress
-    from ..core.user_config import load_config, get_writer_by_key_or_letter
+    from ..core.user_config import load_config, get_writer_by_key
     
     config = load_config()
     
@@ -29,7 +29,7 @@ def show_task_status(task_id: str):
         console.print(f"[green]Completed phases:[/green] {', '.join(map(str, state.completed_phases))}")
         if state.winner:
             try:
-                winner_label = get_writer_by_key_or_letter(state.winner).label
+                winner_label = get_writer_by_key(state.winner).label
             except (KeyError, ValueError):
                 winner_label = state.winner
             console.print(f"[green]Winner:[/green] {winner_label}")
@@ -79,10 +79,10 @@ def show_task_status(task_id: str):
         with open(decisions_dir / f"{task_id}-aggregated.json") as f:
             result = json.load(f)
         console.print()
-        console.print(f"  [green]✅ Aggregated decision:[/green]")
+        console.print("  [green]✅ Aggregated decision:[/green]")
         winner = result.get('winner', '?')
         try:
-            winner_display = get_writer_by_key_or_letter(winner).label
+            winner_display = get_writer_by_key(winner).label
         except (KeyError, ValueError):
             winner_display = winner
         console.print(f"    Winner: {winner_display}")

@@ -10,7 +10,7 @@ from ..core.git import fetch_branches, get_commit_hash, branch_exists, sync_work
 from ..core.session import save_session, load_session
 from ..core.output import print_info, print_success, print_warning, print_error, console
 from ..core.config import PROJECT_ROOT, WORKTREE_BASE, get_worktree_path, get_project_root
-from ..core.user_config import get_judge_config, get_writer_config, load_config, get_judge_configs, get_writer_by_key_or_letter
+from ..core.user_config import get_judge_config, get_writer_config, load_config, get_judge_configs, get_writer_by_key
 from ..core.dynamic_layout import DynamicLayout
 from ..core.adapters.registry import get_adapter
 from ..core.parsers.registry import get_parser
@@ -24,7 +24,7 @@ async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
     project_name = Path(PROJECT_ROOT).name
     
     if winner:
-        winner_cfg = get_writer_by_key_or_letter(winner)
+        winner_cfg = get_writer_by_key(winner)
         writers = [(winner_cfg.name, f"writer-{winner_cfg.name}/{task_id}")]
     else:
         writers = [
@@ -46,7 +46,7 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
     project_name = Path(get_project_root()).name
     
     if winner:
-        winner_cfg = get_writer_by_key_or_letter(winner)
+        winner_cfg = get_writer_by_key(winner)
         return {winner_cfg.label: get_worktree_path(project_name, winner_cfg.name, task_id)}
     
     config = load_config()
@@ -206,7 +206,7 @@ def _get_winner_text(winner: str) -> str:
         return "TIE"
     
     try:
-        wconfig = get_writer_by_key_or_letter(winner)
+        wconfig = get_writer_by_key(winner)
         return f"{wconfig.label} wins"
     except KeyError:
         return f"Winner: {winner}"
@@ -445,7 +445,7 @@ Use absolute path when writing the file. The project root is available in your w
     
     # Substitute {winner} placeholder for peer-review prompts
     if review_type == "peer-review" and winner:
-        winner_cfg = get_writer_by_key_or_letter(winner)
+        winner_cfg = get_writer_by_key(winner)
         prompt = prompt.replace("{winner}", winner_cfg.name)
     
     # Don't re-filter - already filtered correctly above based on review_type and single_judge
