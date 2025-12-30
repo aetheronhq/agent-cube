@@ -139,12 +139,12 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     
     console.print()
     
-    from ..core.user_config import get_writer_by_key_or_letter, load_config
+    from ..core.user_config import get_writer_by_key, load_config
     config = load_config()
 
     winner_key = result['winner']
     try:
-        winner_cfg = get_writer_by_key_or_letter(winner_key)
+        winner_cfg = get_writer_by_key(winner_key)
         winner_display = winner_cfg.label
     except KeyError:
         winner_display = winner_key
@@ -177,8 +177,8 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     console.print()
     
     if result["next_action"] == "MERGE":
-        from ..core.user_config import get_writer_by_key_or_letter
-        winner_cfg = get_writer_by_key_or_letter(result["winner"])
+        from ..core.user_config import get_writer_by_key
+        winner_cfg = get_writer_by_key(result["winner"])
         console.print("[green]✅ Ready for PR![/green]")
         console.print()
         console.print("Create pull request:")
@@ -187,8 +187,8 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
         console.print(f"  gh pr create --base main --title 'feat: {task_id}' --fill")
     
     elif result["next_action"] == "SYNTHESIS":
-        from ..core.user_config import get_writer_by_key_or_letter
-        winner_cfg = get_writer_by_key_or_letter(result["winner"])
+        from ..core.user_config import get_writer_by_key
+        winner_cfg = get_writer_by_key(result["winner"])
         console.print("Synthesis needed (winner has blockers).")
         console.print("Next resume will automatically:")
         console.print(f"  • Generate .prompts/synthesis-{task_id}.md")

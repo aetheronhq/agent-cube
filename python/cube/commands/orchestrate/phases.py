@@ -13,10 +13,10 @@ from ...automation.judge_panel import launch_judge_panel
 
 async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
     """Phase 6: Run synthesis if needed."""
-    from ...core.user_config import get_writer_by_key_or_letter
+    from ...core.user_config import get_writer_by_key
     from ...core.single_layout import SingleAgentLayout
 
-    winner_cfg = get_writer_by_key_or_letter(result["winner"])
+    winner_cfg = get_writer_by_key(result["winner"])
     winner_name = result["winner"]
 
     synthesis_path = prompts_dir / f"synthesis-{task_id}.md"
@@ -126,10 +126,10 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
 
 async def run_peer_review(task_id: str, result: dict, prompts_dir: Path):
     """Phase 7: Run peer review."""
-    from ...core.user_config import get_writer_by_key_or_letter
+    from ...core.user_config import get_writer_by_key
     from ...core.single_layout import SingleAgentLayout
 
-    winner_cfg = get_writer_by_key_or_letter(result["winner"])
+    winner_cfg = get_writer_by_key(result["winner"])
     winner_name = result["winner"]
 
     peer_review_path = prompts_dir / f"peer-review-{task_id}.md"
@@ -193,9 +193,9 @@ Include the worktree location and git commands for reviewing."""
 
 async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):
     """Address minor issues from peer review."""
-    from ...core.user_config import get_writer_by_key_or_letter
+    from ...core.user_config import get_writer_by_key
 
-    winner_cfg = get_writer_by_key_or_letter(result["winner"])
+    winner_cfg = get_writer_by_key(result["winner"])
     winner_name = winner_cfg.name
 
     minor_fixes_path = prompts_dir / f"minor-fixes-{task_id}.md"
