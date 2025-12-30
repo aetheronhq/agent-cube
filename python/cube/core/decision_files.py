@@ -1,8 +1,63 @@
 """Helper functions for finding decision files across locations."""
 
+import shutil
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, List
 from .config import PROJECT_ROOT, WORKTREE_BASE
+
+
+def sync_decisions_from_worktrees(task_id: str, decision_type: str = "peer-review") -> int:
+    """Move all decision files for a task from worktrees to PROJECT_ROOT.
+    
+    Call this before checking decisions to ensure all judge decisions are found.
+    
+    Args:
+        task_id: Task identifier
+        decision_type: 'decision' for panel, 'peer-review' for peer review
+    
+    Returns:
+        Number of decision files moved
+    """
+    if not WORKTREE_BASE.exists():
+        return 0
+    
+    moved = 0
+    dest_dir = PROJECT_ROOT / ".prompts" / "decisions"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    
+    pattern = f"*-{task_id}-{decision_type}.json"
+    
+    for project_dir in WORKTREE_BASE.iterdir():
+        if not project_dir.is_dir():
+            continue
+        for worktree_dir in project_dir.iterdir():
+            if not worktree_dir.is_dir():
+                continue
+            if task_id not in worktree_dir.name:
+                continue
+            
+            decisions_dir = worktree_dir / ".prompts" / "decisions"
+            if not decisions_dir.exists():
+                continue
+            
+            for decision_file in decisions_dir.glob(pattern):
+                dest_path = dest_dir / decision_file.name
+                if not dest_path.exists() or decision_file.stat().st_mtime > dest_path.stat().st_mtime:
+                    shutil.copy(decision_file, dest_path)
+                    decision_file.unlink()
+                    moved += 1
+    
+    # Also check ~/.cube/.prompts/decisions/ (Gemini)
+    cube_decisions = Path.home() / ".cube" / ".prompts" / "decisions"
+    if cube_decisions.exists():
+        for decision_file in cube_decisions.glob(pattern):
+            dest_path = dest_dir / decision_file.name
+            if not dest_path.exists() or decision_file.stat().st_mtime > dest_path.stat().st_mtime:
+                shutil.copy(decision_file, dest_path)
+                decision_file.unlink()
+                moved += 1
+    
+    return moved
 
 
 def get_decision_filename(judge_key: str, task_id: str, decision_type: str = "decision") -> str:

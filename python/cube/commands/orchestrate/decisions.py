@@ -47,6 +47,12 @@ def run_decide_peer_review(task_id: str, require_decisions: bool = True) -> dict
         get_peer_review_status,
         parse_single_decision_file
     )
+    from ...core.decision_files import sync_decisions_from_worktrees
+
+    # First sync any decisions from worktrees to PROJECT_ROOT
+    synced = sync_decisions_from_worktrees(task_id, "peer-review")
+    if synced > 0:
+        console.print(f"[dim]Synced {synced} decision(s) from worktrees[/dim]")
 
     console.print(f"[cyan]📊 Checking peer review decisions for: {task_id}[/cyan]")
     console.print()
@@ -54,8 +60,7 @@ def run_decide_peer_review(task_id: str, require_decisions: bool = True) -> dict
     result = get_peer_review_status(task_id, require_decisions=require_decisions)
     
     judge_configs = get_judge_configs()
-    peer_review_judges = [j for j in judge_configs if j.peer_review_only]
-    total_peer_judges = len(peer_review_judges) if peer_review_judges else len(judge_configs)
+    total_judges = len(judge_configs)
 
     for judge_key, decision in result["judge_decisions"].items():
         judge_label = judge_key.replace("_", "-")
@@ -86,20 +91,14 @@ def run_decide_peer_review(task_id: str, require_decisions: bool = True) -> dict
     if result["decisions_found"] == 0:
         if require_decisions:
             print_warning("No peer review decisions found!")
-            if peer_review_judges:
-                console.print("Expected files from peer-review judges:")
-                for judge_cfg in peer_review_judges:
-                    judge_label = judge_cfg.key.replace("_", "-")
-                    console.print(f"  .prompts/decisions/{judge_label}-{task_id}-peer-review.json")
-            else:
-                console.print("No peer_review_only judges configured - all judges:")
-                for jconfig in judge_configs:
-                    judge_label = jconfig.key.replace("_", "-")
-                    console.print(f"  .prompts/decisions/{judge_label}-{task_id}-peer-review.json")
+            console.print("Expected decision files:")
+            for jconfig in judge_configs:
+                judge_label = jconfig.key.replace("_", "-")
+                console.print(f"  .prompts/decisions/{judge_label}-{task_id}-peer-review.json")
             console.print()
         return {"approved": False, "remaining_issues": [], "decisions_found": 0, "approvals": 0, "judge_decisions": {}}
 
-    console.print(f"Decisions: {result['decisions_found']}/{total_peer_judges}, Approvals: {result['approvals']}/{result['decisions_found']}")
+    console.print(f"Decisions: {result['decisions_found']}/{total_judges}, Approvals: {result['approvals']}/{result['decisions_found']}")
 
     if result["approved"]:
         console.print()
