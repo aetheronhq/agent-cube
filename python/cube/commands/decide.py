@@ -47,22 +47,26 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     console.print(f"[cyan]📊 Analyzing panel decisions for: {task_id}[/cyan]")
     console.print()
     
+    # For panel review, only count non-peer_review_only judges
+    panel_judges = [j for j in judge_configs if not j.peer_review_only]
+    panel_judge_keys = [j.key for j in panel_judges]
+    
     decisions = parse_all_decisions(task_id)
     
     if not decisions:
         print_error("No decision files found")
         console.print()
         console.print("Expected decision files:")
-        for judge_key in judge_nums:
+        for judge_key in panel_judge_keys:
             decision_file = get_decision_file_path(judge_key, task_id)
             console.print(f"  {decision_file}")
         console.print()
         
         console.print("Missing decisions from:")
-        for judge_key in judge_nums:
+        for judge_key in panel_judge_keys:
             decision_file = get_decision_file_path(judge_key, task_id)
             if not decision_file.exists():
-                session_id = load_session(f"JUDGE_{judge_key}", f"{task_id}_panel")
+                session_id = load_session(judge_key.upper(), f"{task_id}_panel")
                 if session_id:
                     judge_label = judge_key.replace("_", "-")
                     console.print(f"  [yellow]Judge {judge_label}[/yellow] (session: {session_id})")
@@ -79,7 +83,7 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
         
         raise typer.Exit(1)
     
-    total_judges = len(judge_nums)
+    total_judges = len(panel_judge_keys)
     if len(decisions) < total_judges:
         # Normalize judge keys for comparison (handle "1" vs "judge_1" etc)
         found_judges = set()
@@ -89,7 +93,7 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
             if str(d.judge).isdigit():
                 found_judges.add(f"judge_{d.judge}")
         
-        missing = [j for j in judge_nums if j not in found_judges]
+        missing = [j for j in panel_judge_keys if j not in found_judges]
         if missing:
             missing_labels = []
             for j in missing:
@@ -97,7 +101,7 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
                     from ..core.user_config import get_judge_config
                     jconfig = get_judge_config(j)
                     missing_labels.append(jconfig.label)
-                except:
+                except (KeyError, ValueError):
                     missing_labels.append(j)
             print_warning(f"Only {len(decisions)}/{total_judges} decisions found. Missing: {', '.join(missing_labels)}")
         console.print()
@@ -110,17 +114,18 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
             # Try as-is first
             jconfig = get_judge_config(judge_label)
             judge_label = jconfig.label
-        except:
+        except (KeyError, ValueError):
             # Try adding judge_ prefix if it's just a number
             try:
                 if judge_label.isdigit():
                     jconfig = get_judge_config(f"judge_{judge_label}")
                     judge_label = jconfig.label
-            except:
+            except (KeyError, ValueError):
                 pass
         
         color = "green" if d.decision == "APPROVED" else ("yellow" if d.decision == "REQUEST_CHANGES" else "red")
-        console.print(f"[{color}]{judge_label}:[/{color}] {d.decision} → Winner: {d.winner} (A: {d.scores_a}, B: {d.scores_b})")
+        scores_str = ", ".join([f"{key.upper()}: {score}" for key, score in d.scores.items()])
+        console.print(f"[{color}]{judge_label}:[/{color}] {d.decision} → Winner: {d.winner} ({scores_str})")
     
     console.print()
     console.print("━" * 60)
@@ -134,15 +139,28 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     
     console.print()
     
-    # Format winner display
-    winner_display = result['winner']
-    if winner_display == "writer_a":
-        winner_display = "A"
-    elif winner_display == "writer_b":
-        winner_display = "B"
+    from ..core.user_config import get_writer_by_key, load_config
+    config = load_config()
+
+    winner_key = result['winner']
+    try:
+        winner_cfg = get_writer_by_key(winner_key)
+        winner_display = winner_cfg.label
+    except KeyError:
+        winner_display = winner_key
+
+    console.print(f"[bold]🏆 Winner: {winner_display}[/bold]")
+
+    score_parts = []
+    for key in config.writer_order:
+        wconfig = config.writers[key]
+        score = result.get(f'avg_score_{key}')
+        if score is not None:
+            score_parts.append(f"{wconfig.label}={score:.1f}")
     
-    console.print(f"[bold]🏆 Winner: Writer {winner_display}[/bold]")
-    console.print(f"📊 Average Scores: A={result['avg_score_a']:.1f}, B={result['avg_score_b']:.1f}")
+    if score_parts:
+        console.print(f"📊 Average Scores: {', '.join(score_parts)}")
+    
     console.print()
     
     if result["blocker_issues"]:
@@ -159,8 +177,8 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     console.print()
     
     if result["next_action"] == "MERGE":
-        from ..core.user_config import get_writer_by_key_or_letter
-        winner_cfg = get_writer_by_key_or_letter(result["winner"])
+        from ..core.user_config import get_writer_by_key
+        winner_cfg = get_writer_by_key(result["winner"])
         console.print("[green]✅ Ready for PR![/green]")
         console.print()
         console.print("Create pull request:")
@@ -169,12 +187,14 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
         console.print(f"  gh pr create --base main --title 'feat: {task_id}' --fill")
     
     elif result["next_action"] == "SYNTHESIS":
-        from ..core.user_config import get_writer_by_key_or_letter
-        winner_cfg = get_writer_by_key_or_letter(result["winner"])
-        console.print("Synthesis needed (winner has blockers):")
-        console.print(f"  1. Create: .prompts/synthesis-{task_id}.md")
-        console.print(f"  2. Run: cube feedback {winner_cfg.name} {task_id} .prompts/synthesis-{task_id}.md")
-        console.print(f"  3. After fixes: cube peer-review {task_id} .prompts/peer-review-{task_id}.md")
+        from ..core.user_config import get_writer_by_key
+        winner_cfg = get_writer_by_key(result["winner"])
+        console.print("Synthesis needed (winner has blockers).")
+        console.print("Next resume will automatically:")
+        console.print(f"  • Generate .prompts/synthesis-{task_id}.md")
+        console.print(f"  • Send feedback: cube feedback {winner_cfg.name} {task_id} ...")
+        console.print(f"  • Re-run peer review afterwards")
+        console.print("Only run these manually if you need to intervene mid-flow.")
     
     elif result["next_action"] == "FEEDBACK":
         console.print("Major changes needed:")

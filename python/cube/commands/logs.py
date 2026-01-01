@@ -72,7 +72,7 @@ def logs_command(
                         subtype = data.get("subtype", "")
                         if subtype == "started":
                             console.print(f"[yellow]🔧 Tool call started[/yellow]")
-                except:
+                except (json.JSONDecodeError, KeyError, TypeError):
                     pass
         else:
             console.print(f"[cyan]📋 Found {len(logs)} log files for {task_id}:[/cyan]")

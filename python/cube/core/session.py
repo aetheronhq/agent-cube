@@ -65,7 +65,7 @@ class SessionWatcher:
         self.session_file = session_file
         self.metadata = metadata
         self.stop_event = threading.Event()
-        self.thread = None
+        self.thread: threading.Thread | None = None
     
     def start(self) -> None:
         """Start watching the log file for session ID."""

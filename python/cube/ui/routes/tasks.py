@@ -13,11 +13,13 @@ from pydantic import BaseModel, model_validator
 from cube.automation.dual_writers import launch_dual_writers
 from cube.automation.judge_panel import launch_judge_panel
 from cube.commands.feedback import send_feedback_async
-from cube.core.config import JUDGE_MODELS, PROJECT_ROOT, WRITER_LETTERS, get_worktree_path
-from cube.core.user_config import resolve_writer_alias, get_writer_aliases
+from cube.core.config import JUDGE_MODELS, PROJECT_ROOT, get_worktree_path
 from cube.core.decision_parser import JudgeDecision, aggregate_decisions, parse_all_decisions
 from cube.core.session import load_session
 from cube.core.state import WorkflowState, load_state
+from cube.core.user_config import get_writer_aliases, resolve_writer_alias
+
+MAX_FILE_PREVIEW_SIZE = 10 * 1024  # 10 KB preview limit for UI
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -68,13 +70,13 @@ class FeedbackRequest(BaseModel):
     @model_validator(mode="after")
     def validate_payload(self) -> "FeedbackRequest":
         """Validate the feedback request payload.
-        
+
         Check that exactly one of feedback_file or feedback_text is
         provided, and that the writer alias resolves to a valid writer.
-        
+
         Returns:
             The validated FeedbackRequest instance
-        
+
         Raises:
             ValueError: If payload is missing required fields or has invalid values
         """
@@ -83,19 +85,17 @@ class FeedbackRequest(BaseModel):
         try:
             resolve_writer_alias(self.writer)
         except KeyError:
-            raise ValueError(
-                f"Unknown writer '{self.writer}'. Choices: {', '.join(get_writer_aliases())}"
-            )
+            raise ValueError(f"Unknown writer '{self.writer}'. Choices: {', '.join(get_writer_aliases())}")
         return self
 
 
 @router.get("", response_model=TaskListResponse)
 async def list_tasks() -> TaskListResponse:
     """Return a summary of all known tasks ordered by last update.
-    
+
     Scan the state directory for task state files and return a list
     of task summaries with current phase, path, and workflow status.
-    
+
     Returns:
         TaskListResponse containing list of TaskSummary objects
     """
@@ -127,13 +127,13 @@ async def list_tasks() -> TaskListResponse:
 @router.get("/{task_id}")
 async def get_task(task_id: str) -> dict:
     """Return complete workflow state for a single task.
-    
+
     Args:
         task_id: The task identifier to look up
-    
+
     Returns:
         Dictionary containing full workflow state
-    
+
     Raises:
         HTTPException: 404 if task not found
     """
@@ -150,16 +150,16 @@ async def get_task(task_id: str) -> dict:
 @router.get("/{task_id}/logs", response_model=TaskLogsResponse)
 async def get_task_logs(task_id: str) -> TaskLogsResponse:
     """Return available log files for the given task.
-    
+
     Find and read all log files matching the task ID from the logs
     directory, returning their contents for display.
-    
+
     Args:
         task_id: The task identifier to get logs for
-    
+
     Returns:
         TaskLogsResponse containing list of LogEntry objects
-    
+
     Raises:
         HTTPException: 404 if logs directory or task logs not found
     """
@@ -170,9 +170,7 @@ async def get_task_logs(task_id: str) -> TaskLogsResponse:
         )
 
     matching = sorted(
-        file
-        for file in LOGS_DIR.glob(f"*{task_id}*")
-        if file.is_file() and file.suffix in {".log", ".json", ".txt"}
+        file for file in LOGS_DIR.glob(f"*{task_id}*") if file.is_file() and file.suffix in {".log", ".json", ".txt"}
     )
 
     if not matching:
@@ -202,26 +200,117 @@ async def get_task_logs(task_id: str) -> TaskLogsResponse:
 
 
 @router.get(
+    "/{task_id}/prompts",
+    status_code=status.HTTP_200_OK,
+)
+async def get_task_prompts(task_id: str) -> dict[str, Any]:
+    """Return prompts generated for a task."""
+    state = load_state(task_id)
+    prompts_dir = Path(state.project_root) / ".prompts" if state and state.project_root else PROMPTS_DIR
+
+    prompts = {}
+
+    # Known prompt files with semantic keys
+    known_prompts = {
+        "writer": f"writer-prompt-{task_id}.md",
+        "panel": f"panel-prompt-{task_id}.md",
+        "synthesis": f"synthesis-{task_id}.md",
+        "peer_review": f"peer-review-{task_id}.md",
+        "feedback_a": f"feedback/writer-a-{task_id}.md",
+        "feedback_b": f"feedback/writer-b-{task_id}.md",
+    }
+
+    for key, filename in known_prompts.items():
+        filepath = prompts_dir / filename
+        if filepath.exists():
+            try:
+                prompts[key] = {
+                    "filename": filename,
+                    "content": filepath.read_text()[:MAX_FILE_PREVIEW_SIZE],
+                    "truncated": filepath.stat().st_size > MAX_FILE_PREVIEW_SIZE,
+                }
+            except (OSError, IOError):
+                pass
+
+    # Also scan for any other .md files containing the task_id
+    if prompts_dir.exists():
+        for filepath in prompts_dir.glob(f"*{task_id}*.md"):
+            if not filepath.is_file():
+                continue
+            filename = filepath.name
+            # Skip if already captured as a known prompt
+            if filename in known_prompts.values():
+                continue
+            # Generate a key from the filename
+            key = filepath.stem.replace(f"-{task_id}", "").replace(task_id, "").strip("-_") or "custom"
+            if key in prompts:
+                key = f"{key}_{filepath.stem[:8]}"
+            try:
+                prompts[key] = {
+                    "filename": filename,
+                    "content": filepath.read_text()[:MAX_FILE_PREVIEW_SIZE],
+                    "truncated": filepath.stat().st_size > MAX_FILE_PREVIEW_SIZE,
+                }
+            except (OSError, IOError):
+                pass
+
+        # Check feedback subdirectory for any matching files
+        feedback_dir = prompts_dir / "feedback"
+        if feedback_dir.exists():
+            for filepath in feedback_dir.glob(f"*{task_id}*.md"):
+                if not filepath.is_file():
+                    continue
+                filename = f"feedback/{filepath.name}"
+                if filename in known_prompts.values():
+                    continue
+                key = f"feedback_{filepath.stem.replace(f'-{task_id}', '').replace(task_id, '').strip('-_')}"
+                try:
+                    prompts[key] = {
+                        "filename": filename,
+                        "content": filepath.read_text()[:MAX_FILE_PREVIEW_SIZE],
+                        "truncated": filepath.stat().st_size > MAX_FILE_PREVIEW_SIZE,
+                    }
+                except (OSError, IOError):
+                    pass
+
+    return {"prompts": prompts}
+
+
+@router.get(
     "/{task_id}/decisions",
     status_code=status.HTTP_200_OK,
 )
 async def get_task_decisions(task_id: str) -> dict[str, Any]:
     """Return decision data for a task.
-    
+
     Parse and aggregate all judge decisions for the task, returning
     votes, rationales, and overall winner determination.
-    
+
     Args:
         task_id: The task identifier to get decisions for
-    
+
     Returns:
         Dictionary containing aggregated decision data
-    
+
     Raises:
         HTTPException: 404 if no decisions found, 500 on read errors
     """
+    state = load_state(task_id)
+    project_root = state.project_root if state else None
+
+    all_decisions = []
+
     try:
-        judge_decisions = parse_all_decisions(task_id)
+        # Get panel decisions
+        panel_decisions = parse_all_decisions(task_id, project_root=project_root, review_type="decision")
+        if panel_decisions:
+            all_decisions.append(_build_single_decision_payload(panel_decisions, "panel"))
+
+        # Get peer-review decisions
+        peer_decisions = parse_all_decisions(task_id, project_root=project_root, review_type="peer-review")
+        if peer_decisions:
+            all_decisions.append(_build_single_decision_payload(peer_decisions, "peer-review"))
+
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.exception("Failed to read decisions for task %s", task_id)
         raise HTTPException(
@@ -229,14 +318,13 @@ async def get_task_decisions(task_id: str) -> dict[str, Any]:
             detail=f"Error reading decisions: {exc}",
         ) from exc
 
-    if not judge_decisions:
+    if not all_decisions:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No decisions found for task '{task_id}'",
         )
 
-    response = _build_decision_payload(judge_decisions)
-    return {"decisions": response}
+    return {"decisions": all_decisions}
 
 
 @router.post("/{task_id}/writers")
@@ -246,18 +334,18 @@ async def start_writers(
     background_tasks: BackgroundTasks,
 ) -> dict[str, str]:
     """Launch dual writers in the background for the given task.
-    
+
     Schedule the dual writer workflow to run asynchronously, returning
     immediately with a status message.
-    
+
     Args:
         task_id: The task identifier
         request: Writer configuration with prompt file and resume flag
         background_tasks: FastAPI background task manager
-    
+
     Returns:
         Status dictionary with task_id and message
-    
+
     Raises:
         HTTPException: 404 if prompt file not found
     """
@@ -297,18 +385,18 @@ async def start_panel(
     background_tasks: BackgroundTasks,
 ) -> dict[str, str]:
     """Launch judge panel agents in the background.
-    
+
     Schedule the judge panel workflow to run asynchronously with the
     specified review type (panel or peer-review).
-    
+
     Args:
         task_id: The task identifier
         request: Panel configuration with prompt file and review type
         background_tasks: FastAPI background task manager
-    
+
     Returns:
         Status dictionary with task_id and message
-    
+
     Raises:
         HTTPException: 404 if prompt file not found
     """
@@ -350,45 +438,43 @@ async def send_feedback(
     background_tasks: BackgroundTasks,
 ) -> dict[str, str]:
     """Queue feedback to resume a writer session.
-    
+
     Send feedback content to a specific writer, resuming their session
     to continue work on the task.
-    
+
     Args:
         task_id: The task identifier
         request: Feedback request with writer and content
         background_tasks: FastAPI background task manager
-    
+
     Returns:
         Status dictionary with task_id and message
-    
+
     Raises:
         HTTPException: 404 if session, feedback file, or worktree not found
     """
     writer_cfg = resolve_writer_alias(request.writer)
-    writer = writer_cfg.name
-    writer_letter = WRITER_LETTERS[writer]
-    session_id = load_session(f"WRITER_{writer_letter}", task_id)
+    session_id = load_session(writer_cfg.key.upper(), task_id)
 
     if not session_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Session not found for writer '{writer}' and task '{task_id}'",
+            detail=f"Session not found for writer '{writer_cfg.name}' and task '{task_id}'",
         )
 
     feedback_path = _resolve_feedback_path(task_id, request)
     project_name = PROJECT_ROOT.name
-    worktree = get_worktree_path(project_name, writer, task_id)
+    worktree = get_worktree_path(project_name, writer_cfg.name, task_id)
 
     if not worktree.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Worktree not found for writer '{writer}' and task '{task_id}'",
+            detail=f"Worktree not found for writer '{writer_cfg.name}' and task '{task_id}'",
         )
 
     logger.info(
         "Scheduling feedback for writer %s (task=%s, session=%s, feedback=%s)",
-        writer,
+        writer_cfg.name,
         task_id,
         session_id,
         feedback_path,
@@ -396,7 +482,7 @@ async def send_feedback(
 
     background_tasks.add_task(
         send_feedback_async,
-        writer,
+        writer_cfg.name,
         task_id,
         feedback_path,
         session_id,
@@ -406,7 +492,7 @@ async def send_feedback(
     return {
         "status": "started",
         "task_id": task_id,
-        "message": f"Feedback sent to writer {writer}",
+        "message": f"Feedback sent to {writer_cfg.label}",
     }
 
 
@@ -458,48 +544,74 @@ def _parse_timestamp(value: str | None) -> datetime:
         return datetime.min
 
 
-def _build_decision_payload(
-    judge_decisions: list[JudgeDecision],
-) -> list[dict[str, Any]]:
-    if not judge_decisions:
-        return []
-
+def _build_single_decision_payload(
+    judge_decisions: list[JudgeDecision], decision_type: str = "panel"
+) -> dict[str, Any]:
+    """Build a single decision payload from judge decisions."""
     serialized_votes = [_serialize_judge_decision(decision) for decision in judge_decisions]
 
     summary = aggregate_decisions(judge_decisions)
     winner = summary.get("winner")
-    winner_letter = winner if winner in {"A", "B"} else None
 
     timestamps = [decision.timestamp for decision in judge_decisions if decision.timestamp]
     latest_timestamp = max(timestamps) if timestamps else datetime.utcnow().isoformat()
 
     decision_payload: dict[str, Any] = {
-        "type": "panel",
+        "type": decision_type,
         "judges": serialized_votes,
         "timestamp": latest_timestamp,
     }
 
-    if winner_letter:
-        decision_payload["winner"] = winner_letter
+    if winner:
+        decision_payload["winner"] = winner
 
-    return [decision_payload]
+    return decision_payload
+
+
+def _build_decision_payload(
+    judge_decisions: list[JudgeDecision],
+) -> list[dict[str, Any]]:
+    """Legacy wrapper for backward compatibility."""
+    if not judge_decisions:
+        return []
+    return [_build_single_decision_payload(judge_decisions, "panel")]
 
 
 def _serialize_judge_decision(decision: JudgeDecision) -> dict[str, Any]:
-    model_name = JUDGE_MODELS.get(decision.judge, f"judge-{decision.judge}")
+    from cube.core.user_config import get_judge_config
+
     vote_value = _resolve_vote(decision)
+
+    # Get proper label and model from config
+    try:
+        judge_cfg = get_judge_config(decision.judge)
+        label = judge_cfg.label
+        model_name = judge_cfg.model
+    except (KeyError, ValueError, AttributeError):
+        label = decision.judge.replace("_", " ").title()
+        model_name = JUDGE_MODELS.get(decision.judge, f"judge-{decision.judge}")
+
+    scores = decision.scores
 
     return {
         "judge": decision.judge,
+        "label": label,
         "model": model_name,
         "vote": vote_value,
         "rationale": decision.recommendation,
+        "blockers": decision.blocker_issues or [],
+        "scores": scores,
     }
 
 
 def _resolve_vote(decision: JudgeDecision) -> str:
-    if decision.winner in {"A", "B"}:
+    from cube.core.user_config import load_config
+
+    config = load_config()
+    if decision.winner in config.writer_order:
         return decision.winner
+    elif decision.winner == "TIE":
+        return "TIE"
 
     normalized_decision = (decision.decision or "").upper()
     if normalized_decision in {"APPROVE", "APPROVED"}:

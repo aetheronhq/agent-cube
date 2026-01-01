@@ -3,13 +3,19 @@
 
 version: "1.1.0"
 
+# Prompter agent (generates prompts for writers)
+prompter:
+  model: "opus-4.5-thinking"
+
 # CLI tool to use for each model
 # gemini CLI: npm install -g @google/gemini-cli
 # Then authenticate: gemini (choose Login with Google)
 # Note: Gemini CLI now supports session resume via --resume latest (v0.17+)
 cli_tools:
   sonnet-4.5-thinking: cursor-agent
+  opus-4.5-thinking: cursor-agent
   gpt-5.1-codex-high: cursor-agent
+  gpt-5.1-codex-max: cursor-agent
   grok: cursor-agent
   gemini-2.5-pro: gemini
   gemini-3-pro: cursor-agent
@@ -18,31 +24,31 @@ cli_tools:
 # Writer personas
 writers:
   writer_a:
-    name: "sonnet"
-    model: "sonnet-4.5-thinking"
-    label: "Writer A"
+    name: "opus"
+    model: "opus-4.5-thinking"
+    label: "Writer Opus"
     color: "green"
     
   writer_b:
     name: "codex"
-    model: "gpt-5.1-codex-high"
-    label: "Writer B"
+    model: "gpt-5.1-codex-max"
+    label: "Writer Codex"
     color: "blue"
 
 # Judge personas
 judges:
   judge_1:
-    model: "sonnet-4.5-thinking"
-    label: "Judge Sonnet"
+    model: "opus-4.5-thinking"
+    label: "Judge Opus"
     color: "green"
     
   judge_2:
-    model: "gpt-5.1-codex-high"
+    model: "gpt-5.1-codex-max"
     label: "Judge Codex"
     color: "yellow"
     
   judge_3:
-    model: "gemini-2.5-pro"
+    model: "gemini-3-pro"
     label: "Judge Gemini"
     color: "magenta"
 
@@ -57,4 +63,6 @@ behavior:
   auto_push: true
   auto_update: true
   session_recording_at_start: true
+  default_mode: "dual"
+  default_writer: "writer_a"
 
