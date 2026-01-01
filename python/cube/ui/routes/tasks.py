@@ -84,8 +84,8 @@ class FeedbackRequest(BaseModel):
             raise ValueError("Provide exactly one of feedback_file or feedback_text")
         try:
             resolve_writer_alias(self.writer)
-        except KeyError:
-            raise ValueError(f"Unknown writer '{self.writer}'. Choices: {', '.join(get_writer_aliases())}")
+        except KeyError as exc:
+            raise ValueError(f"Unknown writer '{self.writer}'. Choices: {', '.join(get_writer_aliases())}") from exc
         return self
 
 

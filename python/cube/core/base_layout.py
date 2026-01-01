@@ -114,6 +114,9 @@ class BaseThinkingLayout:
                 return escaped
             return escaped[: max_len - 1] + "…"
 
+    def _assistant_line_width(self, label: str) -> int:
+        return self._term_width() - len(label) - 10
+
     def start(self):
         """Initialize and start the layout display rendering.
 
@@ -240,7 +243,7 @@ class BaseThinkingLayout:
             self.assistant_buf[key] += content
 
             buf = self.assistant_buf[key]
-            width = self._term_width() - len(label) - 6  # Label + emoji + borders
+            width = self._assistant_line_width(label)
 
             # Handle embedded newlines - flush each complete line
             while "\n" in buf:
@@ -302,7 +305,7 @@ class BaseThinkingLayout:
             for key, buf in list(self.assistant_buf.items()):
                 if buf.strip():
                     label, color = self.assistant_meta.get(key, (key, "white"))
-                    width = self._term_width() - len(label) - 10
+                    width = self._assistant_line_width(label)
                     truncated = self._truncate_markup(buf.strip(), width)
                     self.output_lines.append(f"[{color}]{label}[/{color}] 💭 {truncated}")
                     self.assistant_buf[key] = ""

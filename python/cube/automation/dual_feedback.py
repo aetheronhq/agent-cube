@@ -29,12 +29,11 @@ async def send_dual_feedback(task_id: str, feedbacks: List[FeedbackInfo]) -> Non
 
     Args:
         task_id: The task identifier for context
-        feedback_a_path: Path to feedback file for Writer A
-        feedback_b_path: Path to feedback file for Writer B
-        session_a: Session ID for Writer A's existing session
-        session_b: Session ID for Writer B's existing session
-        worktree_a: Path to Writer A's worktree directory
-        worktree_b: Path to Writer B's worktree directory
+        feedbacks: List of FeedbackInfo objects, each containing:
+            - writer_key: Writer identifier (e.g., "writer_a")
+            - feedback_path: Path to the feedback markdown file
+            - session_id: Session ID for the writer's existing session
+            - worktree: Path to the writer's worktree directory
     """
 
     # Create fresh layout for feedback prompters (closes previous if exists)
