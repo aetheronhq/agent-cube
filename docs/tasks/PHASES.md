@@ -1,170 +1,82 @@
 # Agent Cube Task Execution Plan
 
-**Generated:** 2025-12-29
-**Total Tasks:** 16 (6 complete, 1 in review, 9 pending)
+**Updated:** 2026-01-02
+**Total Tasks:** 18 (16 complete, 1 in review, 1 pending)
 
 ---
 
 ## Task Status
 
-| Task | Description | Status | Blocks | Blocked By |
-|------|-------------|--------|--------|------------|
-| 01 | pyproject.toml | ✅ DONE | - | - |
-| 02 | Fix bare excepts | ✅ DONE | - | - |
-| 03 | Delete dead layouts | ✅ DONE | 13 | - |
-| 04 | Split orchestrate.py | 🔄 IN REVIEW | 14 | - |
-| 05 | Add core tests | ❌ TODO | 06 | All refactoring |
-| 06 | Add docstrings | ❌ TODO | - | 05 |
-| 07 | Add OSS files | ✅ DONE | - | - |
-| 08 | Simplify agent identity | ❌ TODO | - | - |
-| 09 | Consolidate adapters | ❌ TODO | 16 | - |
-| 10 | Consolidate parsers | ❌ TODO | 16 | - |
-| 11 | Fix raw prints | ✅ DONE | - | - |
-| 12 | Extract constants | ✅ DONE | - | - |
-| 13 | Consolidate layouts | ❌ TODO | - | 03 ✅ |
-| 14 | Centralize decision parsing | ❌ TODO | - | 04 |
-| 15 | Single writer mode | ❌ TODO | - | - |
-| 16 | Claude Code adapter | ❌ TODO | - | 09, 10 |
+| Task | Description | Status | PR |
+|------|-------------|--------|-----|
+| 01 | pyproject.toml | ✅ DONE | #44 |
+| 02 | Fix bare excepts | ✅ DONE | - |
+| 03 | Delete dead layouts | ✅ DONE | - |
+| 04 | Split orchestrate.py | ✅ DONE | #58 |
+| 05 | Add core tests | ❌ TODO | - |
+| 06 | Add docstrings | ❌ TODO | - |
+| 07 | Add OSS files | ✅ DONE | - |
+| 08 | Simplify agent identity | ✅ DONE | #63 |
+| 09 | Consolidate adapters | ✅ DONE | #59 |
+| 10 | Consolidate parsers | ✅ DONE | #60 |
+| 11 | Fix raw prints | ✅ DONE | - |
+| 12 | Extract constants | ✅ DONE | - |
+| 13 | Consolidate layouts | ✅ DONE | #67 |
+| 14 | Centralize decision parsing | ✅ DONE | #66 |
+| 15 | Single writer mode | ✅ DONE | #68 |
+| 16 | Claude Code adapter | 🔄 IN REVIEW | #69 |
+| 17 | Add mypy checking | ✅ DONE | #72 |
+| 18 | Complete agent identity simplification | ✅ DONE | #70 |
 
 ---
 
-## Dependency Graph
+## Remaining Work
 
-```text
-READY NOW (no blockers):
-├── 07: Add OSS files
-├── 08: Simplify agent identity  
-├── 09: Consolidate adapters ────────┐
-├── 10: Consolidate parsers ─────────┼──► 16: Claude Code adapter
-├── 11: Fix raw prints               │
-├── 12: Extract constants            │
-├── 13: Consolidate layouts (03 ✅)  │
-└── 15: Single writer mode           │
-                                     │
-WAITING:                             │
-├── 04: Split orchestrate 🔄 ──► 14: Centralize parsing
-│                                    │
-└── 14 + all refactoring ──► 05: Tests ──► 06: Docstrings
-```
+### Ready Now
+
+| Task | Description | Complexity |
+|------|-------------|------------|
+| **05** | Add core tests | High |
+| **06** | Add docstrings | Medium |
+
+### In Review
+
+| Task | Description | Status |
+|------|-------------|--------|
+| **16** | Claude Code adapter | PR #69 has merge conflicts |
 
 ---
 
-## Execution Strategy
+## Ideas Backlog
 
-### Batch 1: Run Now (All Independent)
+Future enhancements to consider:
 
-These have no blockers - can all run in parallel:
+### CLI Tool Integrations
+- [ ] Codex CLI support
+- [ ] Aider support
+- [ ] OpenCode support
+- [ ] SonarQube integration for code review
 
-| Task | Complexity | Est. Time | Priority |
-|------|------------|-----------|----------|
-| **15** | High | 3–4 hrs | 🔥 Feature |
-| **08** | High | 3–4 hrs | 🔥 Architecture |
-| **09** | Medium | 1–2 hrs | Structure |
-| **10** | Medium | 1–2 hrs | Structure |
-| **13** | Medium | 1–2 hrs | Structure |
-| **07** | Low | 30 min | OSS |
-| **11** | Low | 30 min | Cleanup |
-| **12** | Low | 30 min | Cleanup |
+### Infrastructure
+- [ ] Cloud mode (EC2 deployment)
+- [ ] Remote/server mode (access from other devices)
+- [ ] Usage & result tracking (local first, then remote)
 
-**Recommended:** Run 15 + 08 (high value) while quick wins (07, 11, 12) complete fast.
+### UI Improvements
+- [ ] Non-experimental UI with write features
+- [ ] Auto-run tests/lint for instant feedback mode
 
-```bash
-# High value features
-cube auto docs/tasks/15-single-writer-mode.md &
-cube auto docs/tasks/08-simplify-agent-identity.md &
-
-# Quick wins (can queue after)
-cube auto docs/tasks/07-add-oss-files.md
-cube auto docs/tasks/11-fix-raw-prints.md
-cube auto docs/tasks/12-extract-constants.md
-```
-
-### Batch 2: After 09 + 10 Complete
-
-| Task | Depends On | Est. Time |
-|------|------------|-----------|
-| **16** | 09, 10 | 2–3 hrs |
-
-```bash
-cube auto docs/tasks/16-claude-code-adapter.md
-```
-
-### Batch 3: After 04 Merges
-
-| Task | Depends On | Est. Time |
-|------|------------|-----------|
-| **14** | 04 | 2–3 hrs |
-
-```bash
-cube auto docs/tasks/14-centralize-decision-parsing.md
-```
-
-### Batch 4: Quality (After All Refactoring)
-
-| Task | Depends On | Est. Time |
-|------|------------|-----------|
-| **05** | Stable code | 4–6 hrs |
-| **06** | 05 | 2–3 hrs |
-
-```bash
-cube auto docs/tasks/05-add-core-tests.md
-cube auto docs/tasks/06-add-docstrings.md
-```
+### Integrations
+- [ ] Richer Jira integration
+- [ ] More automation of planning/dependency phases
 
 ---
 
-## Critical Paths
+## Completion Summary
 
-### Path A: Claude Code Adapter
-```text
-09 (Consolidate adapters) ─┬─► 16 (Claude Code)
-10 (Consolidate parsers) ──┘
 ```
-**Time:** 3–5 hrs sequential
-
-### Path B: Decision Parsing
-```text
-04 (Split orchestrate) ──► 14 (Centralize parsing)
-```
-**Time:** Waiting on PR review + 2–3 hrs
-
-### Path C: Quality
-```text
-All refactoring ──► 05 (Tests) ──► 06 (Docstrings)
-```
-**Time:** 6–9 hrs, run last
-
----
-
-## Optimal Parallel Execution
-
-**With 2 writers available:**
-
-| Time | Writer A | Writer B |
-|------|----------|----------|
-| 0–4h | 15 (Single writer) | 08 (Agent identity) |
-| 0–1h | 09 (Adapters) | 10 (Parsers) |
-| 1–2h | 13 (Layouts) | 07, 11, 12 (Quick wins) |
-| 2–5h | 16 (Claude Code) | - waiting for 04 - |
-| 4+h | 14 (Decision parsing) | - after 04 merges - |
-
-**Total wall clock:** ~8–10 hrs (vs 20+ sequential)
-
----
-
-## What to Run RIGHT NOW
-
-**Highest value, no blockers:**
-
-```bash
-# Feature that users want
-cube auto docs/tasks/15-single-writer-mode.md
-```
-
-Or for structure cleanup:
-
-```bash
-# These unblock Claude Code adapter
-cube auto docs/tasks/09-consolidate-adapters.md
-cube auto docs/tasks/10-consolidate-parsers.md
+Phase 1 (Foundation):     ████████████████ 100% (01-04)
+Phase 2 (Consolidation):  ████████████████ 100% (09-14)
+Phase 3 (Features):       ██████████████░░  88% (15-18, 16 in review)
+Phase 4 (Quality):        ░░░░░░░░░░░░░░░░   0% (05-06)
 ```
