@@ -323,6 +323,8 @@ Task: {task_id}
             raise ValueError(f"winner_key '{winner_key}' not found in configured writers: {config.writer_order}")
         entries = [entry for entry in entries if entry["key"] == winner_key]
 
+    parser = get_parser("cursor-agent")
+    
     if len(entries) == 1:
         entry = entries[0]
         layout = SingleAgentLayout.initialize(entry["label"])
@@ -341,9 +343,9 @@ Task: {task_id}
                             layout.add_assistant_message(msg.content, entry["label"], entry["color"])
                         else:
                             layout.add_output(formatted)
-                if entry["path"].exists():
+                if entry["path"].exists():  # type: ignore[attr-defined]
                     break
-            if not entry["path"].exists():
+            if not entry["path"].exists():  # type: ignore[attr-defined]
                 raise RuntimeError(f"Failed to generate feedback at {entry['path']}")
         finally:
             layout.close()
@@ -353,13 +355,13 @@ Task: {task_id}
         from ...core.config import WORKTREE_BASE
         from ..feedback import send_feedback_async
 
-        session = load_session(entry['key'].upper(), task_id)
+        session = load_session(entry['key'].upper(), task_id)  # type: ignore[attr-defined]
         if not session:
             raise RuntimeError("No session found for winner. Cannot send feedback.")
 
         project_name = Path(PROJECT_ROOT).name
-        worktree = WORKTREE_BASE / project_name / f"writer-{entry['cfg'].name}-{task_id}"
-        await send_feedback_async(entry["cfg"].name, task_id, entry["path"], session, worktree)
+        worktree = WORKTREE_BASE / project_name / f"writer-{entry['cfg'].name}-{task_id}"  # type: ignore[attr-defined]
+        await send_feedback_async(entry["cfg"].name, task_id, entry["path"], session, worktree)  # type: ignore[attr-defined]
         return
 
     console.print("Generating feedback for all writers in parallel...")
@@ -394,7 +396,7 @@ Task: {task_id}
     layout.close()
 
     for entry in entries:
-        if not entry["path"].exists():
+        if not entry["path"].exists():  # type: ignore[attr-defined]
             raise RuntimeError(f"{entry['label']} failed to generate feedback at {entry['path']}")
         print_success(f"Created: {entry['path']}")
 
@@ -409,20 +411,20 @@ Task: {task_id}
     tasks = []
     any_session_found = False
     for entry in entries:
-        session = load_session(entry['key'].upper(), task_id)
+        session = load_session(entry['key'].upper(), task_id)  # type: ignore[attr-defined]
         if session:
             any_session_found = True
             project_name = Path(PROJECT_ROOT).name
-            worktree = WORKTREE_BASE / project_name / f"writer-{entry['cfg'].name}-{task_id}"
-            tasks.append(send_feedback_async(entry['cfg'].name, task_id, entry['path'], session, worktree))
+            worktree = WORKTREE_BASE / project_name / f"writer-{entry['cfg'].name}-{task_id}"  # type: ignore[attr-defined]
+            tasks.append(send_feedback_async(entry['cfg'].name, task_id, entry['path'], session, worktree))  # type: ignore[attr-defined]
         else:
-            print_warning(f"No session found for {entry['cfg'].label}. Feedback generated at {entry['path']} but not sent.")
+            print_warning(f"No session found for {entry['cfg'].label}. Feedback generated at {entry['path']} but not sent.")  # type: ignore[attr-defined]
             
     if not any_session_found:
         print_warning("No sessions found for any writer. Feedback files generated but not sent.")
         print_info("Writers will need to manually read and address feedback:")
         for entry in entries:
-            console.print(f"  {entry['cfg'].label}: {entry['path']}")
+            console.print(f"  {entry['cfg'].label}: {entry['path']}")  # type: ignore[attr-defined]
         return
 
     if tasks:

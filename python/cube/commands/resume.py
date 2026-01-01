@@ -50,7 +50,7 @@ async def resume_async(
                     thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                     layout.add_thinking(thinking_text)
                 elif msg.type == "assistant" and msg.content:
-                    layout.add_assistant_message("agent", msg.content, target_label, color)
+                    layout.add_assistant_message(msg.content, target_label, color)
                 else:
                     layout.add_output(formatted)
     
@@ -112,6 +112,9 @@ def resume_command(
         target_label = judge_cfg.label
         color = judge_cfg.color
     else:
+        if not writer_cfg:
+            print_error(f"Could not resolve target: {target}")
+            raise typer.Exit(1)
         target_label = writer_cfg.label
         color = writer_cfg.color
         session_id = load_session(writer_cfg.key.upper(), task_id)

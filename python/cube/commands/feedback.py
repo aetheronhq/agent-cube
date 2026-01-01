@@ -65,7 +65,7 @@ async def send_feedback_async(
                         thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
                         layout.add_thinking(thinking_text)
                     elif msg.type == "assistant" and msg.content:
-                        layout.add_assistant_message("agent", msg.content, wconfig.label, wconfig.color)
+                        layout.add_assistant_message(msg.content, wconfig.label, wconfig.color)
                     else:
                         layout.add_output(formatted)
     

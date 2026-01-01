@@ -14,11 +14,12 @@ class CLIReviewAdapter(CLIAdapter):
     
     def __init__(self, config: Dict[str, Any]):
         """Initialize with tool configuration."""
-        self.tool_cmd = config.get("cmd")
+        tool_cmd = config.get("cmd")
         
-        if not self.tool_cmd:
+        if not tool_cmd:
             raise ValueError("CLIReviewAdapter requires 'cmd' config")
-            
+        
+        self.tool_cmd: str = tool_cmd
         self.tool_name = config.get("name") or self.tool_cmd.split()[0]
         self.writer_worktrees = {}  # Set via set_writer_worktrees() before run()
     

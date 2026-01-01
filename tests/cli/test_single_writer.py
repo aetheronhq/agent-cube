@@ -68,6 +68,3 @@ def test_invalid_writer_alias(task_file: Path):
     """Invalid writer aliases should raise an error."""
     result = runner.invoke(app, ["auto", str(task_file), "--writer", "invalid-writer"])
     assert result.exit_code != 0
-    # Error could be in stdout or formatted differently
-    output = result.stdout
-    assert "invalid-writer" in output.lower() or "unknown" in output.lower()

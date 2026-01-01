@@ -31,6 +31,12 @@ jobs:
         pip install -r requirements.txt
         pip install -e .
 
+    - name: Type check with mypy
+      working-directory: python
+      run: |
+        pip install mypy types-PyYAML types-aiofiles
+        mypy cube
+
     - name: Install Test dependencies
       run: |
         pip install -r tests/requirements.txt

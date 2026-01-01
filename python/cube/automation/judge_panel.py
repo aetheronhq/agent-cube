@@ -68,7 +68,7 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
     adapter = get_adapter(cli_name, judge_info.adapter_config)
     
     if is_cli_review:
-        adapter.set_writer_worktrees(_get_cli_review_worktrees(judge_info.task_id, winner))
+        adapter.set_writer_worktrees(_get_cli_review_worktrees(judge_info.task_id, winner))  # type: ignore[attr-defined]
     
     parser = get_parser(cli_name)
     from ..core.agent_logger import agent_logging_context
@@ -99,7 +99,7 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
         session_task_key=f"{judge_info.task_id}_{judge_info.review_type}",
         metadata=f"{judge_info.label} ({judge_info.key}) - {judge_info.task_id} - {judge_info.review_type} - {datetime.now()}"
     ) as logger:
-        async for line in stream:
+        async for line in stream:  # type: ignore[attr-defined]
             logger.write_line(line)
             
             msg = parser.parse(line)

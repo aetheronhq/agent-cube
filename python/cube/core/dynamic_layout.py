@@ -24,35 +24,36 @@ Example:
     DynamicLayout.close()
 """
 
-from .base_layout import BaseThinkingLayout
 from typing import Dict, Optional
+
+from .base_layout import BaseThinkingLayout
 
 
 class DynamicLayout:
     """Process-wide singleton for parallel agent thinking displays.
-    
+
     Wraps BaseThinkingLayout with class-level state to enable shared display
     across multiple callers (threads/coroutines) during parallel execution.
-    
+
     All methods are class methods operating on shared state. Call initialize()
     before use, and close() when done to clean up resources.
-    
+
     Note:
         Previous instances are automatically closed when initialize() is called,
         preventing multiple Rich Live displays from conflicting.
-    
+
     Example:
         DynamicLayout.initialize({"judge_1": "Judge 1", "judge_2": "Judge 2"})
         DynamicLayout.add_thinking("judge_1", "Reviewing code...")
         DynamicLayout.close()
     """
-    
+
     _instance: Optional[BaseThinkingLayout] = None
-    
+
     @classmethod
     def initialize(cls, boxes: Dict[str, str], lines_per_box: int = 2):
         """Initialize layout with specific boxes (closes previous instance if exists).
-        
+
         Args:
             boxes: Dict of {key: label} e.g. {"judge_1": "Judge Sonnet", "<writer_key>": "<Writer Label>"}
             lines_per_box: Number of lines per thinking box
@@ -60,45 +61,45 @@ class DynamicLayout:
         # Close previous instance to avoid multiple Live() displays
         if cls._instance:
             cls._instance.close()
-        
+
         cls._instance = BaseThinkingLayout(boxes, lines_per_box)
-    
+
     @classmethod
     def add_thinking(cls, key: str, text: str):
         """Add thinking to a box (buffers until punctuation)."""
         if cls._instance:
             cls._instance.add_thinking(key, text)
-    
+
     @classmethod
     def add_assistant_message(cls, key: str, content: str, label: str, color: str):
         """Add assistant message to main output (buffers per agent until punctuation)."""
         if cls._instance:
             cls._instance.add_assistant_message(key, content, label, color)
-    
+
     @classmethod
     def add_output(cls, line: str):
         """Add to main output (immediate)."""
         if cls._instance:
             cls._instance.add_output(line)
-    
+
     @classmethod
     def mark_complete(cls, key: str, status: str = None):
         """Mark a box as complete."""
         if cls._instance:
             cls._instance.mark_complete(key, status)
-    
+
     @classmethod
     def flush_buffers(cls):
         """Flush all buffers."""
         if cls._instance:
             cls._instance.flush_buffers()
-    
+
     @classmethod
     def start(cls):
         """Start layout."""
         if cls._instance:
             cls._instance.start()
-    
+
     @classmethod
     def close(cls):
         """Close layout."""
@@ -106,3 +107,7 @@ class DynamicLayout:
             cls._instance.close()
             cls._instance = None
 
+    @classmethod
+    def reset(cls):
+        """Reset layout state (alias for close)."""
+        cls.close()

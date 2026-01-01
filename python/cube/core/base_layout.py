@@ -63,7 +63,7 @@ class BaseThinkingLayout:
         self.assistant_buf = {}
         self.assistant_meta = {}
         self.completed = {box_id: False for box_id in boxes}
-        self.completion_status = {box_id: None for box_id in boxes}
+        self.completion_status: Dict[str, Optional[str]] = {box_id: None for box_id in boxes}
         
         self.console = Console()
         self.live = None
