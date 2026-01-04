@@ -117,6 +117,9 @@ class BaseThinkingLayout:
     def _assistant_line_width(self, label: str) -> int:
         return self._term_width() - len(label) - 10
 
+    def _thinking_line_width(self) -> int:
+        return self._term_width() - 10
+
     def start(self):
         """Initialize and start the layout display rendering.
 
@@ -201,7 +204,7 @@ class BaseThinkingLayout:
 
             self.thinking_current[box_id] += text
             buf = self.thinking_current[box_id]
-            width = self._term_width() - 4  # Just borders
+            width = self._thinking_line_width()
 
             # Handle embedded newlines - flush each complete line
             while "\n" in buf:
@@ -312,7 +315,7 @@ class BaseThinkingLayout:
 
             for box_id, buf in self.thinking_current.items():
                 if buf.strip():
-                    width = self._term_width() - 10
+                    width = self._thinking_line_width()
                     self.thinking_buffers[box_id].append(self._truncate_plain(buf.strip(), width))
                     self.thinking_current[box_id] = ""
             self._refresh()

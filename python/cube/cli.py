@@ -420,7 +420,6 @@ def decide(
 
     set_current_task_id(resolved_task_id)
 
-    """Aggregate judge decisions (auto-detects latest by default)."""
     review_type = "auto"
     if panel:
         review_type = "panel"

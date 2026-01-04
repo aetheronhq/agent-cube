@@ -11,14 +11,12 @@ _MARKUP_PATTERN = re.compile(r"\[/?[^\]]+\]")
 
 
 def _strip_markup(value: str) -> str:
-    """Remove Rich-style markup tags from a string."""
     if not value:
         return ""
     return _MARKUP_PATTERN.sub("", value).strip()
 
 
 def _timestamp() -> str:
-    """Return current UTC timestamp in ISO format."""
     return datetime.now(timezone.utc).isoformat()
 
 
@@ -42,10 +40,10 @@ class SSELayout(BaseThinkingLayout):
 
     def add_thinking(self, box_id: str, text: str) -> None:  # type: ignore[override]
         """Add thinking text to the SSE stream.
-        
+
         Broadcast thinking text to all connected SSE clients for
         real-time display in the web UI's thinking boxes.
-        
+
         Args:
             box_id: The identifier of the thinking box
             text: Text chunk to broadcast
@@ -66,10 +64,10 @@ class SSELayout(BaseThinkingLayout):
 
     def add_output(self, line: str) -> None:  # type: ignore[override]
         """Add output message to the SSE stream.
-        
+
         Broadcast output message to all connected SSE clients for
         display in the web UI's output region.
-        
+
         Args:
             line: The message to broadcast
         """
@@ -82,7 +80,7 @@ class SSELayout(BaseThinkingLayout):
         for label in self._agent_labels:
             if cleaned.startswith(label):
                 agent = label
-                content = cleaned[len(label):].lstrip()
+                content = cleaned[len(label) :].lstrip()
                 break
         payload = {
             "type": "output",

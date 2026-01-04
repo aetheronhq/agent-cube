@@ -32,12 +32,10 @@ def _now_iso() -> str:
 
 
 def _strip_rich_markup(text: str) -> str:
-    """Remove Rich markup tags from a string."""
     return RICH_TAG_PATTERN.sub("", text)
 
 
 def _strip_agent_prefix(text: str, agent_label: str) -> str:
-    """Remove redundant agent label prefixes from output lines."""
     if text.startswith(agent_label):
         return text[len(agent_label) :].lstrip()
 
