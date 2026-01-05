@@ -482,20 +482,20 @@ def auto(
     from .core.output import print_error, print_info
     from .core.user_config import get_default_writer, is_single_mode_default, resolve_writer_alias
 
-    # Determine mode (single or dual)
+    # Determine mode (single or dual) - but don't print yet if resuming (saved state may override)
     single_mode = single or writer is not None or is_single_mode_default()
     writer_key = None
     if single_mode:
         try:
-            # If --writer is specified, use it. Otherwise, use config default.
             writer_to_resolve = writer if writer else get_default_writer()
             writer_config = resolve_writer_alias(writer_to_resolve)
             writer_key = writer_config.key
-            print_info(f"Running in single-writer mode with [bold cyan]{writer_config.name}[/bold cyan]")
+            if not resume and not resume_from:
+                print_info(f"Running in single-writer mode with [bold cyan]{writer_config.name}[/bold cyan]")
         except KeyError as e:
             print_error(str(e))
             raise typer.Exit(1) from e
-    else:
+    elif not resume and not resume_from:
         print_info("Running in dual-writer mode")
 
     # If no task file provided, try to get from saved state
