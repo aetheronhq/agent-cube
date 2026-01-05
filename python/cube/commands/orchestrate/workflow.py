@@ -94,8 +94,7 @@ async def _orchestrate_single_writer_impl(
                     console.print()
                     console.print("Run missing judge(s):")
                     for j in missing:
-                        judge_label = j.key.replace("_", "-")
-                        console.print(f"  cube resume {judge_label} {task_id}")
+                        console.print(f"  cube peer-review {task_id} -j {j.key}")
                 console.print()
                 console.print("Or re-run all judges:")
                 console.print(f"  cube auto {task_id} --resume-from 3")
@@ -405,10 +404,9 @@ async def _orchestrate_auto_impl(
                 console.print("Options:")
                 console.print("  1. Get missing judge(s) to file decisions:")
                 for judge_cfg in peer_review_judges:
-                    judge_label = judge_cfg.key.replace("_", "-")
-                    peer_file = PROJECT_ROOT / ".prompts" / "decisions" / f"{judge_label}-{task_id}-peer-review.json"
+                    peer_file = PROJECT_ROOT / ".prompts" / "decisions" / f"{judge_cfg.key.replace('_', '-')}-{task_id}-peer-review.json"
                     if not peer_file.exists():
-                        console.print(f'     cube resume {judge_label} {task_id} "Write peer review decision"')
+                        console.print(f"     cube peer-review {task_id} -j {judge_cfg.key}")
                 console.print()
                 console.print(f"  2. Continue with {decisions_count}/{total_peer_judges} decisions:")
                 console.print("     cube auto task.md --resume-from 8")
