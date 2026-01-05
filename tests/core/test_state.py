@@ -104,6 +104,15 @@ class TestState:
         assert 3 in state.completed_phases
         assert state.completed_phases == [1, 3]
 
+    def test_deduplicates_completed_phases(self, mock_home, monkeypatch, tmp_path):
+        """Completed phases are deduplicated."""
+        monkeypatch.setattr("cube.core.config.PROJECT_ROOT", tmp_path)
+        update_phase("dedup-task", 1, path="TEST")
+        update_phase("dedup-task", 1, path="TEST")
+        state = update_phase("dedup-task", 2, path="TEST")
+
+        assert state.completed_phases == [1, 2]
+
     def test_update_phase_preserves_kwargs(self, mock_home, monkeypatch, tmp_path):
         """Extra kwargs (winner, path, etc.) are saved."""
         monkeypatch.setattr("cube.core.config.PROJECT_ROOT", tmp_path)

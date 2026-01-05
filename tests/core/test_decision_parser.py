@@ -64,6 +64,7 @@ class TestDecisionParser:
     def test_normalize_winner_tie(self, mock_config):
         """Empty string or invalid returns 'TIE'."""
         assert normalize_winner("") == "TIE"
+        assert normalize_winner(None) == "TIE"
         assert normalize_winner("invalid") == "TIE"
 
     def test_parse_single_decision_file_valid_json(self, tmp_path):

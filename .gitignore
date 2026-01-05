@@ -41,3 +41,4 @@ Thumbs.db
 .prompts/
 .agent-sessions/
 .history/
+.coverage
