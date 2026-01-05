@@ -81,10 +81,16 @@ async def _orchestrate_single_writer_impl(
         final_result = run_decide_peer_review(task_id)
         update_phase(task_id, 4)
 
-        if final_result["approved"] and not final_result["remaining_issues"]:
-            print_success("All judges approved with no issues - skipping minor fixes")
+        if not final_result["approved"]:
+            # Not approved - missing decisions or rejections
+            if not final_result["remaining_issues"]:
+                print_warning("Cannot proceed - missing judge decisions or not approved")
+                console.print("Re-run peer review to get all decisions:")
+                console.print(f"  cube auto {task_id} --resume-from 3")
+                return
+            # Has issues to fix - continue to minor fixes
         elif not final_result["remaining_issues"]:
-            print_warning("No specific issues listed - skipping minor fixes")
+            print_success("All judges approved with no issues - skipping minor fixes")
         else:
             print_info(f"Found {len(final_result['remaining_issues'])} issues to address.")
             # another hack, run_minor_fixes expects a "result" dict
