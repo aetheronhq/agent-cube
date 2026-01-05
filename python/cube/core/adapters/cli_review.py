@@ -108,7 +108,7 @@ class CLIReviewAdapter(CLIAdapter):
             writer, msg_type, content = await queue.get()
 
             if msg_type == "thinking":
-                yield json.dumps({"type": "assistant", "content": f"{writer}: {content}"})
+                yield json.dumps({"type": "assistant", "content": f"{writer}: {content}\n"})
             elif msg_type == "error":
                 errors.add(writer)
                 yield json.dumps(
