@@ -177,67 +177,58 @@ class CLIReviewAdapter(CLIAdapter):
         reviews_text = "\n\n".join(review_sections) if review_sections else "No reviews available."
         files_text = "\n".join(file_sections) if file_sections else "- No review files available"
 
+        # Extract just the essential context from original prompt
+        import re
+
+        judge_match = re.search(r"judge[_-]?(\d+|[a-zA-Z_]+)", original_prompt, re.IGNORECASE)
+        judge_key = judge_match.group(0) if judge_match else "judge_4"
+
+        # Find decision file path pattern
+        decision_match = re.search(r"\.prompts/decisions/[^\s\]]+\.json", original_prompt)
+        decision_path = (
+            decision_match.group(0)
+            if decision_match
+            else f".prompts/decisions/{judge_key}-{self.task_id}-peer-review.json"
+        )
+
         return f"""
-You are a technical judge synthesizing results from a CLI review tool ({self.tool_name}).
+You are synthesizing {self.tool_name} review results into a decision. DO NOT review the code yourself.
 
-## Task Context
-{original_prompt}
+## Task: {self.task_id}
+## Judge: {judge_key}
+## Decision File: {decision_path}
 
-## Review Output Files (IMPORTANT - reference these in your decision)
-{files_text}
-
-These files contain the FULL {self.tool_name} output including "Prompt for AI Agent" sections.
-The writer should read their file to address all issues.
-
+## {self.tool_name} Review Output
 {reviews_text}
 
-## Your Job
-1. Analyze ALL issues found in the review(s) above.
-2. Create a JSON decision file using write_file tool.
+## Review Output Files (for writer reference)
+{files_text}
+
+## Your ONLY Job
+Read the review output above and create a decision JSON file. That's it.
+
+**DO NOT:**
+- Run git commands
+- Read source code files
+- Run tests
+- Do your own code review
 
 **DECISION CRITERIA:**
-- APPROVED = Zero issues found in the review. Code is clean and ready to merge.
-- REQUEST_CHANGES = ANY issues found (blocking OR non-blocking). All issues must be fixed before merge.
+- APPROVED = The review shows NO issues (e.g., "Review completed ✔" with no problems listed)
+- REQUEST_CHANGES = The review found ANY issues
+- SKIPPED = The review tool failed (rate limit, error, empty output)
 
-Do NOT approve if there are suggestions, warnings, or improvements to make. The writer should fix ALL issues first.
-
-**CRITICAL REQUIREMENTS:**
-- For normal reviews: Make your decision SOLELY based on the review output above
-- For failed reviews: You MAY use read_file/shell tools to verify if previous issues were fixed
-- If ANY code issues exist, use REQUEST_CHANGES - even "minor" or "non-blocking" ones
-- You MUST use write_file to create the decision file (see Task Context above for the file path)
-
-**If review tool FAILED (rate limit, network error, empty output):**
-
-OPTION 1: Smart Verification (Preferred for re-reviews)
-- Check if a PREVIOUS peer-review decision file exists for this task
-- If yes: Read the previous issues and use read_file/shell tools to verify if they were fixed
-  - APPROVED: All previous issues are now resolved
-  - REQUEST_CHANGES: Previous issues still exist or not all fixed
-  - Include specific details about what was/wasn't fixed in remaining_issues
-- If you can verify all previous issues are fixed, you don't need the tool to re-run
-
-OPTION 2: Skip (Fallback for first-time reviews or if can't verify)
-- Use decision: "SKIPPED"
-- Set remaining_issues to empty array []
-- Set recommendation to explain the tool failure and suggest retry later
-
-## JSON Format (save this to the decision file path from Task Context)
+## Create this JSON file at {decision_path}
 {{
-  "judge": "<your judge key from Task Context>",
-  "task_id": "<task id from Task Context>",
+  "judge": "{judge_key}",
+  "task_id": "{self.task_id}",
   "review_type": "peer-review",
   "decision": "APPROVED" | "REQUEST_CHANGES" | "SKIPPED",
-  "remaining_issues": ["List", "of", "code", "issues", "to", "fix"],
-  "recommendation": "Brief explanation. Tell writer to read their review file and fix ALL issues listed."
+  "remaining_issues": [],
+  "recommendation": "Brief summary of review result"
 }}
 
-Note: Use "SKIPPED" only for tool failures (rate limit, errors). SKIPPED = no code issues found (tool just couldn't verify).
-
-**IMPORTANT:**
-- The review output files let the writer find the FULL {self.tool_name} output
-- List ALL issues in remaining_issues, not just "critical" ones - everything must be addressed
-- Use write_file to save the decision JSON to the path specified in Task Context
+Use write_file tool to save the JSON. Nothing else needed.
 """
 
     def check_installed(self) -> bool:
