@@ -51,10 +51,7 @@ async def _orchestrate_single_writer_impl(
         resume_alias=resume_alias,
     )
 
-    result = await execute_single_workflow(ctx)
-
-    if result.success and not result.exit:
-        print_success("🎉 Autonomous workflow complete!")
+    await execute_single_workflow(ctx)
 
 
 async def _orchestrate_auto_impl(
@@ -117,13 +114,12 @@ async def _orchestrate_auto_impl(
         if path in ("SYNTHESIS", "MERGE", "FEEDBACK") and resume_from >= 6:
             ctx.result = _load_aggregated_result(task_id, prompts_dir)
             result = await execute_workflow(WorkflowType(path), ctx)
+            if result.success and not result.exit:
+                print_success("🎉 Autonomous workflow complete!")
         else:
-            result = await execute_dual_workflow(ctx)
+            await execute_dual_workflow(ctx)
     else:
-        result = await execute_dual_workflow(ctx)
-
-    if result.success and not result.exit:
-        print_success("🎉 Autonomous workflow complete!")
+        await execute_dual_workflow(ctx)
 
 
 def _load_aggregated_result(task_id: str, prompts_dir: Path) -> dict:

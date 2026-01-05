@@ -50,5 +50,3 @@ async def create_pr(task_id: str, winner: str):
         console.print("Or create PR manually:")
         console.print(f"  gh pr create --base main --head {branch} --title 'feat: {task_id}'")
 
-    console.print()
-    print_success("🎉 Autonomous workflow complete!")
