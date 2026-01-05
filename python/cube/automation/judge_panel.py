@@ -72,6 +72,7 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
     adapter = get_adapter(cli_name, judge_info.adapter_config)
 
     if is_cli_review:
+        adapter.set_task_id(judge_info.task_id)  # type: ignore[attr-defined]
         adapter.set_writer_worktrees(_get_cli_review_worktrees(judge_info.task_id, winner))  # type: ignore[attr-defined]
 
     parser = get_parser(cli_name)
@@ -161,7 +162,11 @@ def _parse_decision_status(judge_info: JudgeInfo) -> str:
     config = load_config()
     writer_scores = []
     for writer_key in config.writer_order:
-        score = scores.get(writer_key, {}).get("total_weighted") or scores.get(writer_key, {}).get("total")
+        raw_score = scores.get(writer_key, {}).get("total_weighted") or scores.get(writer_key, {}).get("total")
+        try:
+            score = float(raw_score) if raw_score is not None else None
+        except (ValueError, TypeError):
+            score = None
         writer_scores.append((writer_key, score))
 
     if judge_info.review_type == "peer-review":
@@ -375,7 +380,7 @@ git reset --hard origin/writer-{wconfig.name}/{task_id}
             review_instructions_parts.append(f"""
 ## {wconfig.label} Implementation
 
-**Branch:** `writer-{wconfig.name}/{task_id}`  
+**Branch:** `writer-{wconfig.name}/{task_id}`
 **Location:** `{WORKTREE_BASE}/{project_name}/writer-{wconfig.name}-{task_id}/`
 
 Review commits since main:
