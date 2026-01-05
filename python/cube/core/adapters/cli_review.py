@@ -84,7 +84,8 @@ class CLIReviewAdapter(CLIAdapter):
                         lower = clean_line.lower()
                         if not last_error_line and ("error" in lower or "rate limit" in lower or "failed" in lower):
                             last_error_line = clean_line[:200]
-                        if not clean_line.endswith((".", "!", "?")):
+                        # Only append period if the line ends with alphanumeric (avoiding : , ) etc)
+                        if clean_line and clean_line[-1].isalnum():
                             clean_line += "."
                         await queue.put((writer, "thinking", clean_line))
                     output_buffers[writer].append(line)
