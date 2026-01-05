@@ -46,7 +46,10 @@ class CLIReviewAdapter(CLIAdapter):
         """Run the review tool and synthesize results."""
         from ..agent import run_agent  # Import here to avoid circular dependency
 
-        # Use the passed model as the orchestrator
+        if not self.task_id:
+            raise ValueError("CLIReviewAdapter requires task_id - call set_task_id() before run()")
+        task_id = self.task_id
+
         orch_model = model
 
         if not self.writer_worktrees:
@@ -134,10 +137,6 @@ class CLIReviewAdapter(CLIAdapter):
         review_files = {}
         reviews_dir = worktree / ".prompts" / "reviews"
         reviews_dir.mkdir(parents=True, exist_ok=True)
-
-        if not self.task_id:
-            raise ValueError("CLIReviewAdapter requires task_id - call set_task_id() before run()")
-        task_id = self.task_id
 
         for writer, lines in output_buffers.items():
             reviews[writer] = "\n".join(lines)
