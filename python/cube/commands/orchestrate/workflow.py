@@ -84,8 +84,20 @@ async def _orchestrate_single_writer_impl(
         if not final_result["approved"]:
             # Not approved - missing decisions or rejections
             if not final_result["remaining_issues"]:
+                from ...core.user_config import get_judge_configs
+
                 print_warning("Cannot proceed - missing judge decisions or not approved")
-                console.print("Re-run peer review to get all decisions:")
+                judge_configs = get_judge_configs()
+                submitted = set(final_result.get("judge_decisions", {}).keys())
+                missing = [j for j in judge_configs if j.key not in submitted]
+                if missing:
+                    console.print()
+                    console.print("Run missing judge(s):")
+                    for j in missing:
+                        judge_label = j.key.replace("_", "-")
+                        console.print(f"  cube resume {judge_label} {task_id}")
+                console.print()
+                console.print("Or re-run all judges:")
                 console.print(f"  cube auto {task_id} --resume-from 3")
                 return
             # Has issues to fix - continue to minor fixes
