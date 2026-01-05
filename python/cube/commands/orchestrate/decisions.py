@@ -115,6 +115,15 @@ def run_decide_peer_review(task_id: str, require_decisions: bool = True) -> dict
         console.print()
         missing = total_peer_judges - result["decisions_found"]
         print_warning(f"Missing {missing} judge decision(s) - cannot approve yet")
+
+        found_keys = set(result["judge_decisions"].keys())
+        missing_judges = [j for j in judge_configs if j.key not in found_keys]
+        if missing_judges:
+            console.print()
+            console.print("[dim]Run missing judges:[/dim]")
+            for j in missing_judges:
+                console.print(f"  [cyan]cube peer-review {task_id} --judge {j.key} --fresh[/cyan]")
+
         result["approved"] = False  # Override - don't approve with missing decisions
     elif result["approvals"] > 0:
         console.print()
