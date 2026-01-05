@@ -146,7 +146,7 @@ class CLIReviewAdapter(CLIAdapter):
             writer_slug = writer.lower().replace(" ", "-")
             review_file = reviews_dir / f"{task_id}-{writer_slug}-{self.tool_name.lower()}.txt"
             review_file.write_text(reviews[writer])
-            review_files[writer] = f".prompts/reviews/{review_file.name}"
+            review_files[writer] = str(review_file)  # Absolute path for synthesis agent
 
         yield json.dumps(
             {"type": "assistant", "content": f"📁 Saved review output to {reviews_dir.relative_to(worktree)}"}
