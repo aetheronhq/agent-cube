@@ -8,6 +8,20 @@ from typing import Any, Dict, List, Optional, Union
 from .config import PROJECT_ROOT
 
 
+def normalize_decision(decision: str) -> str:
+    """Normalize decision string to canonical form."""
+    d = decision.strip().upper()
+    if d in ("APPROVE", "APPROVED"):
+        return "APPROVED"
+    if d in ("REJECT", "REJECTED"):
+        return "REJECTED"
+    if d in ("REQUEST_CHANGE", "REQUEST_CHANGES", "CHANGES_REQUESTED"):
+        return "REQUEST_CHANGES"
+    if d in ("SKIP", "SKIPPED"):
+        return "SKIPPED"
+    return d
+
+
 def normalize_winner(winner_str: str) -> str:
     """Normalize winner string to config key."""
     from .user_config import load_config
@@ -223,9 +237,9 @@ def aggregate_decisions(decisions: List[JudgeDecision]) -> Dict[str, Any]:
 
     config = load_config()
 
-    approvals = sum(1 for d in decisions if d.decision == "APPROVED")
-    request_changes = sum(1 for d in decisions if d.decision == "REQUEST_CHANGES")
-    rejections = sum(1 for d in decisions if d.decision == "REJECTED")
+    approvals = sum(1 for d in decisions if normalize_decision(d.decision) == "APPROVED")
+    request_changes = sum(1 for d in decisions if normalize_decision(d.decision) == "REQUEST_CHANGES")
+    rejections = sum(1 for d in decisions if normalize_decision(d.decision) == "REJECTED")
 
     # Normalize winner field
     winner_votes = {key: 0 for key in config.writer_order}
@@ -319,7 +333,7 @@ def get_peer_review_status(
             continue
 
         decisions_found += 1
-        decision = data.get("decision", "UNKNOWN").upper()  # Normalize to uppercase
+        decision = normalize_decision(data.get("decision", "UNKNOWN"))
         remaining = data.get("remaining_issues", [])
         blockers = data.get("blocker_issues", [])
         issues = remaining + blockers
