@@ -51,9 +51,13 @@ def run_decide_peer_review(task_id: str, require_decisions: bool = True) -> dict
 
     judge_configs = get_judge_configs()
     peer_review_judges = [j for j in judge_configs if j.peer_review_only]
-    # Use max of expected vs actual - in single writer mode all judges run
-    expected_judges = len(peer_review_judges) if peer_review_judges else len(judge_configs)
-    total_peer_judges = max(expected_judges, result["decisions_found"])
+    # If more decisions found than peer_review_only judges, all judges ran
+    peer_only_count = len(peer_review_judges) if peer_review_judges else 0
+    if result["decisions_found"] > peer_only_count:
+        # All judges ran (single writer mode or run_all_judges=True)
+        total_peer_judges = len(judge_configs)
+    else:
+        total_peer_judges = peer_only_count if peer_only_count else len(judge_configs)
 
     for judge_key, decision in result["judge_decisions"].items():
         judge_label = judge_key.replace("_", "-")
