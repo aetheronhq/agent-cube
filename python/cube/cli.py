@@ -395,6 +395,20 @@ def decide(
     panel: Annotated[bool, typer.Option("--panel", help="Check panel decisions")] = False,
     peer: Annotated[bool, typer.Option("--peer", help="Check peer review decisions")] = False,
 ):
+    """Aggregate judge decisions and determine the winner.
+
+    Read decision JSON files from all three judges, aggregate their votes
+    using majority rule, and display the result. Auto-detects the latest
+    review type unless --panel or --peer is specified.
+
+    Args:
+        task_id: The task identifier to find decisions for
+        panel: If True, only check initial panel decisions
+        peer: If True, only check peer review decisions
+
+    Raises:
+        typer.Exit: If no task ID provided or decisions missing
+    """
     from .core.config import resolve_task_id, set_current_task_id
 
     resolved_task_id = resolve_task_id(task_id)
@@ -406,7 +420,6 @@ def decide(
 
     set_current_task_id(resolved_task_id)
 
-    """Aggregate judge decisions (auto-detects latest by default)."""
     review_type = "auto"
     if panel:
         review_type = "panel"
@@ -571,7 +584,6 @@ def continue_task(
         console.print("Start with: cube auto <task-file>")
         raise typer.Exit(1)
 
-    task_file = f"implementation/phase-*/tasks/{resolved_task_id}.md"
     next_phase = state.current_phase + 1 if state.current_phase < 10 else state.current_phase
 
     console.print(f"[cyan]Continuing {resolved_task_id} from Phase {next_phase}[/cyan]")
