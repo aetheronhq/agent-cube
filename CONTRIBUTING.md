@@ -2,53 +2,23 @@
 
 Thank you for your interest in contributing to Agent Cube! 🧊
 
-## How to Contribute
+## Development Setup
 
-### Reporting Issues
+1. Follow the [Installation Guide](INSTALL.md) to set up Agent Cube
+2. Install development dependencies:
+   ```bash
+   pip install -e ".[dev]"
+   ```
+3. Verify setup:
+   ```bash
+   pytest tests/
+   ```
 
-1. **Check existing issues** first to avoid duplicates
-2. **Use the issue templates** when available
-3. **Include reproduction steps** for bugs
-4. **Provide system info**: OS, Python version, cursor-agent version
+**Prerequisites:**
+- Python 3.11+
+- [cursor-agent CLI](https://cursor.com)
 
-### Submitting Changes
-
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/your-feature`
-3. **Make your changes**
-4. **Run tests**: `pytest tests/`
-5. **Submit a Pull Request**
-
-### Development Setup
-
-```bash
-# Clone your fork
-git clone https://github.com/YOUR_USERNAME/agent-cube.git
-cd agent-cube
-
-# Install in development mode
-cd python
-pip install -e .
-
-# Run tests
-pytest tests/
-```
-
-### Code Style
-
-- **Python**: Follow PEP 8
-- **Type hints**: Use them for function signatures
-- **Docstrings**: Required for public functions
-- **No bare exceptions**: Always catch specific exception types
-
-### Pull Request Guidelines
-
-1. **Keep PRs focused** - one feature or fix per PR
-2. **Update documentation** if needed
-3. **Add tests** for new features
-4. **Ensure CI passes** before requesting review
-
-### Testing
+## Running Tests
 
 ```bash
 # Run all tests
@@ -57,27 +27,57 @@ pytest tests/
 # Run specific test file
 pytest tests/cli/test_commands.py
 
-# Run with coverage
-pytest --cov=cube tests/
+# Run with verbose output
+pytest tests/ -v
 ```
 
-### Areas We Need Help
+## Code Style
 
-- **CLI Adapters**: Support for more AI CLIs (Claude Code, etc.)
-- **Documentation**: Improve guides and examples
-- **Tests**: Increase coverage
-- **Bug Fixes**: Check open issues
+- **Python 3.11+** required
+- **Type hints** required for function signatures
+- **Docstrings** for public functions (Google style)
+- **Linter**: Run `ruff check .` before committing
 
-## Code of Conduct
+```bash
+# Check code style
+ruff check .
 
-Be respectful, inclusive, and constructive. We're all here to build cool things together.
+# Auto-fix issues
+ruff check . --fix
+```
+
+## Pull Request Process
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Make changes with tests
+4. Run tests and linter:
+   ```bash
+   pytest tests/
+   ruff check .
+   ```
+5. Submit PR against `main` branch
+6. Respond to review feedback
+
+## Reporting Issues
+
+Use [GitHub Issues](https://github.com/aetheronhq/agent-cube/issues) to report bugs or request features.
+
+**For bugs, include:**
+- What you expected to happen
+- What actually happened
+- Steps to reproduce
+- Python version, OS, stack trace
+
+**For features, include:**
+- Use case description
+- Why it would be helpful
 
 ## Questions?
 
-- **GitHub Issues**: For bugs and feature requests
-- **GitHub Discussions**: For questions and ideas
+- [GitHub Issues](https://github.com/aetheronhq/agent-cube/issues) - Bugs and feature requests
+- [GitHub Discussions](https://github.com/aetheronhq/agent-cube/discussions) - Questions and ideas
 
 ## License
 
 By contributing, you agree that your contributions will be licensed under the MIT License.
-
