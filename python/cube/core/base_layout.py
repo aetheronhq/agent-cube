@@ -296,7 +296,7 @@ class BaseThinkingLayout:
             if box_id in self.completed:
                 self.completed[box_id] = True
                 self.completion_status[box_id] = status
-        self.flush_buffers()
+            self._flush_buffers()
 
     def flush_buffers(self) -> None:
         """Flush all pending text buffers to the display.
@@ -306,20 +306,24 @@ class BaseThinkingLayout:
         be called manually to ensure all content is visible.
         """
         with self.lock:
-            for key, buf in list(self.assistant_buf.items()):
-                if buf.strip():
-                    label, color = self.assistant_meta.get(key, (key, "white"))
-                    width = self._assistant_line_width(label)
-                    truncated = self._truncate_markup(buf.strip(), width)
-                    self.output_lines.append(f"[{color}]{label}[/{color}] 💭 {truncated}")
-                    self.assistant_buf[key] = ""
+            self._flush_buffers()
 
-            for box_id, buf in self.thinking_current.items():
-                if buf.strip():
-                    width = self._thinking_line_width()
-                    self.thinking_buffers[box_id].append(self._truncate_plain(buf.strip(), width))
-                    self.thinking_current[box_id] = ""
-            self._refresh()
+    def _flush_buffers(self) -> None:
+        """Internal helper to flush buffers without locking."""
+        for key, buf in list(self.assistant_buf.items()):
+            if buf.strip():
+                label, color = self.assistant_meta.get(key, (key, "white"))
+                width = self._assistant_line_width(label)
+                truncated = self._truncate_markup(buf.strip(), width)
+                self.output_lines.append(f"[{color}]{label}[/{color}] 💭 {truncated}")
+                self.assistant_buf[key] = ""
+
+        for box_id, buf in self.thinking_current.items():
+            if buf.strip():
+                width = self._thinking_line_width()
+                self.thinking_buffers[box_id].append(self._truncate_plain(buf.strip(), width))
+                self.thinking_current[box_id] = ""
+        self._refresh()
 
     def close(self) -> None:
         """Stop the layout and print final output.
