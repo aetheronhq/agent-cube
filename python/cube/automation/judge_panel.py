@@ -340,11 +340,11 @@ Example: If you are `judge_1`, create `.prompts/decisions/judge_1-{task_id}-peer
 }}
 ```
 
-**⚠️ CRITICAL - DECISION FIELD IS MANDATORY:**
+**⚠️ CRITICAL - EXACT SPELLING REQUIRED:**
 - The "decision" field MUST be at the TOP LEVEL of the JSON
-- Valid values: "APPROVED", "REQUEST_CHANGES", or "REJECTED"
-- Do NOT bury the decision inside nested objects
-- The parser will fail if "decision" is missing or misspelled
+- Use EXACT strings: `"APPROVED"`, `"REQUEST_CHANGES"`, or `"REJECTED"`
+- NOT "Approved", "approve", "APPROVE", "approved" - use exactly `"APPROVED"`
+- The parser will reject anything other than these exact strings
 
 **If decision is REQUEST_CHANGES:**
 - You MUST list specific issues in "remaining_issues" array
@@ -445,6 +445,10 @@ Use absolute path when writing the file. The project root is available in your w
   "recommendation": "Brief explanation of why winner was chosen"
 }}
 ```
+
+**⚠️ EXACT SPELLING REQUIRED for decision field:**
+- Use EXACT strings: `"APPROVED"`, `"REQUEST_CHANGES"`, or `"REJECTED"`
+- NOT "Approved", "approve", "APPROVE" - use exactly `"APPROVED"`
 
 ---
 """)
