@@ -237,6 +237,7 @@ def peer_review(
     ] = None,
     fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False,
     judge: Annotated[Optional[str], typer.Option("--judge", "-j", help="Run only this judge (e.g., judge_4)")] = None,
+    local: Annotated[bool, typer.Option("--local", "-l", help="Review current branch (not cube-managed)")] = False,
 ):
     """Resume judge panel for peer review of winner's implementation."""
     from pathlib import Path
@@ -275,7 +276,7 @@ def peer_review(
         raise typer.Exit(1)
 
     set_current_task_id(resolved_task_id)
-    peer_review_command(resolved_task_id, prompt_arg, fresh, judge)
+    peer_review_command(resolved_task_id, prompt_arg, fresh, judge, local)
 
 
 @app.command(name="status")

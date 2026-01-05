@@ -19,6 +19,10 @@ from .stream import format_stream_message
 
 async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
     """Fetch and sync writer worktrees to latest remote commits before judge review."""
+    if winner and winner.startswith("LOCAL:"):
+        print_info(f"Reviewing local branch: {winner.replace('LOCAL:', '')}")
+        return
+
     config = load_config()
     project_name = Path(PROJECT_ROOT).name
 
@@ -42,6 +46,10 @@ async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
 
 def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
     """Get worktree paths for CLI review adapters."""
+    if winner and winner.startswith("LOCAL:"):
+        branch_name = winner.replace("LOCAL:", "")
+        return {f"Local ({branch_name})": Path(get_project_root())}
+
     project_name = Path(get_project_root()).name
 
     if winner:

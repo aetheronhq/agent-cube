@@ -35,7 +35,8 @@ def peer_review_command(
     task_id: str,
     peer_review_prompt_file: str,
     fresh: bool = False,
-    judge: Optional[str] = None
+    judge: Optional[str] = None,
+    local: bool = False
 ) -> None:
     """Resume original judges from initial panel for peer review.
     
@@ -44,7 +45,9 @@ def peer_review_command(
         peer_review_prompt_file: Path to prompt file
         fresh: Launch new judges instead of resuming
         judge: Run only this specific judge (e.g., "judge_4")
+        local: Review current git branch instead of cube-managed worktree
     """
+    import subprocess
     
     if not check_cursor_agent():
         print_error("cursor-agent CLI is not installed")
@@ -58,12 +61,21 @@ def peer_review_command(
         temp_path.write_text(peer_review_prompt_file)
         prompt_path = temp_path
     
-    # Auto-detect winner for peer-review
-    winner = _get_winner_from_aggregated(task_id)
-    if winner:
-        print_info(f"Winner from panel: Writer {winner}")
+    # Use current branch if --local, otherwise auto-detect winner
+    if local:
+        result = subprocess.run(["git", "branch", "--show-current"], capture_output=True, text=True, cwd=PROJECT_ROOT)
+        current_branch = result.stdout.strip()
+        if not current_branch:
+            print_error("Could not determine current git branch")
+            raise typer.Exit(1)
+        winner = f"LOCAL:{current_branch}"
+        print_info(f"Reviewing local branch: {current_branch}")
     else:
-        print_warning("No aggregated decision found - will review both writers")
+        winner = _get_winner_from_aggregated(task_id)
+        if winner:
+            print_info(f"Winner from panel: Writer {winner}")
+        else:
+            print_warning("No aggregated decision found - will review both writers")
     
     try:
         if judge:
