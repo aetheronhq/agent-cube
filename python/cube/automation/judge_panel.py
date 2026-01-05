@@ -222,11 +222,13 @@ async def launch_judge_panel(
     resume_mode: bool = False,
     winner: str = None,
     single_judge: str = None,
+    run_all_judges: bool = False,
 ) -> None:
     """Launch judge panel in parallel.
 
     Args:
         single_judge: If provided, only run this specific judge (e.g., "judge_4")
+        run_all_judges: If True, run ALL judges regardless of review_type filtering
     """
 
     if not prompt_file.exists():
@@ -236,11 +238,14 @@ async def launch_judge_panel(
 
     all_judges = get_judge_configs()
 
-    # Filter by single_judge if specified
+    # Filter judges based on parameters
     if single_judge:
         judge_configs = [j for j in all_judges if j.key == single_judge]
         if not judge_configs:
             raise ValueError(f"Judge not found: {single_judge}. Available: {[j.key for j in all_judges]}")
+    elif run_all_judges:
+        # Explicit override: run ALL judges regardless of review_type
+        judge_configs = all_judges
     elif review_type == "panel":
         # Panel review: exclude peer_review_only judges (they only do peer review)
         judge_configs = [j for j in all_judges if not j.peer_review_only]

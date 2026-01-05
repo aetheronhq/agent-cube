@@ -192,10 +192,15 @@ Include the worktree location and git commands for reviewing."""
             layout.close()
 
     print_info(f"Launching peer review for Winner: {winner_cfg.label}")
-    # In single writer mode, run ALL judges (not just peer_review_only)
-    # "all" falls through to default case which includes all judges
-    review_type = "all" if run_all_judges else "peer-review"
-    await launch_judge_panel(task_id, peer_review_path, review_type, resume_mode=False, winner=result["winner"])
+    # Use peer-review prompt style (single writer focus), but optionally run ALL judges
+    await launch_judge_panel(
+        task_id,
+        peer_review_path,
+        "peer-review",
+        resume_mode=False,
+        winner=result["winner"],
+        run_all_judges=run_all_judges,
+    )
 
 
 async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):
