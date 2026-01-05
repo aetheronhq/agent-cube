@@ -41,10 +41,7 @@ async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
 
 
 def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
-    """Get worktree paths for CLI review adapters.
-
-    Only returns worktrees that actually exist on disk.
-    """
+    """Get worktree paths for CLI review adapters."""
     project_name = Path(get_project_root()).name
 
     if winner:
@@ -55,12 +52,10 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
         return {winner_cfg.label: winner_path}
 
     config = load_config()
-    writers = {}
-    for k in config.writer_order:
-        w = config.writers[k]
-        wt_path = get_worktree_path(project_name, w.name, task_id)
-        if wt_path.exists():
-            writers[w.label] = wt_path
+    writers = {
+        w.label: get_worktree_path(project_name, w.name, task_id)
+        for w in (config.writers[k] for k in config.writer_order)
+    }
     return writers
 
 
@@ -526,11 +521,9 @@ Use absolute path when writing the file. The project root is available in your w
     console.print()
     for writer_key in config.writer_order:
         writer_cfg = config.writers[writer_key]
-        wt_path = get_worktree_path(project_name, writer_cfg.name, task_id)
-        if wt_path.exists():
-            console.print(
-                f"{writer_cfg.label}: [green]~/.cube/worktrees/{project_name}/writer-{writer_cfg.name}-{task_id}/[/green]"
-            )
+        console.print(
+            f"{writer_cfg.label}: [green]~/.cube/worktrees/{project_name}/writer-{writer_cfg.name}-{task_id}/[/green]"
+        )
     console.print()
     console.print("Use your native tools (read_file, git commands, etc.)")
     console.print("━" * 60)
