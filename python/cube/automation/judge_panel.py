@@ -470,8 +470,12 @@ Use absolute path when writing the file. The project root is available in your w
 
     # Substitute {winner} placeholder for peer-review prompts
     if review_type == "peer-review" and winner:
-        winner_cfg = get_writer_by_key(winner)
-        prompt = prompt.replace("{winner}", winner_cfg.name)
+        if winner.startswith("LOCAL:"):
+            branch_name = winner.replace("LOCAL:", "")
+            prompt = prompt.replace("{winner}", f"Local branch ({branch_name})")
+        else:
+            winner_cfg = get_writer_by_key(winner)
+            prompt = prompt.replace("{winner}", winner_cfg.name)
 
     # Don't re-filter - already filtered correctly above based on review_type and single_judge
 
