@@ -105,9 +105,17 @@ def run_decide_peer_review(task_id: str, require_decisions: bool = True) -> dict
         f"Decisions: {result['decisions_found']}/{total_peer_judges}, Approvals: {result['approvals']}/{result['decisions_found']}"
     )
 
-    if result["approved"]:
+    # Check if we have all expected decisions
+    all_decisions_in = result["decisions_found"] >= total_peer_judges
+
+    if result["approved"] and all_decisions_in:
         console.print()
         print_info("All judges approved!")
+    elif result["approved"] and not all_decisions_in:
+        console.print()
+        missing = total_peer_judges - result["decisions_found"]
+        print_warning(f"Missing {missing} judge decision(s) - cannot approve yet")
+        result["approved"] = False  # Override - don't approve with missing decisions
     elif result["approvals"] > 0:
         console.print()
         print_warning(
