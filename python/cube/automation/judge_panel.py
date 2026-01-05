@@ -192,9 +192,12 @@ def _format_panel_status(decision: str, winner: str, score_text: str, blocker_is
     winner_text = _get_winner_text(winner)
     score_display = f" ({score_text})" if score_text else ""
 
+    # If there are blockers, that overrides APPROVED status
+    if blocker_issues:
+        count = len(blocker_issues)
+        return f"⚠ {count} blocker{'s' if count != 1 else ''} → {winner_text}{score_display}"
+
     if decision == "APPROVED":
-        if blocker_issues:
-            return f"✓ APPROVED → {winner_text}{score_display} → {len(blocker_issues)} blocker{'s' if len(blocker_issues) != 1 else ''}"
         return f"✓ APPROVED → {winner_text}{score_display}"
     if decision == "REQUEST_CHANGES":
         return f"⚠ REQUEST_CHANGES → {winner_text}{score_display}"
