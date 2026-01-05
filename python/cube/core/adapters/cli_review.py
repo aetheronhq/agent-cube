@@ -145,8 +145,8 @@ class CLIReviewAdapter(CLIAdapter):
         for writer, lines in output_buffers.items():
             reviews[writer] = "\n".join(lines)
 
-            # Save raw output to file - create slug from writer name
-            writer_slug = writer.lower().replace(" ", "-")
+            # Save raw output to file - create slug from writer name (sanitize for filesystem)
+            writer_slug = writer.lower().replace(" ", "-").replace("/", "-").replace("(", "").replace(")", "")
             review_file = reviews_dir / f"{task_id}-{writer_slug}-{self.tool_name.lower()}.txt"
             review_file.write_text(reviews[writer])
             review_files[writer] = str(review_file)  # Absolute path for synthesis agent

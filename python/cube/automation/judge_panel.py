@@ -19,6 +19,10 @@ from .stream import format_stream_message
 
 async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
     """Fetch and sync writer worktrees to latest remote commits before judge review."""
+    if winner and winner.startswith("LOCAL:"):
+        print_info(f"Reviewing local branch: {winner.replace('LOCAL:', '')}")
+        return
+
     config = load_config()
     project_name = Path(PROJECT_ROOT).name
 
@@ -42,6 +46,10 @@ async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
 
 def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
     """Get worktree paths for CLI review adapters."""
+    if winner and winner.startswith("LOCAL:"):
+        branch_name = winner.replace("LOCAL:", "")
+        return {f"Local ({branch_name})": Path(get_project_root())}
+
     project_name = Path(get_project_root()).name
 
     if winner:
@@ -462,8 +470,12 @@ Use absolute path when writing the file. The project root is available in your w
 
     # Substitute {winner} placeholder for peer-review prompts
     if review_type == "peer-review" and winner:
-        winner_cfg = get_writer_by_key(winner)
-        prompt = prompt.replace("{winner}", winner_cfg.name)
+        if winner.startswith("LOCAL:"):
+            branch_name = winner.replace("LOCAL:", "")
+            prompt = prompt.replace("{winner}", f"Local branch ({branch_name})")
+        else:
+            winner_cfg = get_writer_by_key(winner)
+            prompt = prompt.replace("{winner}", winner_cfg.name)
 
     # Don't re-filter - already filtered correctly above based on review_type and single_judge
 

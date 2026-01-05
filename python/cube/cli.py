@@ -58,6 +58,8 @@ def _resolve_resume_from(
     task_id: str, resume_flag: bool, resume_from_value: Optional[str]
 ) -> tuple[int, Optional[str]]:
     """Determine final phase number to resume from. Returns (phase, original_alias)."""
+    from .commands.orchestrate.phases_registry import get_max_phase
+
     parsed_phase, original_alias = _parse_resume_option(resume_from_value)
 
     if resume_flag and parsed_phase is None:
@@ -66,26 +68,19 @@ def _resolve_resume_from(
         state = load_state(task_id)
         if state:
             current = state.current_phase
-            path = getattr(state, "path", None)
+            path = getattr(state, "path", None) or "DUAL"
 
-            # SINGLE path only has phases 1-5
-            if path == "SINGLE":
-                if current >= 5:
-                    print_success(f"Task {task_id} complete! PR already created.")
-                    parsed_phase = 5
+            max_phase = get_max_phase(path) if path in ("SINGLE", "MERGE", "FEEDBACK", "SYNTHESIS") else 10
+
+            if current >= max_phase:
+                if path == "FEEDBACK":
+                    parsed_phase = 6
+                    console.print(f"[cyan]Auto-resuming from Phase {parsed_phase} (FEEDBACK path loop)[/cyan]")
                 else:
-                    parsed_phase = current + 1 if current < 5 else current
-                    console.print(f"[cyan]Auto-resuming from Phase {parsed_phase}[/cyan]")
-            # FEEDBACK path only has phases 6-8, loop back if at end
-            elif path == "FEEDBACK" and current >= 8:
-                parsed_phase = 6
-                console.print(f"[cyan]Auto-resuming from Phase {parsed_phase} (FEEDBACK path loop)[/cyan]")
-            # MERGE path ends at phase 7 (PR created)
-            elif path == "MERGE" and current >= 7:
-                print_success(f"Task {task_id} complete! PR already created.")
-                parsed_phase = 7
+                    print_success(f"Task {task_id} complete!")
+                    parsed_phase = max_phase
             else:
-                parsed_phase = current + 1 if current < 10 else current
+                parsed_phase = current + 1
                 console.print(f"[cyan]Auto-resuming from Phase {parsed_phase}[/cyan]")
         else:
             parsed_phase = 1
@@ -242,6 +237,7 @@ def peer_review(
     ] = None,
     fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False,
     judge: Annotated[Optional[str], typer.Option("--judge", "-j", help="Run only this judge (e.g., judge_4)")] = None,
+    local: Annotated[bool, typer.Option("--local", "-l", help="Review current branch (not cube-managed)")] = False,
 ):
     """Resume judge panel for peer review of winner's implementation."""
     from pathlib import Path
@@ -280,7 +276,7 @@ def peer_review(
         raise typer.Exit(1)
 
     set_current_task_id(resolved_task_id)
-    peer_review_command(resolved_task_id, prompt_arg, fresh, judge)
+    peer_review_command(resolved_task_id, prompt_arg, fresh, judge, local)
 
 
 @app.command(name="status")
