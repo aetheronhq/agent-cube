@@ -9,7 +9,7 @@ from ..core.adapters.registry import get_adapter
 from ..core.config import PROJECT_ROOT, WORKTREE_BASE, get_project_root, get_worktree_path
 from ..core.dynamic_layout import DynamicLayout
 from ..core.git import branch_exists, fetch_branches, get_commit_hash, sync_worktree
-from ..core.output import console, print_error, print_info, print_success, print_warning
+from ..core.output import console, print_error, print_info, print_success
 from ..core.parsers.registry import get_parser
 from ..core.session import load_session, save_session
 from ..core.user_config import get_judge_configs, get_writer_by_key, load_config
@@ -192,9 +192,12 @@ def _format_panel_status(decision: str, winner: str, score_text: str, blocker_is
     winner_text = _get_winner_text(winner)
     score_display = f" ({score_text})" if score_text else ""
 
+    # If there are blockers, that overrides APPROVED status
+    if blocker_issues:
+        count = len(blocker_issues)
+        return f"⚠ {count} blocker{'s' if count != 1 else ''} → {winner_text}{score_display}"
+
     if decision == "APPROVED":
-        if blocker_issues:
-            return f"✓ APPROVED → {winner_text}{score_display} → {len(blocker_issues)} blocker{'s' if len(blocker_issues) != 1 else ''}"
         return f"✓ APPROVED → {winner_text}{score_display}"
     if decision == "REQUEST_CHANGES":
         return f"⚠ REQUEST_CHANGES → {winner_text}{score_display}"
@@ -222,11 +225,13 @@ async def launch_judge_panel(
     resume_mode: bool = False,
     winner: str = None,
     single_judge: str = None,
+    run_all_judges: bool = False,
 ) -> None:
     """Launch judge panel in parallel.
 
     Args:
         single_judge: If provided, only run this specific judge (e.g., "judge_4")
+        run_all_judges: If True, run ALL judges regardless of review_type filtering
     """
 
     if not prompt_file.exists():
@@ -236,11 +241,14 @@ async def launch_judge_panel(
 
     all_judges = get_judge_configs()
 
-    # Filter by single_judge if specified
+    # Filter judges based on parameters
     if single_judge:
         judge_configs = [j for j in all_judges if j.key == single_judge]
         if not judge_configs:
             raise ValueError(f"Judge not found: {single_judge}. Available: {[j.key for j in all_judges]}")
+    elif run_all_judges:
+        # Explicit override: run ALL judges regardless of review_type
+        judge_configs = all_judges
     elif review_type == "panel":
         # Panel review: exclude peer_review_only judges (they only do peer review)
         judge_configs = [j for j in all_judges if not j.peer_review_only]
@@ -332,11 +340,11 @@ Example: If you are `judge_1`, create `.prompts/decisions/judge_1-{task_id}-peer
 }}
 ```
 
-**⚠️ CRITICAL - DECISION FIELD IS MANDATORY:**
+**⚠️ CRITICAL - EXACT SPELLING REQUIRED:**
 - The "decision" field MUST be at the TOP LEVEL of the JSON
-- Valid values: "APPROVED", "REQUEST_CHANGES", or "REJECTED"
-- Do NOT bury the decision inside nested objects
-- The parser will fail if "decision" is missing or misspelled
+- Use EXACT strings: `"APPROVED"`, `"REQUEST_CHANGES"`, or `"REJECTED"`
+- NOT "Approved", "approve", "APPROVE", "approved" - use exactly `"APPROVED"`
+- The parser will reject anything other than these exact strings
 
 **If decision is REQUEST_CHANGES:**
 - You MUST list specific issues in "remaining_issues" array
@@ -437,6 +445,10 @@ Use absolute path when writing the file. The project root is available in your w
   "recommendation": "Brief explanation of why winner was chosen"
 }}
 ```
+
+**⚠️ EXACT SPELLING REQUIRED for decision field:**
+- Use EXACT strings: `"APPROVED"`, `"REQUEST_CHANGES"`, or `"REJECTED"`
+- NOT "Approved", "approve", "APPROVE" - use exactly `"APPROVED"`
 
 ---
 """)
@@ -565,17 +577,10 @@ Use absolute path when writing the file. The project root is available in your w
         print_error("Some judges failed:")
         for label, error in errors:
             console.print(f"  {label}: {error}")
+        console.print()
+        failed_names = ", ".join(label for label, _ in errors)
+        raise RuntimeError(f"Judge panel incomplete: {len(errors)} judge(s) failed ({failed_names}). Fix and retry.")
 
-        total_judges = len(judges)
-        failed = len(errors)
-        if failed == total_judges:
-            raise RuntimeError("All judges failed")
-        else:
-            print_warning(f"{failed} judge(s) failed but {total_judges - failed} completed successfully")
-            console.print()
-    else:
-        console.print("✅ All judges completed successfully")
-
+    console.print("✅ All judges completed successfully")
     console.print()
-
     print_success("Judge panel complete!")

@@ -68,14 +68,22 @@ def _resolve_resume_from(
             current = state.current_phase
             path = getattr(state, "path", None)
 
+            # SINGLE path only has phases 1-5
+            if path == "SINGLE":
+                if current >= 5:
+                    print_success(f"Task {task_id} complete! PR already created.")
+                    parsed_phase = 5
+                else:
+                    parsed_phase = current + 1 if current < 5 else current
+                    console.print(f"[cyan]Auto-resuming from Phase {parsed_phase}[/cyan]")
             # FEEDBACK path only has phases 6-8, loop back if at end
-            if path == "FEEDBACK" and current >= 8:
+            elif path == "FEEDBACK" and current >= 8:
                 parsed_phase = 6
                 console.print(f"[cyan]Auto-resuming from Phase {parsed_phase} (FEEDBACK path loop)[/cyan]")
             # MERGE path ends at phase 7 (PR created)
             elif path == "MERGE" and current >= 7:
                 print_success(f"Task {task_id} complete! PR already created.")
-                parsed_phase = 7  # Will exit immediately
+                parsed_phase = 7
             else:
                 parsed_phase = current + 1 if current < 10 else current
                 console.print(f"[cyan]Auto-resuming from Phase {parsed_phase}[/cyan]")
@@ -482,20 +490,20 @@ def auto(
     from .core.output import print_error, print_info
     from .core.user_config import get_default_writer, is_single_mode_default, resolve_writer_alias
 
-    # Determine mode (single or dual)
+    # Determine mode (single or dual) - but don't print yet if resuming (saved state may override)
     single_mode = single or writer is not None or is_single_mode_default()
     writer_key = None
     if single_mode:
         try:
-            # If --writer is specified, use it. Otherwise, use config default.
             writer_to_resolve = writer if writer else get_default_writer()
             writer_config = resolve_writer_alias(writer_to_resolve)
             writer_key = writer_config.key
-            print_info(f"Running in single-writer mode with [bold cyan]{writer_config.name}[/bold cyan]")
+            if not resume and not resume_from:
+                print_info(f"Running in single-writer mode with [bold cyan]{writer_config.name}[/bold cyan]")
         except KeyError as e:
             print_error(str(e))
             raise typer.Exit(1) from e
-    else:
+    elif not resume and not resume_from:
         print_info("Running in dual-writer mode")
 
     # If no task file provided, try to get from saved state
@@ -527,8 +535,22 @@ def auto(
             force_skip_phase_1 = not resume_from
             task_file = f".prompts/{task_id}.md"
     else:
+        # Extract task_id from filename (works even if file doesn't exist)
         task_id = extract_task_id_from_file(task_file)
-        force_skip_phase_1 = False
+
+        # Only require file to exist if not resuming from later phase
+        from pathlib import Path
+
+        task_path = Path(task_file)
+        if task_path.exists():
+            force_skip_phase_1 = False
+        elif resume or resume_from:
+            # Resuming - file not needed, just the task_id
+            force_skip_phase_1 = True
+        else:
+            # Not resuming and file doesn't exist - error
+            print_error(f"Task file not found: {task_file}")
+            raise typer.Exit(1)
 
     set_current_task_id(task_id)
 

@@ -2,19 +2,19 @@
 
 from pathlib import Path
 
-from ...core.output import print_success, print_info, console
-from ...core.config import PROJECT_ROOT, WORKTREE_BASE
+from ...automation.judge_panel import launch_judge_panel
+from ...automation.stream import format_stream_message
 from ...core.agent import run_agent
+from ...core.config import PROJECT_ROOT, WORKTREE_BASE
+from ...core.output import console, print_info, print_success
 from ...core.parsers.registry import get_parser
 from ...core.user_config import get_prompter_model
-from ...automation.stream import format_stream_message
-from ...automation.judge_panel import launch_judge_panel
 
 
 async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
     """Phase 6: Run synthesis if needed."""
-    from ...core.user_config import get_writer_by_key
     from ...core.single_layout import SingleAgentLayout
+    from ...core.user_config import get_writer_by_key
 
     winner_cfg = get_writer_by_key(result["winner"])
     winner_name = result["winner"]
@@ -25,9 +25,14 @@ async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
         console.print("Generating synthesis prompt...")
 
         from ...core.user_config import get_judge_configs
+
         judge_configs = get_judge_configs()
-        judge_decision_files = '\n'.join([f"- `.prompts/decisions/{j.key.replace('_', '-')}-{task_id}-decision.json`" for j in judge_configs])
-        judge_log_files = '\n'.join([f"- `~/.cube/logs/{j.key.replace('_', '-')}-{task_id}-panel-*.json`" for j in judge_configs])
+        judge_decision_files = "\n".join(
+            [f"- `.prompts/decisions/{j.key.replace('_', '-')}-{task_id}-decision.json`" for j in judge_configs]
+        )
+        judge_log_files = "\n".join(
+            [f"- `~/.cube/logs/{j.key.replace('_', '-')}-{task_id}-panel-*.json`" for j in judge_configs]
+        )
 
         prompt = f"""Generate a synthesis prompt for the WINNING writer.
 
@@ -67,7 +72,7 @@ Create a synthesis prompt that:
 1. **First step**: Tell writer to merge latest main (`git fetch origin main && git merge origin/main --no-edit`) and fix any conflicts programmatically using read_file/write_file (no interactive editors!)
 2. **Points writer to their review file** (from `review_output_files` in CodeRabbit decision)
 3. Lists blocker issues that MUST be fixed
-4. References specific files/lines from winner's code  
+4. References specific files/lines from winner's code
 5. Tells writer to READ the review file for full context and "Prompt for AI Agent" sections
 6. Preserves what judges liked (winner's architecture)
 7. Tells writer to commit and push when complete
@@ -112,8 +117,8 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
             layout.close()
 
     print_info(f"Sending synthesis to {winner_cfg.label}")
-    from ..feedback import send_feedback_async
     from ...core.session import load_session
+    from ..feedback import send_feedback_async
 
     session_id = load_session(winner_cfg.key.upper(), task_id)
     if not session_id:
@@ -124,13 +129,12 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
     await send_feedback_async(winner_cfg.name, task_id, synthesis_path, session_id, worktree)
 
 
-async def run_peer_review(task_id: str, result: dict, prompts_dir: Path):
-    """Phase 7: Run peer review."""
-    from ...core.user_config import get_writer_by_key
+async def run_peer_review(task_id: str, result: dict, prompts_dir: Path, run_all_judges: bool = False):
+    """Phase 7: Run peer review. Set run_all_judges=True for single writer mode."""
     from ...core.single_layout import SingleAgentLayout
+    from ...core.user_config import get_writer_by_key
 
     winner_cfg = get_writer_by_key(result["winner"])
-    winner_name = result["winner"]
 
     peer_review_path = prompts_dir / f"peer-review-{task_id}.md"
 
@@ -188,7 +192,15 @@ Include the worktree location and git commands for reviewing."""
             layout.close()
 
     print_info(f"Launching peer review for Winner: {winner_cfg.label}")
-    await launch_judge_panel(task_id, peer_review_path, "peer-review", resume_mode=False, winner=result["winner"])
+    # Use peer-review prompt style (single writer focus), but optionally run ALL judges
+    await launch_judge_panel(
+        task_id,
+        peer_review_path,
+        "peer-review",
+        resume_mode=False,
+        winner=result["winner"],
+        run_all_judges=run_all_judges,
+    )
 
 
 async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):
@@ -255,8 +267,8 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
     finally:
         layout.close()
 
-    from ..feedback import send_feedback_async
     from ...core.session import load_session
+    from ..feedback import send_feedback_async
 
     session_id = load_session(winner_cfg.key.upper(), task_id)
     if not session_id:

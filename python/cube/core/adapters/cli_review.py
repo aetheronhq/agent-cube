@@ -53,17 +53,20 @@ class CLIReviewAdapter(CLIAdapter):
         orch_model = model
 
         if not self.writer_worktrees:
-            yield json.dumps({"type": "assistant", "content": "ERROR: No writer worktrees configured for CLI review"})
+            yield json.dumps({"type": "assistant", "content": "ERROR: No writer worktrees configured for CLI review\n"})
             return
 
         # Run tool on writers with real-time streaming
         num_writers = len(self.writer_worktrees)
         if num_writers == 1:
             writer_name = list(self.writer_worktrees.keys())[0]
-            yield json.dumps({"type": "assistant", "content": f"🔍 Running {self.tool_name} on {writer_name}..."})
+            yield json.dumps({"type": "assistant", "content": f"🔍 Running {self.tool_name} on {writer_name}...\n"})
         else:
             yield json.dumps(
-                {"type": "assistant", "content": f"🔍 Running {self.tool_name} on {num_writers} writers in parallel..."}
+                {
+                    "type": "assistant",
+                    "content": f"🔍 Running {self.tool_name} on {num_writers} writers in parallel...\n",
+                }
             )
 
         reviews = {}
@@ -116,7 +119,7 @@ class CLIReviewAdapter(CLIAdapter):
             elif msg_type == "error":
                 errors.add(writer)
                 yield json.dumps(
-                    {"type": "assistant", "content": f"❌ ERROR: {self.tool_name} failed on {writer}: {content}"}
+                    {"type": "assistant", "content": f"❌ ERROR: {self.tool_name} failed on {writer}: {content}\n"}
                 )
             elif msg_type == "done":
                 completed.add(writer)
@@ -129,7 +132,7 @@ class CLIReviewAdapter(CLIAdapter):
                     status = f"⚠️  {self.tool_name} produced no output for {writer}"
                 else:
                     status = f"✅ {self.tool_name} complete: {line_counts[writer]} lines from {writer}"
-                yield json.dumps({"type": "assistant", "content": status})
+                yield json.dumps({"type": "assistant", "content": f"{status}\n"})
 
         # Wait for tasks to finish
         await asyncio.gather(*worker_tasks, return_exceptions=True)
@@ -149,11 +152,11 @@ class CLIReviewAdapter(CLIAdapter):
             review_files[writer] = str(review_file)  # Absolute path for synthesis agent
 
         yield json.dumps(
-            {"type": "assistant", "content": f"📁 Saved review output to {reviews_dir.relative_to(worktree)}"}
+            {"type": "assistant", "content": f"📁 Saved review output to {reviews_dir.relative_to(worktree)}\n"}
         )
 
         # 3. Run Synthesis Agent
-        yield json.dumps({"type": "assistant", "content": f"🤖 Synthesizing decision with {orch_model}..."})
+        yield json.dumps({"type": "assistant", "content": f"🤖 Synthesizing decision with {orch_model}...\n"})
 
         synthesis_prompt = self._build_synthesis_prompt(prompt, reviews, review_files)
 
