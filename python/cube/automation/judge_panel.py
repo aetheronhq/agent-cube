@@ -49,7 +49,10 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
 
     if winner:
         winner_cfg = get_writer_by_key(winner)
-        return {winner_cfg.label: get_worktree_path(project_name, winner_cfg.name, task_id)}
+        winner_path = get_worktree_path(project_name, winner_cfg.name, task_id)
+        if not winner_path.exists():
+            raise FileNotFoundError(f"Winner worktree does not exist: {winner_path}")
+        return {winner_cfg.label: winner_path}
 
     config = load_config()
     writers = {}
