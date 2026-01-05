@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections import deque
 from contextlib import suppress
 from datetime import datetime, timezone
-import re
 from threading import Lock
 from typing import Any, AsyncGenerator, Deque, Dict, Iterable, Set
 
@@ -32,23 +32,21 @@ def _now_iso() -> str:
 
 
 def _strip_rich_markup(text: str) -> str:
-    """Remove Rich markup tags from a string."""
     return RICH_TAG_PATTERN.sub("", text)
 
 
 def _strip_agent_prefix(text: str, agent_label: str) -> str:
-    """Remove redundant agent label prefixes from output lines."""
     if text.startswith(agent_label):
-        return text[len(agent_label):].lstrip()
+        return text[len(agent_label) :].lstrip()
 
     # Some entries include a colon-style prefix, e.g. "Writer A:"
     prefix = f"{agent_label}:"
     if text.startswith(prefix):
-        return text[len(prefix):].lstrip()
+        return text[len(prefix) :].lstrip()
 
     bracketed = f"[{agent_label}]"
     if text.startswith(bracketed):
-        return text[len(bracketed):].lstrip()
+        return text[len(bracketed) :].lstrip()
 
     return text
 
@@ -92,6 +90,15 @@ class TaskStreamState:
             pass
 
     def add_subscriber(self) -> asyncio.Queue[Dict[str, Any]]:
+        """Add an SSE subscriber for real-time task updates.
+
+        Register a new subscriber queue to receive server-sent events for
+        this task. On first subscriber, hijack the layout singletons to
+        intercept automation output.
+
+        Returns:
+            Async queue that will receive SSE message dictionaries
+        """
         queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
         self.subscribers.add(queue)
         # Hijack layouts when first subscriber connects
@@ -101,9 +108,27 @@ class TaskStreamState:
         return queue
 
     def remove_subscriber(self, queue: asyncio.Queue[Dict[str, Any]]) -> None:
+        """Remove an SSE subscriber.
+
+        Unregister the subscriber queue when the connection closes or
+        client disconnects. Clean up is handled by the stream registry
+        when all subscribers are gone.
+
+        Args:
+            queue: The subscriber queue to remove
+        """
         self.subscribers.discard(queue)
 
     def get_history(self) -> Iterable[Dict[str, Any]]:
+        """Get the message history for this task.
+
+        Return all messages sent to subscribers since the task started,
+        useful for late-joining clients to catch up on recent activity.
+        History is bounded by HISTORY_LIMIT to prevent unbounded growth.
+
+        Returns:
+            List of message dictionaries in chronological order
+        """
         return list(self.history)
 
     def ensure_writers_layout(self) -> None:
@@ -111,6 +136,7 @@ class TaskStreamState:
             return
         DynamicLayout.reset()
         from cube.core.user_config import load_config
+
         config = load_config()
         writer_boxes = {key: writer.label for key, writer in config.writers.items()}
         # ----------------------------------------------------------------------
@@ -151,6 +177,7 @@ class TaskStreamState:
             return
         DynamicLayout.reset()
         from cube.core.user_config import load_config
+
         config = load_config()
         judge_boxes = {key: judge.label for key, judge in config.judges.items()}
         layout = SSELayout(self.task_id, judge_boxes, self.queue)
@@ -241,13 +268,14 @@ router = APIRouter(prefix="/tasks", tags=["stream"])
 async def stream_task(task_id: str) -> StreamingResponse:
     """Stream task events by tailing log files in real-time (sorted by mtime for chronological order)."""
     from pathlib import Path
-    from cube.automation.stream import format_stream_message, ThinkingBuffer
+
+    from cube.automation.stream import ThinkingBuffer, format_stream_message
     from cube.core.parsers.registry import get_parser
     from cube.core.user_config import load_config
-    
+
     logs_dir = Path.home() / ".cube" / "logs"
     parser = get_parser("cursor-agent")
-    
+
     # Load config for agent labels
     try:
         config = load_config()
@@ -259,23 +287,27 @@ async def stream_task(task_id: str) -> StreamingResponse:
 
     async def event_stream() -> AsyncGenerator[str, None]:
         yield _format_sse({"type": "heartbeat", "taskId": task_id, "timestamp": _now_iso()})
-        
+
         file_positions: dict[str, int] = {}
         thinking_buffer = ThinkingBuffer(max_line_len=94)
-        
+
         try:
             while True:
                 # Sort by modification time to preserve chronological order
-                current_logs = sorted(logs_dir.glob(f"*{task_id}*.json"), key=lambda f: f.stat().st_mtime) if logs_dir.exists() else []
-                
+                current_logs = (
+                    sorted(logs_dir.glob(f"*{task_id}*.json"), key=lambda f: f.stat().st_mtime)
+                    if logs_dir.exists()
+                    else []
+                )
+
                 for log_file in current_logs:
                     if not log_file.exists():
                         continue
-                    
+
                     # Detect agent info from filename with config-based labels
                     filename = str(log_file.name)
                     agent_info = None
-                    
+
                     for writer in writers:
                         if f"writer-{writer.name}" in filename:
                             agent_info = (writer.key, writer.label, writer.color)
@@ -283,20 +315,20 @@ async def stream_task(task_id: str) -> StreamingResponse:
                         if f"synth-{writer.name}" in filename:
                             agent_info = (f"synth-{writer.key}", f"Synth {writer.label}", writer.color)
                             break
-                    
+
                     if not agent_info:
                         for judge in judges:
                             if judge.key in filename or judge.key.replace("_", "-") in filename:
                                 agent_info = (judge.key, judge.label, judge.color)
                                 break
-                    
+
                     if not agent_info:
                         continue
-                        
+
                     box_id, agent_label, color = agent_info
-                    
+
                     pos = file_positions.get(str(log_file), 0)
-                    
+
                     try:
                         with open(log_file) as f:
                             f.seek(pos)
@@ -304,44 +336,48 @@ async def stream_task(task_id: str) -> StreamingResponse:
                                 line = line.strip()
                                 if not line:
                                     continue
-                                
+
                                 # Use CLI parser
                                 msg = parser.parse(line)
                                 if not msg:
                                     continue
-                                
+
                                 # Handle thinking/assistant content using shared buffer
                                 if msg.type in ("thinking", "assistant") and msg.content:
                                     flushed = thinking_buffer.add(box_id, msg.content)
                                     if flushed:
-                                        yield _format_sse({
-                                            "type": "thinking",
-                                            "box": box_id,
-                                            "agent": agent_label,
-                                            "agentColor": color,
-                                            "text": flushed,
-                                            "timestamp": _now_iso()
-                                        })
+                                        yield _format_sse(
+                                            {
+                                                "type": "thinking",
+                                                "box": box_id,
+                                                "agent": agent_label,
+                                                "agentColor": color,
+                                                "text": flushed,
+                                                "timestamp": _now_iso(),
+                                            }
+                                        )
                                 elif msg.type not in ("thinking", "assistant"):
                                     # Use CLI formatter for output
                                     formatted = format_stream_message(msg, agent_label, color)
                                     if formatted and not formatted.startswith("[thinking]"):
                                         plain = _strip_rich_markup(formatted)
                                         plain = _strip_agent_prefix(plain, agent_label)
-                                        yield _format_sse({
-                                            "type": "output",
-                                            "agent": agent_label,
-                                            "agentColor": color,
-                                            "content": plain,
-                                            "timestamp": _now_iso()
-                                        })
-                            
+                                        yield _format_sse(
+                                            {
+                                                "type": "output",
+                                                "agent": agent_label,
+                                                "agentColor": color,
+                                                "content": plain,
+                                                "timestamp": _now_iso(),
+                                            }
+                                        )
+
                             file_positions[str(log_file)] = f.tell()
                     except (IOError, json.JSONDecodeError):
                         pass
-                
+
                 await asyncio.sleep(0.5)
-                
+
                 if len(file_positions) == 0:
                     yield _format_sse({"type": "heartbeat", "taskId": task_id, "timestamp": _now_iso()})
         except asyncio.CancelledError:
