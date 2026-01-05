@@ -285,7 +285,8 @@ class BaseThinkingLayout:
         """Mark a thinking box as complete.
 
         Change the box's visual state to indicate processing is finished,
-        displaying a green checkmark and optional status message.
+        displaying a green checkmark and optional status message. Automatically
+        flushes any pending buffers for this box.
 
         Args:
             box_id: The identifier of the box to mark complete
@@ -295,7 +296,7 @@ class BaseThinkingLayout:
             if box_id in self.completed:
                 self.completed[box_id] = True
                 self.completion_status[box_id] = status
-                self._refresh()
+        self.flush_buffers()
 
     def flush_buffers(self) -> None:
         """Flush all pending text buffers to the display.
