@@ -53,7 +53,7 @@ class CLIReviewAdapter(CLIAdapter):
         orch_model = model
 
         if not self.writer_worktrees:
-            yield json.dumps({"type": "assistant", "content": "ERROR: No writer worktrees configured for CLI review"})
+            yield json.dumps({"type": "assistant", "content": "ERROR: No writer worktrees configured for CLI review\n"})
             return
 
         # Run tool on writers with real-time streaming
@@ -152,11 +152,11 @@ class CLIReviewAdapter(CLIAdapter):
             review_files[writer] = str(review_file)  # Absolute path for synthesis agent
 
         yield json.dumps(
-            {"type": "assistant", "content": f"📁 Saved review output to {reviews_dir.relative_to(worktree)}"}
+            {"type": "assistant", "content": f"📁 Saved review output to {reviews_dir.relative_to(worktree)}\n"}
         )
 
         # 3. Run Synthesis Agent
-        yield json.dumps({"type": "assistant", "content": f"🤖 Synthesizing decision with {orch_model}..."})
+        yield json.dumps({"type": "assistant", "content": f"🤖 Synthesizing decision with {orch_model}...\n"})
 
         synthesis_prompt = self._build_synthesis_prompt(prompt, reviews, review_files)
 
