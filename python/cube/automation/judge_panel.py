@@ -9,7 +9,7 @@ from ..core.adapters.registry import get_adapter
 from ..core.config import PROJECT_ROOT, WORKTREE_BASE, get_project_root, get_worktree_path
 from ..core.dynamic_layout import DynamicLayout
 from ..core.git import branch_exists, fetch_branches, get_commit_hash, sync_worktree
-from ..core.output import console, print_error, print_info, print_success, print_warning
+from ..core.output import console, print_error, print_info, print_success
 from ..core.parsers.registry import get_parser
 from ..core.session import load_session, save_session
 from ..core.user_config import get_judge_configs, get_writer_by_key, load_config
@@ -573,17 +573,10 @@ Use absolute path when writing the file. The project root is available in your w
         print_error("Some judges failed:")
         for label, error in errors:
             console.print(f"  {label}: {error}")
+        console.print()
+        failed_names = ", ".join(label for label, _ in errors)
+        raise RuntimeError(f"Judge panel incomplete: {len(errors)} judge(s) failed ({failed_names}). Fix and retry.")
 
-        total_judges = len(judges)
-        failed = len(errors)
-        if failed == total_judges:
-            raise RuntimeError("All judges failed")
-        else:
-            print_warning(f"{failed} judge(s) failed but {total_judges - failed} completed successfully")
-            console.print()
-    else:
-        console.print("✅ All judges completed successfully")
-
+    console.print("✅ All judges completed successfully")
     console.print()
-
     print_success("Judge panel complete!")
