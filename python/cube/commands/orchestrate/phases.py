@@ -193,7 +193,8 @@ Include the worktree location and git commands for reviewing."""
 
     print_info(f"Launching peer review for Winner: {winner_cfg.label}")
     # In single writer mode, run ALL judges (not just peer_review_only)
-    review_type = "panel" if run_all_judges else "peer-review"
+    # "all" falls through to default case which includes all judges
+    review_type = "all" if run_all_judges else "peer-review"
     await launch_judge_panel(task_id, peer_review_path, review_type, resume_mode=False, winner=result["winner"])
 
 
