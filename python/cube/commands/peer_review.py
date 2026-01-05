@@ -89,7 +89,13 @@ def peer_review_command(
             ))
         elif fresh:
             print_info("Launching fresh judge panel for peer review")
-            asyncio.run(launch_judge_panel(task_id, prompt_path, "peer-review", resume_mode=False, winner=winner))
+            # For local branches, run ALL judges (not just peer_review_only)
+            asyncio.run(launch_judge_panel(
+                task_id, prompt_path, "peer-review", 
+                resume_mode=False, 
+                winner=winner,
+                run_all_judges=local
+            ))
         else:
             print_info("Resuming original judge panel for peer review")
             from ..core.session import session_exists
