@@ -527,17 +527,23 @@ def auto(
             force_skip_phase_1 = not resume_from
             task_file = f".prompts/{task_id}.md"
     else:
-        # Verify task file exists before extracting task_id
+        # Extract task_id from filename (works even if file doesn't exist)
+        task_id = extract_task_id_from_file(task_file)
+
+        # Only require file to exist if not resuming from later phase
         from pathlib import Path
 
         task_path = Path(task_file)
-        if not task_path.exists():
+        if task_path.exists():
+            force_skip_phase_1 = False
+        elif resume or resume_from:
+            # Resuming - file not needed, just the task_id
+            force_skip_phase_1 = True
+        else:
+            # Not resuming and file doesn't exist - error
             print_error(f"Task file not found: {task_file}")
             raise typer.Exit(1)
-        task_id = extract_task_id_from_file(task_file)
-        force_skip_phase_1 = False
 
-    # Only save task ID after validation
     set_current_task_id(task_id)
 
     if reset:
