@@ -67,6 +67,7 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
     adapter = get_adapter(cli_name, judge_info.adapter_config)
 
     if is_cli_review:
+        adapter.set_task_id(judge_info.task_id)  # type: ignore[attr-defined]
         adapter.set_writer_worktrees(_get_cli_review_worktrees(judge_info.task_id, winner))  # type: ignore[attr-defined]
 
     parser = get_parser(cli_name)
