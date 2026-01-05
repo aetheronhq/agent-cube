@@ -68,14 +68,22 @@ def _resolve_resume_from(
             current = state.current_phase
             path = getattr(state, "path", None)
 
+            # SINGLE path only has phases 1-5
+            if path == "SINGLE":
+                if current >= 5:
+                    print_success(f"Task {task_id} complete! PR already created.")
+                    parsed_phase = 5
+                else:
+                    parsed_phase = current + 1 if current < 5 else current
+                    console.print(f"[cyan]Auto-resuming from Phase {parsed_phase}[/cyan]")
             # FEEDBACK path only has phases 6-8, loop back if at end
-            if path == "FEEDBACK" and current >= 8:
+            elif path == "FEEDBACK" and current >= 8:
                 parsed_phase = 6
                 console.print(f"[cyan]Auto-resuming from Phase {parsed_phase} (FEEDBACK path loop)[/cyan]")
             # MERGE path ends at phase 7 (PR created)
             elif path == "MERGE" and current >= 7:
                 print_success(f"Task {task_id} complete! PR already created.")
-                parsed_phase = 7  # Will exit immediately
+                parsed_phase = 7
             else:
                 parsed_phase = current + 1 if current < 10 else current
                 console.print(f"[cyan]Auto-resuming from Phase {parsed_phase}[/cyan]")
