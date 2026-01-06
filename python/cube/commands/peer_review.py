@@ -173,9 +173,7 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
     if all_issues:
         console.print(f"[bold]Issues ({len(all_issues)}):[/bold]")
         for judge_name, issue in all_issues[:10]:
-            # Truncate long issues
-            issue_preview = issue[:150] + "..." if len(issue) > 150 else issue
-            console.print(f"  [cyan][{judge_name}][/cyan] [yellow]{issue_preview}[/yellow]")
+            console.print(f"  [cyan][{judge_name}][/cyan] {issue}")
         if len(all_issues) > 10:
             console.print(f"  [dim]... and {len(all_issues) - 10} more[/dim]")
     else:
