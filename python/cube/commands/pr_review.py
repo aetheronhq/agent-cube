@@ -260,13 +260,16 @@ async def run_pr_review(pr_number: int, focus: Optional[str], dry_run: bool, mod
     console.print(f"[bold]Summary:[/bold] {review.summary}")
     console.print()
 
+    # Split comments by severity
+    actionable = [c for c in review.comments if c.severity in ("critical", "warning")]
+    info_comments = [c for c in review.comments if c.severity in ("info", "nitpick")]
+
     if review.comments:
         console.print(f"[bold]Comments ({len(review.comments)}):[/bold]")
         severity_colors = {"critical": "red", "warning": "yellow", "info": "blue", "nitpick": "dim"}
         for c in review.comments:
             color = severity_colors.get(c.severity, "white")
             console.print(f"  [{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
-            # Truncate long comments
             body_preview = c.body[:80] + "..." if len(c.body) > 80 else c.body
             console.print(f"           {body_preview}")
     else:
@@ -274,13 +277,36 @@ async def run_pr_review(pr_number: int, focus: Optional[str], dry_run: bool, mod
 
     console.print()
 
+    # Build summary with positive feedback (info comments not posted inline)
+    summary_with_positives = review.summary
+    if info_comments:
+        positives = "\n\n**Positive observations:**\n" + "\n".join(
+            f"- `{c.path}`: {c.body[:100]}" for c in info_comments[:5]
+        )
+        summary_with_positives += positives
+
+    summary_with_positives += "\n\n---\n🤖 Agent Cube Review"
+
+    # Only post actionable comments (critical/warning) as inline, not info/nitpick
+    review_to_post = Review(
+        decision=review.decision,
+        summary=summary_with_positives,
+        comments=actionable,
+    )
+
     # Post or dry-run
     if dry_run:
         print_warning("Dry run - review NOT posted to GitHub")
+        if info_comments:
+            console.print(f"[dim]({len(info_comments)} info/nitpick comments included in summary, not as inline)[/dim]")
     else:
         print_info("Posting review to GitHub...")
+        if info_comments:
+            console.print(
+                f"[dim]({len(info_comments)} info/nitpick comments in summary, {len(actionable)} inline)[/dim]"
+            )
         try:
-            post_review(pr_number, review, cwd=str(PROJECT_ROOT))
+            post_review(pr_number, review_to_post, cwd=str(PROJECT_ROOT))
             print_success(f"Review posted to PR #{pr_number}")
         except RuntimeError as e:
             print_error(f"Failed to post review: {e}")
