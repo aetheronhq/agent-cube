@@ -107,16 +107,21 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
         else:
             print_info(f"Running {len(judges_to_run)} judges for PR #{pr_number}...")
 
-    asyncio.run(
-        launch_judge_panel(
-            task_id,
-            prompt_path,
-            "peer-review",
-            resume_mode=False,
-            winner=f"LOCAL:{pr.head_branch}",
-            judges_to_run=judges_to_run,
+    try:
+        asyncio.run(
+            launch_judge_panel(
+                task_id,
+                prompt_path,
+                "peer-review",
+                resume_mode=False,
+                winner=f"LOCAL:{pr.head_branch}",
+                judges_to_run=judges_to_run,
+            )
         )
-    )
+    except RuntimeError as e:
+        # Some judges may have failed but others succeeded - continue with partial results
+        print_warning(f"Partial panel failure: {e}")
+        print_info("Continuing with available judge decisions...")
 
     # Aggregate decisions and post to GitHub
     from ..core.decision_parser import get_peer_review_status
@@ -125,6 +130,10 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
 
     total = status["decisions_found"]
     approvals = status["approvals"]
+
+    if total == 0:
+        print_error("No judge decisions found - cannot post review")
+        raise typer.Exit(1)
 
     if status["approved"]:
         decision = "APPROVE"
