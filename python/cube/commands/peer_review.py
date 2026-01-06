@@ -153,10 +153,14 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
     for f in decisions_dir.glob(f"*-{task_id}-peer-review.json"):
         try:
             data = json.loads(f.read_text())
-            judge_name = data.get("judge", f.stem.split("-")[0])
+            judge_key = data.get("judge", f.stem.split("-")[0])
+            from ..core.user_config import get_judge_config
+
+            judge_cfg = get_judge_config(judge_key)
+            judge_label = judge_cfg.label if judge_cfg else judge_key
             issues = data.get("blocker_issues", []) + data.get("remaining_issues", [])
             for issue in issues:
-                all_issues.append((judge_name, issue))
+                all_issues.append((judge_label, issue))
         except (json.JSONDecodeError, OSError):
             pass
 
