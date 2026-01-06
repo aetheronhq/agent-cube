@@ -59,6 +59,7 @@ def peer_review_command(
         prompt_path = temp_path
 
     # Use current branch if --local, otherwise auto-detect winner
+    winner: Optional[str] = None
     if local:
         result = subprocess.run(["git", "branch", "--show-current"], capture_output=True, text=True, cwd=PROJECT_ROOT)
         current_branch = result.stdout.strip()
