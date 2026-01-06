@@ -153,14 +153,15 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
     for f in decisions_dir.glob(f"*-{task_id}-peer-review.json"):
         try:
             data = json.loads(f.read_text())
+            judge_name = data.get("judge", f.stem.split("-")[0])
             issues = data.get("blocker_issues", []) + data.get("remaining_issues", [])
             for issue in issues:
-                all_issues.append(f"- {issue}")
+                all_issues.append((judge_name, issue))
         except (json.JSONDecodeError, OSError):
             pass
 
     if all_issues:
-        summary += "\n\n**Issues found:**\n" + "\n".join(all_issues[:10])
+        summary += "\n\n**Issues found:**\n" + "\n".join(f"- [{j}] {issue}" for j, issue in all_issues[:10])
 
     summary += "\n\n---\n🤖 Agent Cube Peer Review"
 
@@ -171,8 +172,10 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
 
     if all_issues:
         console.print(f"[bold]Issues ({len(all_issues)}):[/bold]")
-        for issue in all_issues[:10]:
-            console.print(f"  [yellow]{issue}[/yellow]")
+        for judge_name, issue in all_issues[:10]:
+            # Truncate long issues
+            issue_preview = issue[:150] + "..." if len(issue) > 150 else issue
+            console.print(f"  [cyan][{judge_name}][/cyan] [yellow]{issue_preview}[/yellow]")
         if len(all_issues) > 10:
             console.print(f"  [dim]... and {len(all_issues) - 10} more[/dim]")
     else:
