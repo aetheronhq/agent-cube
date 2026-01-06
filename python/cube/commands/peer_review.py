@@ -147,13 +147,14 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
     else:
         summary = f"❌ {total} judge(s) requested changes."
 
-    # Collect issues from all decisions
+    # Collect issues from all decisions (check both field names)
     all_issues = []
     decisions_dir = PROJECT_ROOT / ".prompts" / "decisions"
     for f in decisions_dir.glob(f"*-{task_id}-peer-review.json"):
         try:
             data = json.loads(f.read_text())
-            for issue in data.get("blocker_issues", []):
+            issues = data.get("blocker_issues", []) + data.get("remaining_issues", [])
+            for issue in issues:
                 all_issues.append(f"- {issue}")
         except (json.JSONDecodeError, OSError):
             pass
