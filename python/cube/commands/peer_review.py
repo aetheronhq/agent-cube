@@ -135,15 +135,14 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
         print_error("No judge decisions found - cannot post review")
         raise typer.Exit(1)
 
+    # Always COMMENT - never auto-approve, that's for humans
+    decision = "COMMENT"
     if status["approved"]:
-        decision = "APPROVE"
         summary = f"✅ All {approvals}/{total} judges approved this PR."
     elif approvals > 0:
-        decision = "COMMENT"
         summary = f"⚠️ {approvals}/{total} judges approved. Some requested changes."
     else:
-        decision = "REQUEST_CHANGES"
-        summary = f"❌ No judges approved this PR. {total} requested changes."
+        summary = f"❌ {total} judge(s) requested changes."
 
     # Collect issues from all decisions
     all_issues = []
