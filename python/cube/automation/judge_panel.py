@@ -546,13 +546,25 @@ Use absolute path when writing the file. The project root is available in your w
     console.print()
 
     console.print("━" * 60)
-    console.print("[bold yellow]⚖️  JUDGES: Review all writer implementations[/bold yellow]")
-    console.print()
-    for writer_key in config.writer_order:
-        writer_cfg = config.writers[writer_key]
-        console.print(
-            f"{writer_cfg.label}: [green]~/.cube/worktrees/{project_name}/writer-{writer_cfg.name}-{task_id}/[/green]"
-        )
+    if review_type == "peer-review" and winner:
+        console.print("[bold yellow]⚖️  JUDGES: Peer review winning implementation[/bold yellow]")
+        console.print()
+        if winner.startswith("LOCAL:"):
+            branch_name = winner.replace("LOCAL:", "")
+            console.print(f"Local branch: [green]{branch_name}[/green]")
+        else:
+            winner_cfg = get_writer_by_key(winner)
+            console.print(
+                f"{winner_cfg.label}: [green]~/.cube/worktrees/{project_name}/writer-{winner_cfg.name}-{task_id}/[/green]"
+            )
+    else:
+        console.print("[bold yellow]⚖️  JUDGES: Review all writer implementations[/bold yellow]")
+        console.print()
+        for writer_key in config.writer_order:
+            writer_cfg = config.writers[writer_key]
+            console.print(
+                f"{writer_cfg.label}: [green]~/.cube/worktrees/{project_name}/writer-{writer_cfg.name}-{task_id}/[/green]"
+            )
     console.print()
     console.print("Use your native tools (read_file, git commands, etc.)")
     console.print("━" * 60)
