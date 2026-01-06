@@ -260,9 +260,9 @@ async def run_pr_review(pr_number: int, focus: Optional[str], dry_run: bool, mod
     console.print(f"[bold]Summary:[/bold] {review.summary}")
     console.print()
 
-    # Split comments by severity
-    actionable = [c for c in review.comments if c.severity in ("critical", "warning")]
-    info_comments = [c for c in review.comments if c.severity in ("info", "nitpick")]
+    # Split comments by severity - post actionable + nitpicks, info goes in summary
+    actionable = [c for c in review.comments if c.severity in ("critical", "warning", "nitpick")]
+    info_comments = [c for c in review.comments if c.severity == "info"]
 
     if review.comments:
         console.print(f"[bold]Comments ({len(review.comments)}):[/bold]")
@@ -287,7 +287,7 @@ async def run_pr_review(pr_number: int, focus: Optional[str], dry_run: bool, mod
 
     summary_with_positives += "\n\n---\n🤖 Agent Cube Review"
 
-    # Only post actionable comments (critical/warning) as inline, not info/nitpick
+    # Only post actionable comments (critical/warning/nitpick) as inline, not info
     review_to_post = Review(
         decision=review.decision,
         summary=summary_with_positives,
@@ -298,13 +298,11 @@ async def run_pr_review(pr_number: int, focus: Optional[str], dry_run: bool, mod
     if dry_run:
         print_warning("Dry run - review NOT posted to GitHub")
         if info_comments:
-            console.print(f"[dim]({len(info_comments)} info/nitpick comments included in summary, not as inline)[/dim]")
+            console.print(f"[dim]({len(info_comments)} info comments included in summary, not as inline)[/dim]")
     else:
         print_info("Posting review to GitHub...")
         if info_comments:
-            console.print(
-                f"[dim]({len(info_comments)} info/nitpick comments in summary, {len(actionable)} inline)[/dim]"
-            )
+            console.print(f"[dim]({len(info_comments)} info comments in summary, {len(actionable)} inline)[/dim]")
         try:
             post_review(pr_number, review_to_post, cwd=str(PROJECT_ROOT))
             print_success(f"Review posted to PR #{pr_number}")
