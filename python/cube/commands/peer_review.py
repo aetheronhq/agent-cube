@@ -32,7 +32,7 @@ def _get_winner_from_aggregated(task_id: str) -> Optional[str]:
         return None
 
 
-def _run_pr_review(pr_number: int, dry_run: bool = False) -> None:
+def _run_pr_review(pr_number: int, dry_run: bool = False, include_cli: bool = False) -> None:
     """Run peer review on a GitHub PR with full judge panel."""
     from ..github.pulls import check_gh_installed, fetch_pr
     from ..github.reviews import Review, post_review
@@ -92,9 +92,21 @@ Focus on:
 If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
 """)
 
-    print_info(f"Running full judge panel for PR #{pr_number}...")
+    # Get judges, optionally excluding cli-review types (like CodeRabbit)
+    from ..core.user_config import get_judge_configs
 
-    # Run judge panel with all judges
+    all_judges = get_judge_configs()
+    if include_cli:
+        judges_to_run = all_judges
+        print_info(f"Running full judge panel ({len(judges_to_run)} judges) for PR #{pr_number}...")
+    else:
+        judges_to_run = [j for j in all_judges if j.type != "cli-review"]
+        excluded = len(all_judges) - len(judges_to_run)
+        if excluded:
+            print_info(f"Running {len(judges_to_run)} judges for PR #{pr_number} (excluding {excluded} cli-review)")
+        else:
+            print_info(f"Running {len(judges_to_run)} judges for PR #{pr_number}...")
+
     asyncio.run(
         launch_judge_panel(
             task_id,
@@ -102,7 +114,7 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
             "peer-review",
             resume_mode=False,
             winner=f"LOCAL:{pr.head_branch}",
-            run_all_judges=True,
+            judges_to_run=judges_to_run,
         )
     )
 
@@ -162,6 +174,7 @@ def peer_review_command(
     local: bool = False,
     pr: Optional[int] = None,
     dry_run: bool = False,
+    include_cli: bool = False,
 ) -> None:
     """Resume original judges from initial panel for peer review.
 
@@ -178,7 +191,7 @@ def peer_review_command(
 
     # Handle --pr mode separately
     if pr is not None:
-        _run_pr_review(pr, dry_run=dry_run)
+        _run_pr_review(pr, dry_run=dry_run, include_cli=include_cli)
         return
 
     if not check_cursor_agent():

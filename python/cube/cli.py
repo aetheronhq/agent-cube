@@ -235,6 +235,9 @@ def peer_review(
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Show review but don't post to GitHub (with --pr)")
     ] = False,
+    include_cli: Annotated[
+        bool, typer.Option("--include-cli", help="Include cli-review judges like CodeRabbit (with --pr)")
+    ] = False,
 ):
     """Resume judge panel for peer review of winner's implementation."""
     from pathlib import Path
@@ -243,7 +246,7 @@ def peer_review(
 
     # Handle --pr mode: run full panel on GitHub PR
     if pr is not None:
-        peer_review_command("", "", pr=pr, dry_run=dry_run)
+        peer_review_command("", "", pr=pr, dry_run=dry_run, include_cli=include_cli)
         return
 
     env_task_id = resolve_task_id(None)
