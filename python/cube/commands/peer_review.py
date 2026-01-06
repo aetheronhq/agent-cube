@@ -123,15 +123,18 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
 
     status = get_peer_review_status(task_id, project_root=PROJECT_ROOT)
 
+    total = status["decisions_found"]
+    approvals = status["approvals"]
+
     if status["approved"]:
         decision = "APPROVE"
-        summary = f"✅ All {status['approvals']}/{status['total']} judges approved this PR."
-    elif status["approvals"] > 0:
+        summary = f"✅ All {approvals}/{total} judges approved this PR."
+    elif approvals > 0:
         decision = "COMMENT"
-        summary = f"⚠️ {status['approvals']}/{status['total']} judges approved. Some requested changes."
+        summary = f"⚠️ {approvals}/{total} judges approved. Some requested changes."
     else:
         decision = "REQUEST_CHANGES"
-        summary = f"❌ No judges approved this PR. {status['total']} requested changes."
+        summary = f"❌ No judges approved this PR. {total} requested changes."
 
     # Collect issues from all decisions
     all_issues = []
