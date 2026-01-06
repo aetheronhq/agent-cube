@@ -14,6 +14,7 @@ from .commands.logs import logs_command
 from .commands.orchestrate import extract_task_id_from_file, orchestrate_auto_command, orchestrate_prompt_command
 from .commands.panel import panel_command
 from .commands.peer_review import peer_review_command
+from .commands.pr_review import pr_review_command
 from .commands.resume import resume_command
 from .commands.run import run_command
 from .commands.sessions import sessions_command
@@ -614,6 +615,19 @@ def continue_task(
     except Exception as e:
         _print_error(e)
         sys.exit(1)
+
+
+@app.command(name="pr-review")
+def pr_review(
+    pr_number: Annotated[int, typer.Argument(help="PR number to review")],
+    focus: Annotated[
+        Optional[str], typer.Option("--focus", "-f", help="Focus area (security, performance, tests)")
+    ] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview without posting")] = False,
+    model: Annotated[Optional[str], typer.Option("--model", "-m", help="Model to use")] = None,
+):
+    """Review a GitHub PR and post inline comments."""
+    pr_review_command(pr_number, focus, dry_run, model)
 
 
 if __name__ == "__main__":
