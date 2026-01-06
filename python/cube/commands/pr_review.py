@@ -138,10 +138,14 @@ def parse_review_output(output: str) -> Optional[Review]:
         comments = []
         for c in data.get("comments", []):
             if "path" in c and "line" in c and "body" in c:
+                try:
+                    line_num = int(c["line"])
+                    if line_num <= 0:
+                        continue
+                except (ValueError, TypeError):
+                    continue
                 comments.append(
-                    ReviewComment(
-                        path=c["path"], line=int(c["line"]), body=c["body"], severity=c.get("severity", "info")
-                    )
+                    ReviewComment(path=c["path"], line=line_num, body=c["body"], severity=c.get("severity", "info"))
                 )
 
         return Review(
