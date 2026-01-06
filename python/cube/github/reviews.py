@@ -84,7 +84,8 @@ def _post_review_with_comments(pr_number: int, review: Review, body: str, cwd: O
     api_comments = []
     for c in review.comments:
         severity_prefix = f"**[{c.severity.upper()}]** " if c.severity != "info" else ""
-        api_comments.append({"path": c.path, "line": c.line, "body": f"{severity_prefix}{c.body}"})
+        comment_body = f"{severity_prefix}{c.body}\n\n— 🤖 *Agent Cube*"
+        api_comments.append({"path": c.path, "line": c.line, "body": comment_body})
 
     event_map = {
         "APPROVE": "APPROVE",
