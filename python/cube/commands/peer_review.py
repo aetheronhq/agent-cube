@@ -32,7 +32,7 @@ def _get_winner_from_aggregated(task_id: str) -> Optional[str]:
         return None
 
 
-def _run_pr_review(pr_number: int, dry_run: bool = False, include_cli: bool = False) -> None:
+def _run_pr_review(pr_number: int, dry_run: bool = False, include_cli: bool = False, skip_agents: bool = False) -> None:
     """Run peer review on a GitHub PR with full judge panel."""
     from ..github.pulls import check_gh_installed, fetch_pr
     from ..github.reviews import Review, post_review
@@ -92,36 +92,39 @@ Focus on:
 If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
 """)
 
-    # Get judges, optionally excluding cli-review types (like CodeRabbit)
-    from ..core.user_config import get_judge_configs
-
-    all_judges = get_judge_configs()
-    if include_cli:
-        judges_to_run = all_judges
-        print_info(f"Running full judge panel ({len(judges_to_run)} judges) for PR #{pr_number}...")
+    if skip_agents:
+        print_info(f"Skipping agents, using existing decisions for PR #{pr_number}...")
     else:
-        judges_to_run = [j for j in all_judges if j.type != "cli-review"]
-        excluded = len(all_judges) - len(judges_to_run)
-        if excluded:
-            print_info(f"Running {len(judges_to_run)} judges for PR #{pr_number} (excluding {excluded} cli-review)")
-        else:
-            print_info(f"Running {len(judges_to_run)} judges for PR #{pr_number}...")
+        # Get judges, optionally excluding cli-review types (like CodeRabbit)
+        from ..core.user_config import get_judge_configs
 
-    try:
-        asyncio.run(
-            launch_judge_panel(
-                task_id,
-                prompt_path,
-                "peer-review",
-                resume_mode=False,
-                winner=f"LOCAL:{pr.head_branch}",
-                judges_to_run=judges_to_run,
+        all_judges = get_judge_configs()
+        if include_cli:
+            judges_to_run = all_judges
+            print_info(f"Running full judge panel ({len(judges_to_run)} judges) for PR #{pr_number}...")
+        else:
+            judges_to_run = [j for j in all_judges if j.type != "cli-review"]
+            excluded = len(all_judges) - len(judges_to_run)
+            if excluded:
+                print_info(f"Running {len(judges_to_run)} judges for PR #{pr_number} (excluding {excluded} cli-review)")
+            else:
+                print_info(f"Running {len(judges_to_run)} judges for PR #{pr_number}...")
+
+        try:
+            asyncio.run(
+                launch_judge_panel(
+                    task_id,
+                    prompt_path,
+                    "peer-review",
+                    resume_mode=False,
+                    winner=f"LOCAL:{pr.head_branch}",
+                    judges_to_run=judges_to_run,
+                )
             )
-        )
-    except RuntimeError as e:
-        # Some judges may have failed but others succeeded - continue with partial results
-        print_warning(f"Partial panel failure: {e}")
-        print_info("Continuing with available judge decisions...")
+        except RuntimeError as e:
+            # Some judges may have failed but others succeeded - continue with partial results
+            print_warning(f"Partial panel failure: {e}")
+            print_info("Continuing with available judge decisions...")
 
     # Aggregate decisions and post to GitHub
     from ..core.decision_parser import get_peer_review_status
@@ -196,6 +199,7 @@ def peer_review_command(
     pr: Optional[int] = None,
     dry_run: bool = False,
     include_cli: bool = False,
+    skip_agents: bool = False,
 ) -> None:
     """Resume original judges from initial panel for peer review.
 
@@ -207,12 +211,13 @@ def peer_review_command(
         local: Review current git branch instead of cube-managed worktree
         pr: GitHub PR number to review (runs full panel and posts review)
         dry_run: Show review but don't post to GitHub (only with --pr)
+        skip_agents: Skip running agents, use existing decision files
     """
     import subprocess
 
     # Handle --pr mode separately
     if pr is not None:
-        _run_pr_review(pr, dry_run=dry_run, include_cli=include_cli)
+        _run_pr_review(pr, dry_run=dry_run, include_cli=include_cli, skip_agents=skip_agents)
         return
 
     if not check_cursor_agent():
