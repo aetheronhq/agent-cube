@@ -341,9 +341,50 @@ pr_review:
 
 ## Future Enhancements
 
-- `cube pr-watch`: Continuously monitor PRs and auto-fix/review as they come in
-- Webhooks: Trigger reviews automatically on PR open
+### 🔥 Killer Feature: `cube pr-watch`
+
+Daemon mode that runs continuously and handles the full PR lifecycle automatically:
+
+```bash
+# Start watching all PRs in current repo
+cube pr-watch
+
+# Watch specific PRs only
+cube pr-watch --mine          # Only your PRs (fix comments)
+cube pr-watch --others        # Only others' PRs (review them)
+cube pr-watch --pr 123,456    # Specific PR numbers
+```
+
+**What it does:**
+- **New PR opened by others** → Auto-review with `pr-review`
+- **Comment on your PR** → Auto-fix with `--fix-comments`
+- **PR approved** → Notify you / auto-merge if configured
+- **CI fails** → Attempt auto-fix of failing tests
+
+**Implementation options:**
+1. **Polling**: Check every N minutes via `gh api`
+2. **Webhooks**: GitHub App that receives events in real-time
+3. **GitHub Actions**: Workflow that triggers on PR events
+
+**Config:**
+```yaml
+pr_watch:
+  poll_interval: 300          # Check every 5 minutes
+  auto_review: true           # Review new PRs automatically
+  auto_fix: true              # Fix comments on your PRs
+  auto_merge: false           # Don't auto-merge (require human approval)
+  notify: slack               # Send notifications to Slack
+```
+
+Set it up once, let Agent Cube handle the PR dance while you focus on writing code.
+
+---
+
+### Other Ideas
+
+- `--complement` mode for `pr-review` that avoids duplicating CodeRabbit's checks
 - Learning from past reviews to improve quality
 - Batch mode: `cube auto --fix-comments --all` for all open PRs
 - Cross-repo reviews with `cube pr-review owner/repo#123`
+- Integration with Slack/Discord for notifications
 
