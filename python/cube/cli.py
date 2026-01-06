@@ -231,11 +231,20 @@ def peer_review(
     fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False,
     judge: Annotated[Optional[str], typer.Option("--judge", "-j", help="Run only this judge (e.g., judge_4)")] = None,
     local: Annotated[bool, typer.Option("--local", "-l", help="Review current branch (not cube-managed)")] = False,
+    pr: Annotated[Optional[int], typer.Option("--pr", help="GitHub PR number to review with full panel")] = None,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show review but don't post to GitHub (with --pr)")
+    ] = False,
 ):
     """Resume judge panel for peer review of winner's implementation."""
     from pathlib import Path
 
     from .core.config import resolve_task_id, set_current_task_id
+
+    # Handle --pr mode: run full panel on GitHub PR
+    if pr is not None:
+        peer_review_command("", "", pr=pr, dry_run=dry_run)
+        return
 
     env_task_id = resolve_task_id(None)
     resolved_task_id: str | None = None
