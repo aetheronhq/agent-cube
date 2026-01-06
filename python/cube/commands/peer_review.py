@@ -163,6 +163,16 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
     console.print()
     console.print(f"[bold]Decision:[/bold] {decision}")
     console.print(f"[bold]Summary:[/bold] {summary[:200]}...")
+    console.print()
+
+    if all_issues:
+        console.print(f"[bold]Issues ({len(all_issues)}):[/bold]")
+        for issue in all_issues[:10]:
+            console.print(f"  [yellow]{issue}[/yellow]")
+        if len(all_issues) > 10:
+            console.print(f"  [dim]... and {len(all_issues) - 10} more[/dim]")
+    else:
+        console.print("[dim]No blocking issues found[/dim]")
 
     if dry_run:
         print_warning("Dry run - review NOT posted to GitHub")
