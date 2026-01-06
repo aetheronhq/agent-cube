@@ -129,8 +129,10 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
     await send_feedback_async(winner_cfg.name, task_id, synthesis_path, session_id, worktree)
 
 
-async def run_peer_review(task_id: str, result: dict, prompts_dir: Path, run_all_judges: bool = False):
-    """Phase 7: Run peer review. Set run_all_judges=True for single writer mode."""
+async def run_peer_review(
+    task_id: str, result: dict, prompts_dir: Path, run_all_judges: bool = False, judges_to_run: list = None
+):
+    """Phase 7: Run peer review. Set run_all_judges=True for single writer mode, or pass specific judges_to_run."""
     from ...core.single_layout import SingleAgentLayout
     from ...core.user_config import get_writer_by_key
 
@@ -192,7 +194,6 @@ Include the worktree location and git commands for reviewing."""
             layout.close()
 
     print_info(f"Launching peer review for Winner: {winner_cfg.label}")
-    # Use peer-review prompt style (single writer focus), but optionally run ALL judges
     await launch_judge_panel(
         task_id,
         peer_review_path,
@@ -200,6 +201,7 @@ Include the worktree location and git commands for reviewing."""
         resume_mode=False,
         winner=result["winner"],
         run_all_judges=run_all_judges,
+        judges_to_run=judges_to_run,
     )
 
 

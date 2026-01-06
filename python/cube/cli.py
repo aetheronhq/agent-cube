@@ -58,8 +58,6 @@ def _resolve_resume_from(
     task_id: str, resume_flag: bool, resume_from_value: Optional[str]
 ) -> tuple[int, Optional[str]]:
     """Determine final phase number to resume from. Returns (phase, original_alias)."""
-    from .commands.orchestrate.phases_registry import get_max_phase
-
     parsed_phase, original_alias = _parse_resume_option(resume_from_value)
 
     if resume_flag and parsed_phase is None:
@@ -68,17 +66,11 @@ def _resolve_resume_from(
         state = load_state(task_id)
         if state:
             current = state.current_phase
-            path = getattr(state, "path", None) or "DUAL"
-
-            max_phase = get_max_phase(path) if path in ("SINGLE", "MERGE", "FEEDBACK", "SYNTHESIS") else 10
+            max_phase = 10  # Unified workflow always has 10 phases
 
             if current >= max_phase:
-                if path == "FEEDBACK":
-                    parsed_phase = 6
-                    console.print(f"[cyan]Auto-resuming from Phase {parsed_phase} (FEEDBACK path loop)[/cyan]")
-                else:
-                    print_success(f"Task {task_id} complete!")
-                    parsed_phase = max_phase
+                print_success(f"Task {task_id} complete!")
+                parsed_phase = max_phase
             else:
                 parsed_phase = current + 1
                 console.print(f"[cyan]Auto-resuming from Phase {parsed_phase}[/cyan]")

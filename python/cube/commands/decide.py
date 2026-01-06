@@ -186,11 +186,13 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
     console.print("━" * 60)
     console.print()
 
-    action_color = "green" if result["next_action"] == "MERGE" else "yellow"
-    console.print(f"[bold {action_color}]Next Action: {result['next_action']}[/bold {action_color}]")
+    all_approved = result.get("all_approved", False)
+    action_color = "green" if all_approved else "yellow"
+    action_text = "SYNTHESIS (all approved)" if all_approved else result["next_action"]
+    console.print(f"[bold {action_color}]Next Action: {action_text}[/bold {action_color}]")
     console.print()
 
-    if result["next_action"] == "MERGE":
+    if result["next_action"] == "SYNTHESIS" and all_approved:
         from ..core.user_config import get_writer_by_key
 
         winner_cfg = get_writer_by_key(result["winner"])
@@ -200,6 +202,12 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
         console.print(f"  git checkout writer-{winner_cfg.name}/{task_id}")
         console.print(f"  git push -u origin writer-{winner_cfg.name}/{task_id}")
         console.print(f"  gh pr create --base main --title 'feat: {task_id}' --fill")
+
+    elif result["next_action"] == "SYNTHESIS" and result.get("winner") == "TIE":
+        console.print("[yellow]TIE - Both writers need feedback[/yellow]")
+        console.print("Next resume will automatically:")
+        console.print("  • Generate feedback for both writers")
+        console.print("  • Prompt you to re-run panel review")
 
     elif result["next_action"] == "SYNTHESIS":
         from ..core.user_config import get_writer_by_key
@@ -211,11 +219,6 @@ def decide_command(task_id: str, review_type: str = "auto") -> None:
         console.print(f"  • Send feedback: cube feedback {winner_cfg.name} {task_id} ...")
         console.print("  • Re-run peer review afterwards")
         console.print("Only run these manually if you need to intervene mid-flow.")
-
-    elif result["next_action"] == "FEEDBACK":
-        console.print("Major changes needed:")
-        console.print("  1. Create feedback for both writers")
-        console.print(f"  2. Resume with: cube feedback <writer> {task_id} .prompts/feedback-{task_id}.md")
 
     console.print()
 

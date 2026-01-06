@@ -1,42 +1,33 @@
 """Workflow executor for state machine pattern."""
 
 from ...core.master_log import get_master_log
-from ...core.output import console, print_error, print_success
+from ...core.output import console, print_success
 from ...core.state import update_phase
-from .phases_registry import Phase, PhaseResult, WorkflowContext, WorkflowType, get_workflow
+from .phases_registry import PhaseResult, WorkflowContext, get_phases
 
 
-async def execute_workflow(
-    workflow_type: WorkflowType | str,
-    ctx: WorkflowContext,
-) -> PhaseResult:
-    """Execute a workflow from the specified resume point.
+async def execute_workflow(ctx: WorkflowContext) -> PhaseResult:
+    """Execute workflow from the specified resume point."""
+    is_single = ctx.writer_key is not None
 
-    Args:
-        workflow_type: The type of workflow to execute
-        ctx: Workflow context with task info and state
-
-    Returns:
-        PhaseResult indicating success/failure and any workflow transitions
-    """
-    workflow = get_workflow(workflow_type)
-    if not workflow:
-        print_error(f"Unknown workflow type: {workflow_type}")
-        return PhaseResult(success=False, exit=True, exit_message=f"Unknown workflow: {workflow_type}")
+    if is_single:
+        console.print("[bold cyan]🤖 Agent Cube Single-Writer Mode[/bold cyan]")
+        console.print(f"Task: {ctx.task_id}")
+        console.print(f"Writer: {ctx.writer_key}")
+    else:
+        console.print("[bold cyan]🤖 Agent Cube Dual-Writer Mode[/bold cyan]")
+        console.print(f"Task: {ctx.task_id}")
 
     master_log = get_master_log()
 
-    def log_phase(phase_num: int, phase_name: str) -> None:
-        if master_log:
-            master_log.write_phase_start(phase_num, phase_name)
-
-    for phase in workflow:
+    for phase in get_phases():
         if phase.num < ctx.resume_from:
             continue
 
         console.print()
         console.print(f"[yellow]═══ Phase {phase.num}: {phase.name} ═══[/yellow]")
-        log_phase(phase.num, phase.name)
+        if master_log:
+            master_log.write_phase_start(phase.num, phase.name)
 
         result = await phase.handler(ctx)
 
@@ -52,35 +43,5 @@ async def execute_workflow(
                 console.print(result.exit_message)
             return result
 
-        if result.next_workflow:
-            return await execute_workflow(result.next_workflow, ctx)
-
+    print_success("🎉 Workflow complete!")
     return PhaseResult(success=True)
-
-
-async def execute_single_workflow(ctx: WorkflowContext) -> PhaseResult:
-    """Execute single-writer workflow."""
-    console.print("[bold cyan]🤖 Agent Cube Single-Writer Orchestration[/bold cyan]")
-    console.print(f"Task: {ctx.task_id}")
-    console.print(f"Writer: {ctx.writer_key}")
-
-    result = await execute_workflow(WorkflowType.SINGLE, ctx)
-
-    if result.success and not result.exit:
-        print_success("🎉 Single-writer workflow complete!")
-
-    return result
-
-
-async def execute_dual_workflow(ctx: WorkflowContext) -> PhaseResult:
-    """Execute dual-writer workflow."""
-    console.print("[bold cyan]🤖 Agent Cube Autonomous Orchestration[/bold cyan]")
-    console.print(f"Task: {ctx.task_id}")
-
-    result = await execute_workflow(WorkflowType.DUAL, ctx)
-
-    if result.success and not result.exit:
-        print_success("🎉 Autonomous workflow complete!")
-
-    return result
-

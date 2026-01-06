@@ -270,17 +270,22 @@ def aggregate_decisions(decisions: List[JudgeDecision]) -> Dict[str, Any]:
         winner = sorted_winners[0][0]
         has_clear_winner = sorted_winners[0][1] >= 2
 
+    # Determine next action - always SYNTHESIS
+    # all_approved flag indicates synthesis phase can skip itself
+    # TIE case handled in synthesis phase (generates feedback, prompts re-run)
+    all_approved = False
     if winner == "TIE":
-        next_action = "FEEDBACK"  # Both writers need changes
+        next_action = "SYNTHESIS"  # TIE - phase 6 handles feedback
     elif has_clear_winner and all_blockers:
         next_action = "SYNTHESIS"  # Winner needs changes
     elif has_clear_winner and not all_blockers:
-        next_action = "MERGE"  # Winner is ready
+        next_action = "SYNTHESIS"  # Winner ready - synthesis will skip
+        all_approved = True
     elif approvals >= 2 and not all_blockers:
-        next_action = "MERGE"  # Majority approved
+        next_action = "SYNTHESIS"  # Majority approved - synthesis will skip
+        all_approved = True
     else:
-        # Fallback: not has_clear_winner or other edge cases
-        next_action = "FEEDBACK"
+        next_action = "SYNTHESIS"  # Edge case - phase 6 will handle
 
     result = {
         "consensus": approvals >= 2,
@@ -289,6 +294,7 @@ def aggregate_decisions(decisions: List[JudgeDecision]) -> Dict[str, Any]:
         "winner_votes": winner_votes,
         "blocker_issues": all_blockers,
         "next_action": next_action,
+        "all_approved": all_approved,
         "decisions": decisions,
     }
     result.update(avg_scores)
