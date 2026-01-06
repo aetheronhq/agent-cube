@@ -32,8 +32,11 @@ def _get_winner_from_aggregated(task_id: str) -> Optional[str]:
         return None
 
 
-def _run_pr_review(pr_number: int, dry_run: bool = False, include_cli: bool = False, skip_agents: bool = False) -> None:
+def _run_pr_review(
+    pr_number: int, dry_run: bool = False, include_cli: bool = False, skip_agents: bool = False, fresh: bool = False
+) -> None:
     """Run peer review on a GitHub PR with full judge panel."""
+    from ..core.session import load_session
     from ..github.pulls import check_gh_installed, fetch_pr
     from ..github.reviews import Review, post_review
 
@@ -101,14 +104,32 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
         all_judges = get_judge_configs()
         if include_cli:
             judges_to_run = all_judges
-            print_info(f"Running full judge panel ({len(judges_to_run)} judges) for PR #{pr_number}...")
         else:
             judges_to_run = [j for j in all_judges if j.type != "cli-review"]
-            excluded = len(all_judges) - len(judges_to_run)
-            if excluded:
-                print_info(f"Running {len(judges_to_run)} judges for PR #{pr_number} (excluding {excluded} cli-review)")
+
+        # Check for existing sessions to resume (unless --fresh)
+        resume_mode = False
+        if not fresh:
+            sessions_found = []
+            for jconfig in judges_to_run:
+                if jconfig.type == "cli-review":
+                    continue
+                if load_session(jconfig.key.upper(), f"{task_id}_peer-review"):
+                    sessions_found.append(jconfig.label)
+
+            if sessions_found:
+                resume_mode = True
+                print_info(f"Resuming {len(sessions_found)} judge session(s) for PR #{pr_number}...")
+                for label in sessions_found:
+                    console.print(f"  [dim]→ {label}[/dim]")
             else:
-                print_info(f"Running {len(judges_to_run)} judges for PR #{pr_number}...")
+                print_info(f"Starting fresh judge panel ({len(judges_to_run)} judges) for PR #{pr_number}...")
+        else:
+            print_info(f"Starting fresh judge panel ({len(judges_to_run)} judges) for PR #{pr_number}...")
+
+        excluded = len(all_judges) - len(judges_to_run)
+        if excluded:
+            print_info(f"Excluding {excluded} cli-review judge(s)")
 
         try:
             asyncio.run(
@@ -116,7 +137,7 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
                     task_id,
                     prompt_path,
                     "peer-review",
-                    resume_mode=False,
+                    resume_mode=resume_mode,
                     winner=f"LOCAL:{pr.head_branch}",
                     judges_to_run=judges_to_run,
                 )
@@ -223,7 +244,7 @@ def peer_review_command(
 
     # Handle --pr mode separately
     if pr is not None:
-        _run_pr_review(pr, dry_run=dry_run, include_cli=include_cli, skip_agents=skip_agents)
+        _run_pr_review(pr, dry_run=dry_run, include_cli=include_cli, skip_agents=skip_agents, fresh=fresh)
         return
 
     if not check_cursor_agent():

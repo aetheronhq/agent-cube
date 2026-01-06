@@ -249,7 +249,9 @@ def peer_review(
 
     # Handle --pr mode: run full panel on GitHub PR
     if pr is not None:
-        peer_review_command("", "", pr=pr, dry_run=dry_run, include_cli=include_cli, skip_agents=skip_agents)
+        peer_review_command(
+            "", "", pr=pr, dry_run=dry_run, include_cli=include_cli, skip_agents=skip_agents, fresh=fresh
+        )
         return
 
     env_task_id = resolve_task_id(None)
