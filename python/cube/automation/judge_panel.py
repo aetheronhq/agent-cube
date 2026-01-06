@@ -234,12 +234,14 @@ async def launch_judge_panel(
     winner: str = None,
     single_judge: str = None,
     run_all_judges: bool = False,
+    judges_to_run: list = None,
 ) -> None:
     """Launch judge panel in parallel.
 
     Args:
         single_judge: If provided, only run this specific judge (e.g., "judge_4")
         run_all_judges: If True, run ALL judges regardless of review_type filtering
+        judges_to_run: If provided, only run these specific JudgeConfig instances
     """
 
     if not prompt_file.exists():
@@ -250,7 +252,10 @@ async def launch_judge_panel(
     all_judges = get_judge_configs()
 
     # Filter judges based on parameters
-    if single_judge:
+    if judges_to_run is not None:
+        # Use the explicitly provided list
+        judge_configs = judges_to_run
+    elif single_judge:
         judge_configs = [j for j in all_judges if j.key == single_judge]
         if not judge_configs:
             raise ValueError(f"Judge not found: {single_judge}. Available: {[j.key for j in all_judges]}")
@@ -261,9 +266,9 @@ async def launch_judge_panel(
         # Panel review: exclude peer_review_only judges (they only do peer review)
         judge_configs = [j for j in all_judges if not j.peer_review_only]
     elif review_type == "peer-review":
-        # Peer review in MERGE path: only run peer_review_only judges (e.g. CodeRabbit)
+        # Peer review: by default run only peer_review_only judges (e.g. CodeRabbit)
+        # The handler may override this with judges_to_run for judges that haven't approved
         peer_only = [j for j in all_judges if j.peer_review_only]
-        # If no peer_review_only judges configured, fall back to all judges
         judge_configs = peer_only if peer_only else all_judges
     else:
         judge_configs = all_judges
@@ -541,13 +546,25 @@ Use absolute path when writing the file. The project root is available in your w
     console.print()
 
     console.print("━" * 60)
-    console.print("[bold yellow]⚖️  JUDGES: Review all writer implementations[/bold yellow]")
-    console.print()
-    for writer_key in config.writer_order:
-        writer_cfg = config.writers[writer_key]
-        console.print(
-            f"{writer_cfg.label}: [green]~/.cube/worktrees/{project_name}/writer-{writer_cfg.name}-{task_id}/[/green]"
-        )
+    if review_type == "peer-review" and winner:
+        console.print("[bold yellow]⚖️  JUDGES: Peer review winning implementation[/bold yellow]")
+        console.print()
+        if winner.startswith("LOCAL:"):
+            branch_name = winner.replace("LOCAL:", "")
+            console.print(f"Local branch: [green]{branch_name}[/green]")
+        else:
+            winner_cfg = get_writer_by_key(winner)
+            console.print(
+                f"{winner_cfg.label}: [green]~/.cube/worktrees/{project_name}/writer-{winner_cfg.name}-{task_id}/[/green]"
+            )
+    else:
+        console.print("[bold yellow]⚖️  JUDGES: Review all writer implementations[/bold yellow]")
+        console.print()
+        for writer_key in config.writer_order:
+            writer_cfg = config.writers[writer_key]
+            console.print(
+                f"{writer_cfg.label}: [green]~/.cube/worktrees/{project_name}/writer-{writer_cfg.name}-{task_id}/[/green]"
+            )
     console.print()
     console.print("Use your native tools (read_file, git commands, etc.)")
     console.print("━" * 60)

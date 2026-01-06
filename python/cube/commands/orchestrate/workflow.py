@@ -6,13 +6,13 @@ from pathlib import Path
 import typer
 
 from ...core.config import PROJECT_ROOT
-from ...core.output import console, print_error, print_info, print_success, print_warning
+from ...core.output import console, print_error, print_info
 from ...core.state import get_progress, load_state, validate_resume
-from .executor import execute_dual_workflow, execute_single_workflow, execute_workflow
-from .handlers import register_all_workflows
-from .phases_registry import WorkflowContext, WorkflowType, get_max_phase
+from .executor import execute_workflow
+from .handlers import register_phases
+from .phases_registry import WorkflowContext
 
-register_all_workflows()
+register_phases()
 
 
 def extract_task_id_from_file(task_file: str) -> str:
@@ -35,25 +35,6 @@ def extract_task_id_from_file(task_file: str) -> str:
     return task_id
 
 
-async def _orchestrate_single_writer_impl(
-    task_file: str, resume_from: int, task_id: str, writer_key: str, resume_alias: str | None = None
-) -> None:
-    """Workflow for single-writer mode using state machine."""
-    prompts_dir = PROJECT_ROOT / ".prompts"
-    prompts_dir.mkdir(parents=True, exist_ok=True)
-
-    ctx = WorkflowContext(
-        task_id=task_id,
-        task_file=task_file,
-        prompts_dir=prompts_dir,
-        resume_from=resume_from,
-        writer_key=writer_key,
-        resume_alias=resume_alias,
-    )
-
-    await execute_single_workflow(ctx)
-
-
 async def _orchestrate_auto_impl(
     task_file: str,
     resume_from: int,
@@ -70,18 +51,17 @@ async def _orchestrate_auto_impl(
 
     existing_state = load_state(task_id)
 
+    # Check if resuming single mode from state
     if existing_state and existing_state.mode == "single":
         single_mode = True
         writer_key = existing_state.writer_key
         print_info(f"Resuming in single-writer mode with [bold cyan]{writer_key}[/bold cyan]")
 
-    if single_mode:
-        if not writer_key:
-            from ...core.user_config import get_default_writer
+    # Set default writer for single mode
+    if single_mode and not writer_key:
+        from ...core.user_config import get_default_writer
 
-            writer_key = get_default_writer()
-        await _orchestrate_single_writer_impl(task_file, resume_from, task_id, writer_key, resume_alias)
-        return
+        writer_key = get_default_writer()
 
     if not existing_state and resume_from > 1:
         console.print("[dim]Backfilling state from existing artifacts...[/dim]")
@@ -105,21 +85,15 @@ async def _orchestrate_auto_impl(
         task_file=task_file,
         prompts_dir=prompts_dir,
         resume_from=resume_from,
-        writer_key=writer_key,
+        writer_key=writer_key,  # None = dual mode, set = single mode
         resume_alias=resume_alias,
     )
 
-    if existing_state and existing_state.path:
-        path = existing_state.path
-        if path in ("SYNTHESIS", "MERGE", "FEEDBACK") and resume_from >= 6:
-            ctx.result = _load_aggregated_result(task_id, prompts_dir)
-            result = await execute_workflow(WorkflowType(path), ctx)
-            if result.success and not result.exit:
-                print_success("🎉 Autonomous workflow complete!")
-        else:
-            await execute_dual_workflow(ctx)
-    else:
-        await execute_dual_workflow(ctx)
+    # If resuming from phase 6+, load the aggregated result
+    if resume_from >= 6:
+        ctx.result = _load_aggregated_result(task_id, prompts_dir)
+
+    await execute_workflow(ctx)
 
 
 def _load_aggregated_result(task_id: str, prompts_dir: Path) -> dict:

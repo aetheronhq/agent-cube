@@ -129,8 +129,9 @@ class TestDecisionParser:
         assert res["winner"] in ["writer_a", "writer_b"]
         assert res["winner_votes"]["writer_a"] == 1
         assert res["winner_votes"]["writer_b"] == 1
-        # With 2 approvals, it defaults to MERGE even if split vote (logic flaw but testing behavior)
-        assert res["next_action"] == "MERGE"
+        # With 2 approvals -> SYNTHESIS with all_approved=True
+        assert res["next_action"] == "SYNTHESIS"
+        assert res["all_approved"] is True
 
     def test_aggregate_decisions_empty(self, mock_config):
         """Empty list returns error state."""
