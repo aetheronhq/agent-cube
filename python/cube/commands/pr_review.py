@@ -122,14 +122,27 @@ Output ONLY the JSON response, no other text.
 
 def parse_review_output(output: str) -> Optional[Review]:
     """Parse agent output into Review object."""
-    try:
-        # Find JSON in output (agent may include extra text)
-        start = output.find("{")
-        end = output.rfind("}") + 1
-        if start == -1 or end == 0:
-            return None
+    import re
 
-        data = json.loads(output[start:end])
+    try:
+        # Remove streaming artifacts (spaces between characters from thinking mode)
+        # Look for JSON code block first
+        json_match = re.search(r"```json\s*(\{[\s\S]*?\})\s*```", output)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            # Find JSON in output (agent may include extra text)
+            start = output.find("{")
+            end = output.rfind("}") + 1
+            if start == -1 or end == 0:
+                return None
+            json_str = output[start:end]
+
+        # Clean up the JSON string - remove excess whitespace
+        json_str = re.sub(r"\s+", " ", json_str)
+        json_str = json_str.replace("{ ", "{").replace(" }", "}").replace("[ ", "[").replace(" ]", "]")
+
+        data = json.loads(json_str)
 
         decision = data.get("decision", "COMMENT")
         if decision not in ("APPROVE", "REQUEST_CHANGES", "COMMENT"):
