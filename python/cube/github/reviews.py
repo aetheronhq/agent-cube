@@ -133,47 +133,100 @@ def _post_review_with_comments(pr_number: int, review: Review, body: str, cwd: O
 def fetch_existing_comments(pr_number: int, cwd: Optional[str] = None) -> list[ExistingComment]:
     """Fetch all existing comments on a PR (review comments + issue comments).
 
+    Only returns active, non-resolved, non-outdated comments.
+
     Returns:
         List of existing comments with path, line, body, and author
     """
     comments: list[ExistingComment] = []
 
-    # Fetch review comments (inline comments on code)
-    # Only include active, non-outdated comments (line != null means still valid on current diff)
+    # Use GraphQL to get review threads with resolved/outdated status
+    query = """
+    query($owner: String!, $repo: String!, $pr: Int!) {
+      repository(owner: $owner, name: $repo) {
+        pullRequest(number: $pr) {
+          reviewThreads(first: 100) {
+            nodes {
+              isResolved
+              isOutdated
+              line
+              path
+              comments(first: 10) {
+                nodes {
+                  body
+                  author { login }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+
+    # Get owner/repo from gh
     result = subprocess.run(
-        ["gh", "api", f"repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments", "--paginate"],
+        ["gh", "repo", "view", "--json", "owner,name"],
         capture_output=True,
         text=True,
         cwd=cwd,
     )
     if result.returncode == 0:
         try:
-            review_comments = json.loads(result.stdout)
-            for c in review_comments:
-                # Skip outdated comments (line is null when diff has changed)
-                if c.get("line") is None:
-                    continue
-                comments.append(
-                    ExistingComment(
-                        path=c.get("path"),
-                        line=c.get("line"),
-                        body=c.get("body", ""),
-                        author=c.get("user", {}).get("login", "unknown"),
-                        is_review_comment=True,
-                    )
-                )
-        except json.JSONDecodeError:
-            pass
+            repo_info = json.loads(result.stdout)
+            owner = repo_info.get("owner", {}).get("login", "")
+            repo = repo_info.get("name", "")
 
-    # Also fetch review threads to check for resolved status
-    result = subprocess.run(
-        ["gh", "api", f"repos/{{owner}}/{{repo}}/pulls/{pr_number}/reviews", "--paginate"],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
-    # Note: resolved threads are tracked at the thread level via GraphQL, not REST
-    # For now we rely on line=null to detect outdated comments
+            result = subprocess.run(
+                [
+                    "gh",
+                    "api",
+                    "graphql",
+                    "-f",
+                    f"query={query}",
+                    "-f",
+                    f"owner={owner}",
+                    "-f",
+                    f"repo={repo}",
+                    "-F",
+                    f"pr={pr_number}",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+            )
+            if result.returncode == 0:
+                data = json.loads(result.stdout)
+                threads = (
+                    data.get("data", {})
+                    .get("repository", {})
+                    .get("pullRequest", {})
+                    .get("reviewThreads", {})
+                    .get("nodes", [])
+                )
+                for thread in threads:
+                    # Skip resolved or outdated threads
+                    if thread.get("isResolved") or thread.get("isOutdated"):
+                        continue
+                    path = thread.get("path")
+                    line = thread.get("line")
+                    if not path or not line:
+                        continue
+                    # Get first comment body
+                    thread_comments = thread.get("comments", {}).get("nodes", [])
+                    if thread_comments:
+                        first_comment = thread_comments[0]
+                        comments.append(
+                            ExistingComment(
+                                path=path,
+                                line=line,
+                                body=first_comment.get("body", ""),
+                                author=first_comment.get("author", {}).get("login", "unknown"),
+                                is_review_comment=True,
+                            )
+                        )
+        except (json.JSONDecodeError, KeyError):
+            pass
 
     # Fetch issue comments (top-level comments)
     result = subprocess.run(
