@@ -174,14 +174,20 @@ This is a COMPLETE review - include ALL issues you find, even if you've mentione
     if skip_agents:
         print_info(f"Skipping agents, using existing decisions for PR #{pr_number}...")
     else:
-        # Clear old decision files to avoid stale results
+        # Archive old decision files to avoid stale results
+        import time
+
         decisions_dir = PROJECT_ROOT / ".prompts" / "decisions"
         if decisions_dir.exists():
             old_decisions = list(decisions_dir.glob(f"*-{task_id}-peer-review.json"))
             if old_decisions:
-                print_info(f"Clearing {len(old_decisions)} old decision file(s)...")
+                archive_dir = decisions_dir / "archive"
+                archive_dir.mkdir(exist_ok=True)
+                timestamp = int(time.time())
+                print_info(f"Archiving {len(old_decisions)} old decision file(s)...")
                 for f in old_decisions:
-                    f.unlink()
+                    archive_path = archive_dir / f"{f.stem}-{timestamp}.json"
+                    f.rename(archive_path)
 
         # Get judges, optionally excluding cli-review types (like CodeRabbit)
         from ..core.user_config import get_judge_configs
