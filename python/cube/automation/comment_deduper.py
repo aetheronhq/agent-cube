@@ -143,8 +143,8 @@ async def run_dedupe_agent(
     Returns:
         DedupeResult with comments to post, skipped, and merged
     """
-    from ..core.agent_runner import run_agent_with_layout
-    from ..core.single_agent_layout import SingleAgentLayout
+    from ..core.agent import run_agent
+    from ..core.parsers.registry import get_parser
 
     prompt = build_dedupe_prompt(new_comments, existing_comments, pr_diff)
     output_file = PROJECT_ROOT / ".prompts" / "decisions" / "dedupe-result.json"
@@ -157,21 +157,19 @@ async def run_dedupe_agent(
     model = get_prompter_model()
     print_info(f"Running dedupe agent ({model}) on {len(new_comments)} comments...")
 
-    layout = SingleAgentLayout()
-    layout.start()
+    parser = get_parser("cursor-agent")
 
     try:
-        await run_agent_with_layout(
-            cwd=PROJECT_ROOT,
-            model=model,
-            prompt=prompt,
-            layout=layout,
-            label="Dedupe",
-            color="cyan",
-            stop_when_exists=output_file,
-        )
+        async for line in run_agent(PROJECT_ROOT, model, prompt):
+            msg = parser.parse(line)
+            if msg and msg.type == "assistant" and msg.content:
+                # Show progress dots
+                console.print(".", end="", style="dim")
 
-        layout.stop()
+            if output_file.exists():
+                break
+
+        console.print()  # newline after dots
 
         if not output_file.exists():
             console.print("[yellow]Warning: Dedupe agent did not produce output file[/yellow]")
@@ -185,8 +183,7 @@ async def run_dedupe_agent(
         return _parse_dedupe_result(data, new_comments)
 
     except Exception as e:
-        layout.stop()
-        console.print(f"[yellow]Dedupe agent failed: {e}. Posting all comments.[/yellow]")
+        console.print(f"\n[yellow]Dedupe agent failed: {e}. Posting all comments.[/yellow]")
         return DedupeResult(
             comments_to_post=[c for _, c in new_comments],
             skipped=[],
