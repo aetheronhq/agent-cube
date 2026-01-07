@@ -66,7 +66,7 @@ def get_decision_file_path(
     if found:
         return found
 
-    return root / ".prompts" / "decisions" / f"{judge_key.replace('_', '-')}-{task_id}-{review_type}.json"
+    return root / ".prompts" / "decisions" / f"{judge_key}-{task_id}-{review_type}.json"
 
 
 def parse_single_decision_file(filepath: Path) -> Optional[Dict[str, Any]]:
