@@ -247,7 +247,7 @@ Review this PR and create your decision file at:
 
     # Collect issues and inline comments from all decisions
     all_issues: list[tuple[str, str]] = []
-    all_comments: list[ReviewComment] = []
+    all_comments: list[tuple[str, ReviewComment]] = []  # (judge_label, comment)
     decisions_dir = PROJECT_ROOT / ".prompts" / "decisions"
 
     for f in decisions_dir.glob(f"*-{task_id}-peer-review.json"):
@@ -271,11 +271,12 @@ Review this PR and create your decision file at:
                             continue
                     except (ValueError, TypeError):
                         continue
-                    # Add judge signature to comment
+                    # Add judge signature to comment body for GitHub
                     body = f"{c['body']}\n\n— 🤖 *{judge_label}*"
-                    all_comments.append(
-                        ReviewComment(path=c["path"], line=line_num, body=body, severity=c.get("severity", "warning"))
+                    comment = ReviewComment(
+                        path=c["path"], line=line_num, body=body, severity=c.get("severity", "warning")
                     )
+                    all_comments.append((judge_label, comment))
         except (json.JSONDecodeError, OSError):
             pass
 
@@ -294,11 +295,11 @@ Review this PR and create your decision file at:
     if all_comments:
         console.print(f"[bold]Inline Comments ({len(all_comments)}):[/bold]")
         severity_colors = {"critical": "red", "warning": "yellow", "nitpick": "dim"}
-        for c in all_comments[:15]:
+        for judge_label, c in all_comments[:15]:
             color = severity_colors.get(c.severity, "white")
             console.print(f"  [{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
             body_preview = c.body.split("\n")[0][:80]
-            console.print(f"           {body_preview}")
+            console.print(f"           [cyan][{judge_label}][/cyan] {body_preview}")
     elif all_issues:
         console.print(f"[bold]Issues ({len(all_issues)}):[/bold]")
         for judge_name, issue in all_issues[:10]:
@@ -314,7 +315,9 @@ Review this PR and create your decision file at:
     else:
         print_info("Posting review to GitHub...")
         try:
-            review = Review(decision=decision, summary=summary, comments=all_comments[:15])
+            # Extract just the comments (not judge labels) for posting
+            comments_only = [c for _, c in all_comments[:15]]
+            review = Review(decision=decision, summary=summary, comments=comments_only)
             post_review(pr_number, review, cwd=str(PROJECT_ROOT))
             print_success(f"Review posted to PR #{pr_number}")
         except RuntimeError as e:
