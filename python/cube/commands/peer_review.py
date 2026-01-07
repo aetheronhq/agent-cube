@@ -300,14 +300,46 @@ This is a COMPLETE review - include ALL issues you find, even if you've mentione
                             continue
                     except (ValueError, TypeError):
                         continue
-                    # Add judge signature to comment body for GitHub
-                    body = f"{c['body']}\n\n— 🤖 *{judge_label}*"
-                    comment = ReviewComment(
-                        path=c["path"], line=line_num, body=body, severity=c.get("severity", "warning")
+                    all_comments.append(
+                        {
+                            "judge_label": judge_label,
+                            "path": c["path"],
+                            "line": line_num,
+                            "body": c["body"],
+                            "severity": c.get("severity", "warning"),
+                        }
                     )
-                    all_comments.append((judge_label, comment))
         except (json.JSONDecodeError, OSError):
             pass
+
+    # Merge comments on same file:line
+    severity_order = {"critical": 0, "warning": 1, "nitpick": 2}
+    merged: dict[tuple[str, int], dict] = {}
+    for c in all_comments:
+        key = (c["path"], c["line"])
+        if key not in merged:
+            merged[key] = {
+                "path": c["path"],
+                "line": c["line"],
+                "bodies": [(c["judge_label"], c["body"])],
+                "severity": c["severity"],
+            }
+        else:
+            merged[key]["bodies"].append((c["judge_label"], c["body"]))
+            # Keep highest severity
+            if severity_order.get(c["severity"], 2) < severity_order.get(merged[key]["severity"], 2):
+                merged[key]["severity"] = c["severity"]
+
+    # Convert to ReviewComment objects
+    final_comments: list[ReviewComment] = []
+    for m in merged.values():
+        if len(m["bodies"]) == 1:
+            judge_label, body = m["bodies"][0]
+            combined_body = f"{body}\n\n— 🤖 *{judge_label}*"
+        else:
+            parts = [f"**{judge}**: {body}" for judge, body in m["bodies"]]
+            combined_body = "\n\n---\n\n".join(parts) + "\n\n— 🤖 *Agent Cube*"
+        final_comments.append(ReviewComment(path=m["path"], line=m["line"], body=combined_body, severity=m["severity"]))
 
     # Build summary with issues
     if all_issues:
@@ -321,14 +353,14 @@ This is a COMPLETE review - include ALL issues you find, even if you've mentione
     console.print(f"[bold]Summary:[/bold] {summary[:200]}...")
     console.print()
 
-    if all_comments:
-        console.print(f"[bold]Inline Comments ({len(all_comments)}):[/bold]")
+    if final_comments:
+        console.print(f"[bold]Inline Comments ({len(final_comments)}):[/bold]")
         severity_colors = {"critical": "red", "warning": "yellow", "nitpick": "dim"}
-        for judge_label, c in all_comments[:15]:
+        for c in final_comments:
             color = severity_colors.get(c.severity, "white")
             console.print(f"  [{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
             body_preview = c.body.split("\n")[0][:80]
-            console.print(f"           [cyan][{judge_label}][/cyan] {body_preview}")
+            console.print(f"           {body_preview}")
     elif all_issues:
         console.print(f"[bold]Issues ({len(all_issues)}):[/bold]")
         for judge_name, issue in all_issues[:10]:
@@ -344,9 +376,7 @@ This is a COMPLETE review - include ALL issues you find, even if you've mentione
     else:
         print_info("Posting review to GitHub...")
         try:
-            # Extract just the comments (not judge labels) for posting
-            comments_only = [c for _, c in all_comments[:15]]
-            review = Review(decision=decision, summary=summary, comments=comments_only)
+            review = Review(decision=decision, summary=summary, comments=final_comments)
             post_review(pr_number, review, cwd=str(PROJECT_ROOT))
             print_success(f"Review posted to PR #{pr_number}")
         except RuntimeError as e:
