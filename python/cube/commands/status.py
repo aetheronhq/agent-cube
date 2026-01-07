@@ -67,10 +67,12 @@ def show_task_status(task_id: str):
     console.print()
 
     console.print("[yellow]Phase 5: Decisions[/yellow]")
+    from ..core.decision_files import find_decision_file
+
     decisions_count = 0
     for jconfig in panel_judges:
-        decision_path = decisions_dir / f"{jconfig.key.replace('_', '-')}-{task_id}-decision.json"
-        exists = decision_path.exists()
+        decision_file = find_decision_file(jconfig.key, task_id, "decision")
+        exists = decision_file is not None
         if exists:
             decisions_count += 1
         console.print(f"    {jconfig.label}: {'✅' if exists else '❌'}")
@@ -128,8 +130,8 @@ def show_task_status(task_id: str):
             session_id = load_session(jconfig.key.upper(), f"{task_id}_peer-review")
             if session_id:
                 peer_session_count += 1
-            decision_path = decisions_dir / f"{jconfig.key.replace('_', '-')}-{task_id}-peer-review.json"
-            if decision_path.exists():
+            decision_file = find_decision_file(jconfig.key, task_id, "peer-review")
+            if decision_file:
                 peer_decision_count += 1
 
         console.print(f"  Sessions: {peer_session_count}/{len(peer_judges)}")
