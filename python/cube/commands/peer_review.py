@@ -12,7 +12,6 @@ from ..core.agent import check_cursor_agent
 from ..core.config import PROJECT_ROOT, resolve_path
 from ..core.output import console, print_error, print_info, print_success, print_warning
 from ..core.state import update_phase
-from ..github.reviews import ReviewComment
 
 
 def _load_repo_context() -> str:
@@ -184,13 +183,12 @@ def _run_pr_review(
     else:
         summary = f"❌ {total} judge(s) requested changes."
 
-    # Collect issues and inline comments from all decisions
+    # Collect ALL feedback (issues + inline comments) from judge decisions
+    from ..automation.comment_deduper import JudgeFeedback, run_dedupe_agent
     from ..core.decision_parser import get_decision_file_path
 
-    all_issues: list[tuple[str, str]] = []
-    all_comments: list[tuple[str, ReviewComment]] = []  # (judge_label, comment)
+    all_feedback: list[JudgeFeedback] = []
 
-    # Use get_decision_file_path which checks worktrees and copies to PROJECT_ROOT
     for jconfig in get_judge_configs():
         decision_path = get_decision_file_path(jconfig.key, task_id, review_type="peer-review")
         console.print(f"[dim]Looking for {jconfig.key}: {decision_path} (exists: {decision_path.exists()})[/dim]")
@@ -203,12 +201,11 @@ def _run_pr_review(
             judge_cfg = get_judge_config(judge_key)
             judge_label = judge_cfg.label if judge_cfg else judge_key
 
-            # Collect text issues
-            issues = data.get("blocker_issues", []) + data.get("remaining_issues", [])
-            for issue in issues:
-                all_issues.append((judge_label, issue))
+            # Collect text issues (general feedback without file:line)
+            for issue in data.get("blocker_issues", []) + data.get("remaining_issues", []):
+                all_feedback.append(JudgeFeedback(judge=judge_label, body=issue, severity="warning"))
 
-            # Collect inline comments
+            # Collect inline comments (feedback with file:line)
             for c in data.get("inline_comments", []):
                 if "path" in c and "line" in c and "body" in c:
                     try:
@@ -217,15 +214,13 @@ def _run_pr_review(
                             continue
                     except (ValueError, TypeError):
                         continue
-                    all_comments.append(
-                        (
-                            judge_label,
-                            ReviewComment(
-                                path=c["path"],
-                                line=line_num,
-                                body=c["body"],
-                                severity=c.get("severity", "warning"),
-                            ),
+                    all_feedback.append(
+                        JudgeFeedback(
+                            judge=judge_label,
+                            body=c["body"],
+                            path=c["path"],
+                            line=line_num,
+                            severity=c.get("severity", "warning"),
                         )
                     )
         except (json.JSONDecodeError, OSError):
@@ -238,28 +233,22 @@ def _run_pr_review(
     existing_comments = fetch_existing_comments(pr_number, cwd=str(PROJECT_ROOT))
     console.print(f"[dim]Found {len(existing_comments)} existing comments[/dim]")
 
-    # Use AI deduper to intelligently combine/skip comments
-    from ..automation.comment_deduper import run_dedupe_agent
-
+    # Use AI deduper to intelligently combine/dedupe all feedback
     dedupe_result = asyncio.run(
         run_dedupe_agent(
-            new_comments=all_comments,
+            feedback=all_feedback,
             existing_comments=existing_comments,
             pr_diff=pr.diff,
             pr_number=pr_number,
         )
     )
 
-    comments_to_post = dedupe_result.comments_to_post
+    if dedupe_result.skipped_count:
+        console.print(f"[dim]Skipped {dedupe_result.skipped_count} duplicate/low-value item(s)[/dim]")
 
-    if dedupe_result.skipped:
-        console.print(f"[dim]Skipping {len(dedupe_result.skipped)} comment(s) (duplicates/low-value)[/dim]")
-    if dedupe_result.merged:
-        console.print(f"[dim]Merged {len(dedupe_result.merged)} comment group(s)[/dim]")
-
-    # Build summary with issues
-    if all_issues:
-        summary += "\n\n**Issues found:**\n" + "\n".join(f"- [{j}] {issue}" for j, issue in all_issues[:10])
+    # Build summary with deduped issues
+    if dedupe_result.summary_issues:
+        summary += "\n\n**Issues:**\n" + "\n".join(f"- {issue}" for issue in dedupe_result.summary_issues)
 
     summary += "\n\n---\n🤖 Agent Cube Peer Review"
 
@@ -269,11 +258,19 @@ def _run_pr_review(
     console.print(f"[bold]Summary:[/bold] {summary[:200]}...")
     console.print()
 
-    if comments_to_post:
-        severity_order = {"critical": 0, "warning": 1, "nitpick": 2}
-        sorted_comments = sorted(comments_to_post, key=lambda c: severity_order.get(c.severity, 99))
+    # Display summary issues
+    if dedupe_result.summary_issues:
+        console.print(f"[bold]Issues ({len(dedupe_result.summary_issues)}):[/bold]")
+        for issue in dedupe_result.summary_issues:
+            console.print(f"  {issue}")
+        console.print()
 
-        console.print(f"[bold]Comments to post ({len(sorted_comments)}):[/bold]")
+    # Display inline comments
+    if dedupe_result.inline_comments:
+        severity_order = {"critical": 0, "warning": 1, "nitpick": 2}
+        sorted_comments = sorted(dedupe_result.inline_comments, key=lambda c: severity_order.get(c.severity, 99))
+
+        console.print(f"[bold]Inline comments ({len(sorted_comments)}):[/bold]")
         console.print()
         severity_colors = {"critical": "red", "warning": "yellow", "nitpick": "dim"}
         for c in sorted_comments:
@@ -282,26 +279,21 @@ def _run_pr_review(
             body_first_line = c.body.split("\n")[0]
             console.print(f"  {body_first_line}")
             console.print()
-    elif all_issues:
-        console.print(f"[bold]Issues ({len(all_issues)}):[/bold]")
-        for judge_name, issue in all_issues[:10]:
-            console.print(f"  [cyan][{judge_name}][/cyan] {issue}")
-        if len(all_issues) > 10:
-            console.print(f"  [dim]... and {len(all_issues) - 10} more[/dim]")
-    else:
-        console.print("[dim]No issues found[/dim]")
+
+    if not dedupe_result.summary_issues and not dedupe_result.inline_comments:
+        console.print("[dim]No new issues to post[/dim]")
 
     # Post review
     if dry_run:
         print_warning("Dry run - review NOT posted to GitHub")
-        if comments_to_post:
-            console.print(f"[dim]Would post {len(comments_to_post)} new comment(s)[/dim]")
+        if dedupe_result.inline_comments:
+            console.print(f"[dim]Would post {len(dedupe_result.inline_comments)} inline comment(s)[/dim]")
     else:
         print_info("Posting review to GitHub...")
         try:
-            review = Review(decision=decision, summary=summary, comments=comments_to_post)
+            review = Review(decision=decision, summary=summary, comments=dedupe_result.inline_comments)
             post_review(pr_number, review, cwd=str(PROJECT_ROOT))
-            print_success(f"Review posted to PR #{pr_number} ({len(comments_to_post)} new comments)")
+            print_success(f"Review posted to PR #{pr_number} ({len(dedupe_result.inline_comments)} inline comments)")
         except RuntimeError as e:
             print_error(f"Failed to post review: {e}")
             raise typer.Exit(1)
