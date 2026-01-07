@@ -251,14 +251,13 @@ def _run_pr_review(
     # Convert to ReviewComment objects with judge info for display
     final_comments: list[tuple[str, ReviewComment]] = []
     for m in merged.values():
+        display_judges = ", ".join(m["judges"])
         if len(m["bodies"]) == 1:
-            judge_label, body = m["bodies"][0]
-            combined_body = f"{body}\n\n— 🤖 *{judge_label}*"
-            display_judges = judge_label
+            _, body = m["bodies"][0]
+            combined_body = body  # Signature added in reviews.py
         else:
             parts = [f"**{judge}**: {body}" for judge, body in m["bodies"]]
-            combined_body = "\n\n---\n\n".join(parts) + "\n\n— 🤖 *Agent Cube*"
-            display_judges = ", ".join(m["judges"])
+            combined_body = "\n\n---\n\n".join(parts)
         final_comments.append(
             (display_judges, ReviewComment(path=m["path"], line=m["line"], body=combined_body, severity=m["severity"]))
         )
