@@ -66,6 +66,7 @@ def build_decision_file_instructions(task_id: str, include_inline_comments: bool
 - **line**: Use line numbers from NEW file (lines starting with +)
 - **path**: Use relative path from repo root
 - Questions count as comments: "Why was this changed from X to Y?"
+- **NO signatures** - do NOT add "Agent Cube", emojis, or attribution to comment body (added automatically)
 """
         if include_inline_comments
         else ""

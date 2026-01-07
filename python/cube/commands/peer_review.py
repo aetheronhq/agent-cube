@@ -217,19 +217,12 @@ def _run_pr_review(
                             continue
                     except (ValueError, TypeError):
                         continue
-                    # Strip any existing signatures from body
-                    body = c["body"]
-                    for sig in ["— 🤖 *Agent Cube*", "— *Agent Cube* 🤖", "— 🤖 Agent Cube", "🤖 Agent Cube"]:
-                        body = body.replace(sig, "").strip()
-                    # Also strip trailing dashes/whitespace
-                    body = body.rstrip("-— \n")
-
                     all_comments.append(
                         {
                             "judge_label": judge_label,
                             "path": c["path"],
                             "line": line_num,
-                            "body": body,
+                            "body": c["body"],
                             "severity": c.get("severity", "warning"),
                         }
                     )
@@ -259,12 +252,14 @@ def _run_pr_review(
     final_comments: list[tuple[str, ReviewComment]] = []
     for m in merged.values():
         display_judges = ", ".join(m["judges"])
+        # Build signature: "— *Agent Cube / Judge Opus*" or "— *Agent Cube / Judge Opus, Judge Gemini*"
+        signature = f"\n\n— *Agent Cube / {display_judges}* 🤖"
         if len(m["bodies"]) == 1:
             _, body = m["bodies"][0]
-            combined_body = body  # Signature added in reviews.py
+            combined_body = body + signature
         else:
             parts = [f"**{judge}**: {body}" for judge, body in m["bodies"]]
-            combined_body = "\n\n---\n\n".join(parts)
+            combined_body = "\n\n---\n\n".join(parts) + signature
         final_comments.append(
             (display_judges, ReviewComment(path=m["path"], line=m["line"], body=combined_body, severity=m["severity"]))
         )
