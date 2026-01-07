@@ -162,6 +162,13 @@ Review this PR and create your decision file at:
 - **path**: Use relative path from repo root
 - Questions count as comments: "Why was this changed from X to Y?"
 - If code looks good, APPROVE with empty inline_comments array and mention positives in summary
+
+## Complete Review Required
+
+This is a COMPLETE review - include ALL issues you find, even if you've mentioned them in a previous session.
+- Report every issue that exists in the current code
+- Only omit a previously-reported issue if you verify it has been RESOLVED
+- Do not assume previous feedback was addressed - check the code
 """)
 
     if skip_agents:
