@@ -11,7 +11,7 @@ from .commands.decide import decide_command
 from .commands.feedback import feedback_command
 from .commands.install import install_command
 from .commands.logs import logs_command
-from .commands.orchestrate import extract_task_id_from_file, orchestrate_auto_command, orchestrate_prompt_command
+from .commands.orchestrate import extract_task_id_from_file, orchestrate_auto_command
 from .commands.panel import panel_command
 from .commands.peer_review import peer_review_command
 from .commands.resume import resume_command
@@ -305,9 +305,8 @@ def sessions():
 
 @app.command(name="orchestrate")
 def orchestrate(
-    subcommand: Annotated[str, typer.Argument(help="Subcommand (prompt|auto)")],
+    subcommand: Annotated[str, typer.Argument(help="Subcommand: auto")],
     task_file: Annotated[str, typer.Argument(help="Path to the task file")],
-    copy: Annotated[bool, typer.Option("--copy", help="Copy to clipboard (prompt only)")] = False,
     resume_from: Annotated[
         Optional[str], typer.Option("--resume-from", help=f"Resume from phase number or alias ({PHASE_ALIAS_SUMMARY})")
     ] = None,
@@ -318,10 +317,8 @@ def orchestrate(
         Optional[str], typer.Option("--writer", "-w", help="Specific writer for single mode (opus, codex, a, b)")
     ] = None,
 ):
-    """Generate orchestrator prompt or run autonomous orchestration."""
-    if subcommand == "prompt":
-        orchestrate_prompt_command(task_file, copy)
-    elif subcommand == "auto":
+    """Run autonomous orchestration workflow."""
+    if subcommand == "auto":
         from .core.output import print_error, print_info
         from .core.user_config import get_default_writer, is_single_mode_default, resolve_writer_alias
 
