@@ -322,24 +322,29 @@ This is a COMPLETE review - include ALL issues you find, even if you've mentione
                 "path": c["path"],
                 "line": c["line"],
                 "bodies": [(c["judge_label"], c["body"])],
+                "judges": [c["judge_label"]],
                 "severity": c["severity"],
             }
         else:
             merged[key]["bodies"].append((c["judge_label"], c["body"]))
-            # Keep highest severity
+            merged[key]["judges"].append(c["judge_label"])
             if severity_order.get(c["severity"], 2) < severity_order.get(merged[key]["severity"], 2):
                 merged[key]["severity"] = c["severity"]
 
-    # Convert to ReviewComment objects
-    final_comments: list[ReviewComment] = []
+    # Convert to ReviewComment objects with judge info for display
+    final_comments: list[tuple[str, ReviewComment]] = []
     for m in merged.values():
         if len(m["bodies"]) == 1:
             judge_label, body = m["bodies"][0]
             combined_body = f"{body}\n\n— 🤖 *{judge_label}*"
+            display_judges = judge_label
         else:
             parts = [f"**{judge}**: {body}" for judge, body in m["bodies"]]
             combined_body = "\n\n---\n\n".join(parts) + "\n\n— 🤖 *Agent Cube*"
-        final_comments.append(ReviewComment(path=m["path"], line=m["line"], body=combined_body, severity=m["severity"]))
+            display_judges = ", ".join(m["judges"])
+        final_comments.append(
+            (display_judges, ReviewComment(path=m["path"], line=m["line"], body=combined_body, severity=m["severity"]))
+        )
 
     # Build summary with issues
     if all_issues:
@@ -356,11 +361,11 @@ This is a COMPLETE review - include ALL issues you find, even if you've mentione
     if final_comments:
         console.print(f"[bold]Inline Comments ({len(final_comments)}):[/bold]")
         severity_colors = {"critical": "red", "warning": "yellow", "nitpick": "dim"}
-        for c in final_comments:
+        for judges, c in final_comments:
             color = severity_colors.get(c.severity, "white")
             console.print(f"  [{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
             body_preview = c.body.split("\n")[0][:80]
-            console.print(f"           {body_preview}")
+            console.print(f"           [cyan][{judges}][/cyan] {body_preview}")
     elif all_issues:
         console.print(f"[bold]Issues ({len(all_issues)}):[/bold]")
         for judge_name, issue in all_issues[:10]:
@@ -376,7 +381,8 @@ This is a COMPLETE review - include ALL issues you find, even if you've mentione
     else:
         print_info("Posting review to GitHub...")
         try:
-            review = Review(decision=decision, summary=summary, comments=final_comments)
+            comments_only = [c for _, c in final_comments]
+            review = Review(decision=decision, summary=summary, comments=comments_only)
             post_review(pr_number, review, cwd=str(PROJECT_ROOT))
             print_success(f"Review posted to PR #{pr_number}")
         except RuntimeError as e:
