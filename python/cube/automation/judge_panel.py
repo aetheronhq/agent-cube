@@ -143,7 +143,9 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
 
     status = _parse_decision_status(judge_info)
     layout.mark_complete(judge_info.key, status)
-    console.print(f"[{judge_info.color}][{judge_info.label}][/{judge_info.color}] ✅ {status}")
+    # Only show ✅ for approved, otherwise just show status
+    icon = "✅" if "APPROVED" in status or "Ready to merge" in status else ""
+    console.print(f"[{judge_info.color}][{judge_info.label}][/{judge_info.color}] {icon} {status}".strip())
     return final_line_count
 
 
