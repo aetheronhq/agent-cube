@@ -298,31 +298,18 @@ When creating your decision file, use judge key {judge_key}.
 The winning writer's code is at:
 **Location:** `{WORKTREE_BASE}/{project_name}/writer-{{winner}}-{task_id}/`
 **Branch:** `writer-{{winner}}/{task_id}`
-
-## ⚠️ CRITICAL: Fetch Latest Code First
-
-**BEFORE reviewing, you MUST run these commands to get the latest code:**
-
-```bash
-cd {WORKTREE_BASE}/{project_name}/writer-{{winner}}-{task_id}/
-git fetch origin
-git reset --hard origin/writer-{{winner}}/{task_id}
-```
-
-Then verify you have the latest:
-```bash
-git log --oneline -5
-```
+**Worktree:** `{WORKTREE_BASE}/{project_name}/writer-{{winner}}-{task_id}/`
 
 ## Review Scope
 
-Review ALL commits since branching from main:
+Check what was changed since branching from main:
 ```bash
+cd {WORKTREE_BASE}/{project_name}/writer-{{winner}}-{task_id}/
 git log --oneline main..HEAD
 git diff main...HEAD --stat
 ```
 
-Use read_file or git commands to review the actual code changes.
+Use read_file to review the actual code changes.
 
 ---
 
@@ -411,21 +398,9 @@ Example: If you are `judge_1`, create `.prompts/decisions/judge_1-{task_id}-peer
         review_instructions_parts = [
             """# Code Review Locations
 
-## ⚠️ CRITICAL: Fetch Latest Code First
-
-**BEFORE reviewing any writer, you MUST fetch the latest commits for all of them:**
+Review each writer's implementation in their worktree:
 """
         ]
-
-        for writer_key in config.writer_order:
-            wconfig = config.writers[writer_key]
-            review_instructions_parts.append(f"""
-```bash
-# Fetch {wconfig.label}'s latest
-cd {WORKTREE_BASE}/{project_name}/writer-{wconfig.name}-{task_id}/
-git fetch origin
-git reset --hard origin/writer-{wconfig.name}/{task_id}
-```""")
 
         review_instructions_parts.append("""
 ---
