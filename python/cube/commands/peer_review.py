@@ -113,7 +113,9 @@ def _run_pr_review(
 ## Your Task
 
 Review this PR and create your decision file at:
-`.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`
+`{PROJECT_ROOT}/.prompts/decisions/{{{{judge_key}}}}-{task_id}-peer-review.json`
+
+**IMPORTANT: Use this exact absolute path. Do NOT write to a worktree.**
 
 ## Review Checklist
 
