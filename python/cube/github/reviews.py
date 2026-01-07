@@ -139,6 +139,7 @@ def fetch_existing_comments(pr_number: int, cwd: Optional[str] = None) -> list[E
     comments: list[ExistingComment] = []
 
     # Fetch review comments (inline comments on code)
+    # Only include active, non-outdated comments (line != null means still valid on current diff)
     result = subprocess.run(
         ["gh", "api", f"repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments", "--paginate"],
         capture_output=True,
@@ -149,10 +150,13 @@ def fetch_existing_comments(pr_number: int, cwd: Optional[str] = None) -> list[E
         try:
             review_comments = json.loads(result.stdout)
             for c in review_comments:
+                # Skip outdated comments (line is null when diff has changed)
+                if c.get("line") is None:
+                    continue
                 comments.append(
                     ExistingComment(
                         path=c.get("path"),
-                        line=c.get("line") or c.get("original_line"),
+                        line=c.get("line"),
                         body=c.get("body", ""),
                         author=c.get("user", {}).get("login", "unknown"),
                         is_review_comment=True,
@@ -160,6 +164,16 @@ def fetch_existing_comments(pr_number: int, cwd: Optional[str] = None) -> list[E
                 )
         except json.JSONDecodeError:
             pass
+
+    # Also fetch review threads to check for resolved status
+    result = subprocess.run(
+        ["gh", "api", f"repos/{{owner}}/{{repo}}/pulls/{pr_number}/reviews", "--paginate"],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+    )
+    # Note: resolved threads are tracked at the thread level via GraphQL, not REST
+    # For now we rely on line=null to detect outdated comments
 
     # Fetch issue comments (top-level comments)
     result = subprocess.run(
