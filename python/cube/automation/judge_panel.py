@@ -470,8 +470,8 @@ git diff main...HEAD --stat
             scores_template[writer_key] = {
                 "planning_alignment": "0-10 (matches docs/planning/architecture)",
                 "scope_adherence": "0-10 (no undocumented changes)",
-                "kiss_compliance": "0-10",
-                "architecture": "0-10",
+                "kiss_compliance": "0-10 (simple, elegant, minimal - no over-engineering)",
+                "architecture": "0-10 (clean structure, good abstractions)",
                 "type_safety": "0-10",
                 "tests": "0-10",
                 "production_ready": "0-10",

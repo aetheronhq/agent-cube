@@ -130,6 +130,11 @@ Review this PR and create your decision file at:
 - Performance (N+1 queries, unbounded ops)
 - Code quality and readability
 
+### 4. KISS & Simplicity
+- Is the solution elegant and minimal?
+- Any over-engineering or unnecessary complexity?
+- Could existing utilities/patterns be reused?
+
 ## Decision File Format
 
 **REQUIRED FORMAT:**
