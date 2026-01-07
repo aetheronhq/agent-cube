@@ -298,16 +298,33 @@ def _run_pr_review(
     else:
         console.print("[dim]No issues found[/dim]")
 
+    # Fetch existing comments and filter duplicates
+    from ..github.reviews import fetch_existing_comments, filter_duplicate_comments
+
+    comments_only = [c for _, c in final_comments]
+
+    print_info("Checking for existing comments on PR...")
+    existing_comments = fetch_existing_comments(pr_number, cwd=str(PROJECT_ROOT))
+    console.print(f"[dim]Found {len(existing_comments)} existing comments[/dim]")
+
+    comments_to_post, skipped = filter_duplicate_comments(comments_only, existing_comments)
+
+    if skipped:
+        console.print(f"[dim]Skipping {len(skipped)} duplicate comment(s) already on PR[/dim]")
+        for c in skipped:
+            console.print(f"  [dim]- {c.path}:{c.line}[/dim]")
+
     # Post review
     if dry_run:
         print_warning("Dry run - review NOT posted to GitHub")
+        if comments_to_post:
+            console.print(f"[dim]Would post {len(comments_to_post)} new comment(s)[/dim]")
     else:
         print_info("Posting review to GitHub...")
         try:
-            comments_only = [c for _, c in final_comments]
-            review = Review(decision=decision, summary=summary, comments=comments_only)
+            review = Review(decision=decision, summary=summary, comments=comments_to_post)
             post_review(pr_number, review, cwd=str(PROJECT_ROOT))
-            print_success(f"Review posted to PR #{pr_number}")
+            print_success(f"Review posted to PR #{pr_number} ({len(comments_to_post)} new comments)")
         except RuntimeError as e:
             print_error(f"Failed to post review: {e}")
             raise typer.Exit(1)

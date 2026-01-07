@@ -7,6 +7,17 @@ from typing import Optional
 
 
 @dataclass
+class ExistingComment:
+    """An existing comment on a PR."""
+
+    path: Optional[str]  # None for top-level comments
+    line: Optional[int]
+    body: str
+    author: str
+    is_review_comment: bool = True  # False for issue comments
+
+
+@dataclass
 class ReviewComment:
     """A single inline comment on a PR."""
 
@@ -117,3 +128,110 @@ def _post_review_with_comments(pr_number: int, review: Review, body: str, cwd: O
         raise RuntimeError(f"Failed to post review: {error}")
 
     return True
+
+
+def fetch_existing_comments(pr_number: int, cwd: Optional[str] = None) -> list[ExistingComment]:
+    """Fetch all existing comments on a PR (review comments + issue comments).
+
+    Returns:
+        List of existing comments with path, line, body, and author
+    """
+    comments: list[ExistingComment] = []
+
+    # Fetch review comments (inline comments on code)
+    result = subprocess.run(
+        ["gh", "api", f"repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments", "--paginate"],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+    )
+    if result.returncode == 0:
+        try:
+            review_comments = json.loads(result.stdout)
+            for c in review_comments:
+                comments.append(
+                    ExistingComment(
+                        path=c.get("path"),
+                        line=c.get("line") or c.get("original_line"),
+                        body=c.get("body", ""),
+                        author=c.get("user", {}).get("login", "unknown"),
+                        is_review_comment=True,
+                    )
+                )
+        except json.JSONDecodeError:
+            pass
+
+    # Fetch issue comments (top-level comments)
+    result = subprocess.run(
+        ["gh", "api", f"repos/{{owner}}/{{repo}}/issues/{pr_number}/comments", "--paginate"],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+    )
+    if result.returncode == 0:
+        try:
+            issue_comments = json.loads(result.stdout)
+            for c in issue_comments:
+                comments.append(
+                    ExistingComment(
+                        path=None,
+                        line=None,
+                        body=c.get("body", ""),
+                        author=c.get("user", {}).get("login", "unknown"),
+                        is_review_comment=False,
+                    )
+                )
+        except json.JSONDecodeError:
+            pass
+
+    return comments
+
+
+def is_duplicate_comment(new_comment: ReviewComment, existing: list[ExistingComment], threshold: float = 0.7) -> bool:
+    """Check if a new comment is a duplicate of an existing one.
+
+    Considers a comment duplicate if:
+    - Same file and line, and
+    - Body is similar (contains key phrases or high overlap)
+    """
+    new_body_lower = new_comment.body.lower()
+    # Extract key phrases (first 50 chars, ignoring markdown formatting)
+    new_key = "".join(c for c in new_body_lower[:100] if c.isalnum() or c.isspace())
+
+    for existing_comment in existing:
+        # For inline comments, check file:line match
+        if existing_comment.path == new_comment.path and existing_comment.line == new_comment.line:
+            existing_body_lower = existing_comment.body.lower()
+            existing_key = "".join(c for c in existing_body_lower[:100] if c.isalnum() or c.isspace())
+
+            # Check for substantial overlap
+            if new_key and existing_key:
+                # Simple word overlap check
+                new_words = set(new_key.split())
+                existing_words = set(existing_key.split())
+                if new_words and existing_words:
+                    overlap = len(new_words & existing_words) / max(len(new_words), len(existing_words))
+                    if overlap >= threshold:
+                        return True
+
+    return False
+
+
+def filter_duplicate_comments(
+    new_comments: list[ReviewComment], existing: list[ExistingComment]
+) -> tuple[list[ReviewComment], list[ReviewComment]]:
+    """Filter out duplicate comments.
+
+    Returns:
+        Tuple of (comments_to_post, skipped_duplicates)
+    """
+    to_post = []
+    skipped = []
+
+    for comment in new_comments:
+        if is_duplicate_comment(comment, existing):
+            skipped.append(comment)
+        else:
+            to_post.append(comment)
+
+    return to_post, skipped
