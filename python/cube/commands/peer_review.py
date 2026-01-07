@@ -217,12 +217,19 @@ def _run_pr_review(
                             continue
                     except (ValueError, TypeError):
                         continue
+                    # Strip any existing signatures from body
+                    body = c["body"]
+                    for sig in ["— 🤖 *Agent Cube*", "— *Agent Cube* 🤖", "— 🤖 Agent Cube", "🤖 Agent Cube"]:
+                        body = body.replace(sig, "").strip()
+                    # Also strip trailing dashes/whitespace
+                    body = body.rstrip("-— \n")
+
                     all_comments.append(
                         {
                             "judge_label": judge_label,
                             "path": c["path"],
                             "line": line_num,
-                            "body": c["body"],
+                            "body": body,
                             "severity": c.get("severity", "warning"),
                         }
                     )
