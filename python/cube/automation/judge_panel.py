@@ -301,6 +301,8 @@ When creating your decision file, use judge key {judge_key}.
     else:
         config = load_config()
 
+        from .prompts import build_review_checklist
+
         review_instructions_parts = [
             """# Code Review Locations
 
@@ -308,23 +310,13 @@ Review each writer's implementation in their worktree:
 """
         ]
 
-        review_instructions_parts.append("""
+        review_instructions_parts.append(f"""
 ---
 
-## Review Checklist (CHECK BEFORE SCORING)
+{build_review_checklist()}
 
-### 1. Planning & Architecture Alignment
-- **Read planning docs FIRST** - Check `docs/`, `planning/`, `ARCHITECTURE.md`, `ADR/` in the repo
-- **Verify against documented decisions** - Does each implementation align with existing architecture?
-- **Flag conflicts** - If changes contradict documented patterns (auth approach, data flow, etc.)
-
-### 2. Scope Verification
-- **Task alignment** - Do changes match the task requirements?
-- **Undocumented changes** - Flag significant changes not mentioned in the task
-- **Scope creep** - Identify unnecessary changes
-
-### 3. Questions to Raise
-Include in `blocker_issues` any significant questions like:
+### Panel-Specific: Questions for `blocker_issues`
+Include significant questions that block approval:
 - "Why was auth changed from X to Y? This contradicts docs/architecture.md"
 - "Is the change to [component] intentional? Not mentioned in task"
 
@@ -371,16 +363,9 @@ git diff main...HEAD --stat
 
 **You MUST create this JSON file at the end of your review:**
 
-**File:** `.prompts/decisions/{{judge_key}}-{task_id}-decision.json`
+**File:** `{PROJECT_ROOT}/.prompts/decisions/{{{{judge_key}}}}-{task_id}-decision.json`
 
-⚠️ **EXACT FILENAME REQUIRED** - Use your judge key exactly as shown (e.g., `judge_1`, `judge_2`).
-Example: If you are `judge_1`, create `.prompts/decisions/judge_1-{task_id}-decision.json`
-
-**CRITICAL for Gemini users:**
-You're running from `~/.cube`. You MUST write your decision to:
-- `{{PROJECT_ROOT}}/.prompts/decisions/{{judge_key}}-{task_id}-decision.json`
-
-Use absolute path when writing the file. The project root is available in your workspace context.
+⚠️ **Use this EXACT absolute path. Do NOT write to a worktree.**
 
 **Format:**
 ```json
