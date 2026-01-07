@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -11,6 +12,31 @@ from ..core.agent import check_cursor_agent
 from ..core.config import PROJECT_ROOT, resolve_path
 from ..core.output import console, print_error, print_info, print_success, print_warning
 from ..core.state import update_phase
+from ..github.reviews import ReviewComment
+
+
+def _load_repo_context() -> str:
+    """Load repo context for review (planning docs, README, CONTRIBUTING)."""
+    context_parts = []
+    project_root = Path(PROJECT_ROOT)
+
+    planning_dir = project_root / "planning"
+    if planning_dir.exists():
+        for doc in sorted(planning_dir.glob("*.md"))[:5]:
+            try:
+                content = doc.read_text()[:2000]
+                context_parts.append(f"## {doc.name}\n{content}")
+            except (OSError, IOError):
+                pass
+
+    readme = project_root / "README.md"
+    if readme.exists():
+        try:
+            context_parts.append(f"## README.md\n{readme.read_text()[:2000]}")
+        except (OSError, IOError):
+            pass
+
+    return "\n\n---\n\n".join(context_parts) if context_parts else ""
 
 
 def _get_winner_from_aggregated(task_id: str) -> Optional[str]:
@@ -64,6 +90,10 @@ def _run_pr_review(
     prompts_dir = PROJECT_ROOT / ".prompts"
     prompts_dir.mkdir(exist_ok=True)
 
+    # Load repo context (planning docs, README, etc.)
+    repo_context = _load_repo_context()
+    context_section = f"\n## Repository Context\n{repo_context}\n" if repo_context else ""
+
     prompt_path = prompts_dir / f"peer-review-{task_id}.md"
     prompt_path.write_text(f"""# Peer Review: PR #{pr_number}
 
@@ -74,7 +104,7 @@ def _run_pr_review(
 ## Branch
 - Head: {pr.head_branch} ({pr.head_sha})
 - Base: {pr.base_branch}
-
+{context_section}
 ## Diff
 ```diff
 {pr.diff}
@@ -82,49 +112,54 @@ def _run_pr_review(
 
 ## Your Task
 
-Review this PR thoroughly and create your decision file at:
+Review this PR and create your decision file at:
 `.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`
 
 ## Review Checklist
 
 ### 1. Planning & Architecture Alignment
-- **Check planning docs first** - Read any `docs/`, `planning/`, `ARCHITECTURE.md`, `ADR/` files
-- **Verify documented decisions** - Does this change align with existing architecture decisions?
-- **Flag conflicts** - If changes contradict documented patterns (e.g., auth approach, data flow), flag immediately
+- **Check planning docs** - Read any `docs/`, `planning/`, `ARCHITECTURE.md`, `ADR/` files
+- **Flag conflicts** - If changes contradict documented patterns (auth, data flow), flag immediately
 
 ### 2. Scope & Intent
-- **Stated vs actual changes** - Does the PR description match what's actually changed?
-- **Undocumented changes** - Flag any significant changes not mentioned in the PR description
-- **Question unclear intent** - Ask "Why was this done?" for changes that seem unrelated to the stated goal
-- **Scope creep** - Identify changes that weren't necessary for the stated task
+- **Stated vs actual** - Does the PR description match what's changed?
+- **Question unclear intent** - Ask "Why?" for unexplained changes
 
 ### 3. Technical Review
-- Security issues (auth, secrets, input validation)
-- Performance concerns (N+1 queries, unbounded loops)
+- Security (auth, secrets, input validation)
+- Performance (N+1 queries, unbounded ops)
 - Code quality and readability
-- Missing tests for new functionality
-- Error handling gaps
 
-### 4. Simplification Opportunities
-- **Existing patterns** - Could this use existing modules, utilities, or patterns in the codebase?
-- **Redundant config** - Is this specifying default behavior explicitly?
-- **DRY violations** - Is there duplication that could be avoided?
+## Decision File Format
 
-### 5. Questions to Ask
-- For any change that seems significant but unexplained, ask WHY
-- For architectural changes, verify if this was intentional
-- For config changes, ask if there's a better place for them
+**REQUIRED FORMAT:**
+```json
+{{{{
+  "judge": "{{judge_key}}",
+  "task_id": "{task_id}",
+  "review_type": "peer-review",
+  "decision": "APPROVED" | "REQUEST_CHANGES",
+  "summary": "2-3 sentence overall assessment",
+  "inline_comments": [
+    {{{{
+      "path": "relative/path/to/file.py",
+      "line": 42,
+      "body": "Specific issue or suggestion",
+      "severity": "critical" | "warning" | "nitpick"
+    }}}}
+  ],
+  "remaining_issues": ["Any blocking issues not tied to specific lines"]
+}}}}
+```
 
-## Decision Criteria
+## Inline Comment Rules
 
-- **APPROVED** - Code is good, aligns with architecture, scope is appropriate
-- **REQUEST_CHANGES** - Has issues that must be fixed:
-  - Conflicts with documented architecture
-  - Significant undocumented changes
-  - Security/performance issues
-  - Scope creep without justification
-
-Include specific questions in your `remaining_issues` for anything unclear.
+- **Max 10 comments** per judge (prioritize critical issues)
+- **severity**: Only use "critical", "warning", or "nitpick"
+- **line**: Use line numbers from NEW file (lines starting with +)
+- **path**: Use relative path from repo root
+- Questions count as comments: "Why was this changed from X to Y?"
+- If code looks good, approve with empty inline_comments array
 """)
 
     if skip_agents:
@@ -190,6 +225,7 @@ Include specific questions in your `remaining_issues` for anything unclear.
 
     # Aggregate decisions and post to GitHub
     from ..core.decision_parser import get_peer_review_status
+    from ..core.user_config import get_judge_config
 
     status = get_peer_review_status(task_id, project_root=PROJECT_ROOT)
 
@@ -209,48 +245,76 @@ Include specific questions in your `remaining_issues` for anything unclear.
     else:
         summary = f"❌ {total} judge(s) requested changes."
 
-    # Collect issues from all decisions (check both field names)
-    all_issues = []
+    # Collect issues and inline comments from all decisions
+    all_issues: list[tuple[str, str]] = []
+    all_comments: list[ReviewComment] = []
     decisions_dir = PROJECT_ROOT / ".prompts" / "decisions"
+
     for f in decisions_dir.glob(f"*-{task_id}-peer-review.json"):
         try:
             data = json.loads(f.read_text())
             judge_key = data.get("judge", f.stem.split("-")[0])
-            from ..core.user_config import get_judge_config
-
             judge_cfg = get_judge_config(judge_key)
             judge_label = judge_cfg.label if judge_cfg else judge_key
+
+            # Collect text issues
             issues = data.get("blocker_issues", []) + data.get("remaining_issues", [])
             for issue in issues:
                 all_issues.append((judge_label, issue))
+
+            # Collect inline comments
+            for c in data.get("inline_comments", []):
+                if "path" in c and "line" in c and "body" in c:
+                    try:
+                        line_num = int(c["line"])
+                        if line_num <= 0:
+                            continue
+                    except (ValueError, TypeError):
+                        continue
+                    # Add judge signature to comment
+                    body = f"{c['body']}\n\n— 🤖 *{judge_label}*"
+                    all_comments.append(
+                        ReviewComment(path=c["path"], line=line_num, body=body, severity=c.get("severity", "warning"))
+                    )
         except (json.JSONDecodeError, OSError):
             pass
 
+    # Build summary with issues
     if all_issues:
         summary += "\n\n**Issues found:**\n" + "\n".join(f"- [{j}] {issue}" for j, issue in all_issues[:10])
 
     summary += "\n\n---\n🤖 Agent Cube Peer Review"
 
+    # Display results
     console.print()
     console.print(f"[bold]Decision:[/bold] {decision}")
     console.print(f"[bold]Summary:[/bold] {summary[:200]}...")
     console.print()
 
-    if all_issues:
+    if all_comments:
+        console.print(f"[bold]Inline Comments ({len(all_comments)}):[/bold]")
+        severity_colors = {"critical": "red", "warning": "yellow", "nitpick": "dim"}
+        for c in all_comments[:15]:
+            color = severity_colors.get(c.severity, "white")
+            console.print(f"  [{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
+            body_preview = c.body.split("\n")[0][:80]
+            console.print(f"           {body_preview}")
+    elif all_issues:
         console.print(f"[bold]Issues ({len(all_issues)}):[/bold]")
         for judge_name, issue in all_issues[:10]:
             console.print(f"  [cyan][{judge_name}][/cyan] {issue}")
         if len(all_issues) > 10:
             console.print(f"  [dim]... and {len(all_issues) - 10} more[/dim]")
     else:
-        console.print("[dim]No blocking issues found[/dim]")
+        console.print("[dim]No issues found[/dim]")
 
+    # Post review
     if dry_run:
         print_warning("Dry run - review NOT posted to GitHub")
     else:
         print_info("Posting review to GitHub...")
         try:
-            review = Review(decision=decision, summary=summary, comments=[])
+            review = Review(decision=decision, summary=summary, comments=all_comments[:15])
             post_review(pr_number, review, cwd=str(PROJECT_ROOT))
             print_success(f"Review posted to PR #{pr_number}")
         except RuntimeError as e:
