@@ -103,7 +103,6 @@ def _run_pr_review(
             head_branch=pr.head_branch,
             head_sha=pr.head_sha,
             base_branch=pr.base_branch,
-            diff=pr.diff,
             task_id=task_id,
             repo_context=repo_context,
         )

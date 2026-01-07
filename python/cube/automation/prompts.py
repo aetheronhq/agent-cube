@@ -118,7 +118,6 @@ def build_pr_review_prompt(
     head_branch: str,
     head_sha: str,
     base_branch: str,
-    diff: str,
     task_id: str,
     repo_context: str = "",
 ) -> str:
@@ -132,12 +131,22 @@ def build_pr_review_prompt(
 {body or "(No description)"}
 
 ## Branch
-- Head: {head_branch} ({head_sha})
-- Base: {base_branch}
+- Head: `{head_branch}` ({head_sha[:8]})
+- Base: `{base_branch}`
 {context_section}
-## Diff
-```diff
-{diff}
+## View Changes
+
+Run these commands to review the PR:
+
+```bash
+# See what files changed
+git diff {base_branch}...{head_branch} --stat
+
+# View full diff
+git diff {base_branch}...{head_branch}
+
+# View specific file
+git diff {base_branch}...{head_branch} -- path/to/file.ts
 ```
 
 ## Your Task
