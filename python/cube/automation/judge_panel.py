@@ -291,107 +291,13 @@ When creating your decision file, use judge key {judge_key}.
 """
 
     if review_type == "peer-review":
-        review_instructions = f"""# Peer Review Context
+        from .prompts import build_peer_review_prompt
 
-**You are reviewing the WINNING implementation only.**
-
-The winning writer's code is at:
-**Location:** `{WORKTREE_BASE}/{project_name}/writer-{{winner}}-{task_id}/`
-**Branch:** `writer-{{winner}}/{task_id}`
-**Worktree:** `{WORKTREE_BASE}/{project_name}/writer-{{winner}}-{task_id}/`
-
-## Review Scope
-
-Check what was changed since branching from main:
-```bash
-cd {WORKTREE_BASE}/{project_name}/writer-{{winner}}-{task_id}/
-git log --oneline main..HEAD
-git diff main...HEAD --stat
-```
-
-Use read_file to review the actual code changes.
-
----
-
-## Review Checklist
-
-### 1. Planning & Architecture Alignment (CHECK FIRST)
-- **Read planning docs** - Check `docs/`, `planning/`, `ARCHITECTURE.md`, `ADR/` in the repo
-- **Verify documented decisions** - Does this change align with existing architecture?
-- **Flag conflicts immediately** - If changes contradict documented patterns (e.g., auth approach, data flow, credential management)
-
-### 2. Scope & Intent
-- **Task alignment** - Do the changes match the original task requirements?
-- **Undocumented changes** - Flag significant changes not mentioned in the task
-- **Question unclear intent** - Ask "Why was this done?" for changes unrelated to the task
-- **Scope creep** - Identify unnecessary changes that weren't required
-
-### 3. Technical Review
-- Security issues (auth changes, secrets handling, input validation)
-- Performance concerns (N+1 queries, unbounded operations)
-- Code quality and maintainability
-- Missing tests for new functionality
-- Error handling
-
-### 4. Simplification Opportunities
-- **Existing patterns** - Could this use existing modules/utilities?
-- **Redundant config** - Is this specifying default behavior explicitly?
-- **Best practices** - Should config be in a file instead of inline?
-
-### 5. Questions to Include
-For any change that seems significant but unexplained:
-- "Why was X changed from Y to Z?"
-- "Is this architectural change intentional?"
-- "Should this config be in a different location?"
-
-Add questions to `remaining_issues` even if approving - these warrant discussion.
-
----
-
-# REQUIRED: Peer Review Decision File
-
-**You MUST create this JSON file at the end of your review:**
-
-**File:** `.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`
-
-⚠️ **EXACT FILENAME REQUIRED** - Use your judge key exactly as shown (e.g., `judge_1`, `judge_2`).
-Example: If you are `judge_1`, create `.prompts/decisions/judge_1-{task_id}-peer-review.json`
-
-**REQUIRED FORMAT (TOP-LEVEL FIELDS MANDATORY):**
-```json
-{{
-  "judge": "{{judge_key}}",
-  "task_id": "{task_id}",
-  "review_type": "peer-review",
-  "timestamp": "{{current-iso-timestamp}}",
-  "decision": "APPROVED" | "REQUEST_CHANGES" | "REJECTED",
-  "remaining_issues": [
-    "Specific issue to fix (REQUIRED if REQUEST_CHANGES, empty array if APPROVED)"
-  ],
-  "recommendation": "Ready to merge" | "Needs more work",
-  "verification": {{
-    "your_detailed_checks": "optional_object"
-  }}
-}}
-```
-
-**⚠️ CRITICAL - EXACT SPELLING REQUIRED:**
-- The "decision" field MUST be at the TOP LEVEL of the JSON
-- Use EXACT strings: `"APPROVED"`, `"REQUEST_CHANGES"`, or `"REJECTED"`
-- NOT "Approved", "approve", "APPROVE", "approved" - use exactly `"APPROVED"`
-- The parser will reject anything other than these exact strings
-
-**If decision is REQUEST_CHANGES:**
-- You MUST list specific issues in "remaining_issues" array
-- Empty remaining_issues with REQUEST_CHANGES will be treated as malformed
-
-**If decision is APPROVED:**
-- Set "remaining_issues" to empty array: []
-- You may include additional verification details in nested objects
-
----
-
-"""
+        review_instructions = build_peer_review_prompt(
+            task_id=task_id,
+            worktree_base=WORKTREE_BASE,
+            project_name=project_name,
+        )
     else:
         config = load_config()
 

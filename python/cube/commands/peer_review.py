@@ -92,95 +92,23 @@ def _run_pr_review(
 
     # Load repo context (planning docs, README, etc.)
     repo_context = _load_repo_context()
-    context_section = f"\n## Repository Context\n{repo_context}\n" if repo_context else ""
+
+    from ..automation.prompts import build_pr_review_prompt
 
     prompt_path = prompts_dir / f"peer-review-{task_id}.md"
-    prompt_path.write_text(f"""# Peer Review: PR #{pr_number}
-
-## PR: {pr.title}
-
-{pr.body or "(No description)"}
-
-## Branch
-- Head: {pr.head_branch} ({pr.head_sha})
-- Base: {pr.base_branch}
-{context_section}
-## Diff
-```diff
-{pr.diff}
-```
-
-## Your Task
-
-Review this PR and create your decision file at:
-`{PROJECT_ROOT}/.prompts/decisions/{{{{judge_key}}}}-{task_id}-peer-review.json`
-
-**IMPORTANT: Use this exact absolute path. Do NOT write to a worktree.**
-
-## Review Checklist
-
-### 1. Planning & Architecture Alignment
-- **Check planning docs** - Read any `docs/`, `planning/`, `ARCHITECTURE.md`, `ADR/` files
-- **Flag conflicts** - If changes contradict documented patterns (auth, data flow), flag immediately
-
-### 2. Scope & Intent
-- **Stated vs actual** - Does the PR description match what's changed?
-- **Question unclear intent** - Ask "Why?" for unexplained changes
-
-### 3. Technical Review
-- Security (auth, secrets, input validation)
-- Performance (N+1 queries, unbounded ops)
-- Code quality and readability
-
-### 4. KISS & Simplicity
-- Is the solution elegant and minimal?
-- Any over-engineering or unnecessary complexity?
-- Could existing utilities/patterns be reused?
-
-## Decision File Format
-
-**REQUIRED FORMAT:**
-```json
-{{{{
-  "judge": "{{judge_key}}",
-  "task_id": "{task_id}",
-  "review_type": "peer-review",
-  "decision": "APPROVED" | "REQUEST_CHANGES",
-  "summary": "2-3 sentence overall assessment",
-  "inline_comments": [
-    {{{{
-      "path": "relative/path/to/file.py",
-      "line": 42,
-      "body": "Specific issue or suggestion",
-      "severity": "critical" | "warning" | "nitpick"
-    }}}}
-  ],
-  "remaining_issues": ["Any blocking issues not tied to specific lines"]
-}}}}
-```
-
-## Inline Comment Rules
-
-- **ONLY post issues** - things that need attention or questions
-- **NO positive feedback** as inline comments - put "Good: ..." observations in summary instead
-- **Max 10 comments** per judge (prioritize critical issues)
-- **severity**: "critical" (must fix), "warning" (should fix), "nitpick" (minor style issue)
-- **line**: Use line numbers from NEW file (lines starting with +)
-- **path**: Use relative path from repo root
-- Questions count as comments: "Why was this changed from X to Y?"
-
-## Decision Rules
-- **APPROVED**: ONLY if NO critical or warning issues. Nitpicks alone are OK to approve.
-- **REQUEST_CHANGES**: If ANY critical or warning issues exist (even unanswered questions)
-- Do NOT approve if you have warnings - warnings mean "should fix" before merge
-
-## Complete Review Required
-
-This is a COMPLETE review - include ALL issues you find, even if you've mentioned them in a previous session.
-- Report every issue that exists in the current code
-- Only omit a previously-reported issue if you verify it has been RESOLVED
-- Do not assume previous feedback was addressed - check the code
-""")
+    prompt_path.write_text(
+        build_pr_review_prompt(
+            pr_number=pr_number,
+            title=pr.title,
+            body=pr.body or "",
+            head_branch=pr.head_branch,
+            head_sha=pr.head_sha,
+            base_branch=pr.base_branch,
+            diff=pr.diff,
+            task_id=task_id,
+            repo_context=repo_context,
+        )
+    )
 
     if skip_agents:
         print_info(f"Skipping agents, using existing decisions for PR #{pr_number}...")
