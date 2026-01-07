@@ -276,13 +276,18 @@ def _run_pr_review(
     console.print()
 
     if final_comments:
-        console.print(f"[bold]Inline Comments ({len(final_comments)}):[/bold]")
+        # Sort by severity: critical > warning > nitpick
+        severity_order = {"critical": 0, "warning": 1, "nitpick": 2}
+        sorted_comments = sorted(final_comments, key=lambda x: severity_order.get(x[1].severity, 99))
+
+        console.print(f"[bold]Inline Comments ({len(sorted_comments)}):[/bold]")
         severity_colors = {"critical": "red", "warning": "yellow", "nitpick": "dim"}
-        for judges, c in final_comments:
+        for judges, c in sorted_comments:
             color = severity_colors.get(c.severity, "white")
-            console.print(f"  [{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
+            console.print(f"  [cyan][{judges}][/cyan]")
+            console.print(f"    [{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
             body_preview = c.body.split("\n")[0][:80]
-            console.print(f"           [cyan][{judges}][/cyan] {body_preview}")
+            console.print(f"             {body_preview}")
     elif all_issues:
         console.print(f"[bold]Issues ({len(all_issues)}):[/bold]")
         for judge_name, issue in all_issues[:10]:
