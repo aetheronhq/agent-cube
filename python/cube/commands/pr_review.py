@@ -110,7 +110,8 @@ Review this PR and output a structured JSON response:
 ## Output Rules
 
 - Max 15 comments (prioritize critical and warning issues)
-- Skip nitpicks unless focus explicitly includes them
+- Only use severity: "critical", "warning", or "nitpick" - do NOT use "info"
+- Positive observations go in the summary, not as comments
 - Each comment must reference a specific line in the diff
 - Use line numbers from the NEW file (lines starting with +)
 - Be constructive, not just critical
@@ -122,14 +123,27 @@ Output ONLY the JSON response, no other text.
 
 def parse_review_output(output: str) -> Optional[Review]:
     """Parse agent output into Review object."""
-    try:
-        # Find JSON in output (agent may include extra text)
-        start = output.find("{")
-        end = output.rfind("}") + 1
-        if start == -1 or end == 0:
-            return None
+    import re
 
-        data = json.loads(output[start:end])
+    try:
+        # Remove streaming artifacts (spaces between characters from thinking mode)
+        # Look for JSON code block first
+        json_match = re.search(r"```json\s*(\{[\s\S]*?\})\s*```", output)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            # Find JSON in output (agent may include extra text)
+            start = output.find("{")
+            end = output.rfind("}") + 1
+            if start == -1 or end == 0:
+                return None
+            json_str = output[start:end]
+
+        # Clean up the JSON string - remove excess whitespace
+        json_str = re.sub(r"\s+", " ", json_str)
+        json_str = json_str.replace("{ ", "{").replace(" }", "}").replace("[ ", "[").replace(" ]", "]")
+
+        data = json.loads(json_str)
 
         decision = data.get("decision", "COMMENT")
         if decision not in ("APPROVE", "REQUEST_CHANGES", "COMMENT"):
@@ -253,13 +267,15 @@ async def run_pr_review(pr_number: int, focus: Optional[str], dry_run: bool, mod
         for c in review.comments:
             color = severity_colors.get(c.severity, "white")
             console.print(f"  [{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
-            # Truncate long comments
             body_preview = c.body[:80] + "..." if len(c.body) > 80 else c.body
             console.print(f"           {body_preview}")
     else:
         console.print("[dim]No inline comments[/dim]")
 
     console.print()
+
+    # Add signature to summary
+    review.summary += "\n\n---\n🤖 Agent Cube Review"
 
     # Post or dry-run
     if dry_run:
