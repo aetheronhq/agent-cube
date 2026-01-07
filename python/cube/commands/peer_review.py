@@ -277,12 +277,22 @@ def _run_pr_review(
         severity_colors = {"critical": "red", "warning": "yellow", "nitpick": "dim"}
         for ic in sorted_comments:
             c = ic.comment
-            judges_str = ", ".join(ic.judges) if ic.judges else "Agent Cube"
             color = severity_colors.get(c.severity, "white")
             console.print(f"[{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
+            # Show judges with their config colors
+            judge_parts = []
+            for judge_label in ic.judges:
+                # Find judge config by label to get color
+                judge_color = "cyan"  # fallback
+                for jc in get_judge_configs():
+                    if jc.label == judge_label:
+                        judge_color = jc.color
+                        break
+                judge_parts.append(f"[{judge_color}]{judge_label}[/{judge_color}]")
+            judges_display = ", ".join(judge_parts) if judge_parts else "[cyan]Agent Cube[/cyan]"
             # Show full body (minus signature) next to judge label
             body_text = c.body.split("\n\n— *Agent Cube")[0]
-            console.print(f"[cyan][{judges_str}][/cyan] {body_text}")
+            console.print(f"[{judges_display}] {body_text}")
             console.print()
 
     if not dedupe_result.summary_issues and not dedupe_result.inline_comments:
