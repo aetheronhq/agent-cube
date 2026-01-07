@@ -280,10 +280,9 @@ def _run_pr_review(
             judges_str = ", ".join(ic.judges) if ic.judges else "Agent Cube"
             color = severity_colors.get(c.severity, "white")
             console.print(f"[{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
-            console.print(f"[cyan][{judges_str}][/cyan]")
-            # Show full body (minus signature)
-            body_lines = c.body.split("\n\n— *Agent Cube")[0]
-            console.print(f"  {body_lines}")
+            # Show full body (minus signature) next to judge label
+            body_text = c.body.split("\n\n— *Agent Cube")[0]
+            console.print(f"[cyan][{judges_str}][/cyan] {body_text}")
             console.print()
 
     if not dedupe_result.summary_issues and not dedupe_result.inline_comments:
