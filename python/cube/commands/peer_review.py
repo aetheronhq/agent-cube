@@ -263,6 +263,7 @@ This is a COMPLETE review - include ALL issues you find, even if you've mentione
     # Use get_decision_file_path which checks worktrees and copies to PROJECT_ROOT
     for jconfig in get_judge_configs():
         decision_path = get_decision_file_path(jconfig.key, task_id, review_type="peer-review")
+        console.print(f"[dim]Looking for {jconfig.key}: {decision_path} (exists: {decision_path.exists()})[/dim]")
         if not decision_path.exists():
             continue
         try:
