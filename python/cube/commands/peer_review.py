@@ -285,9 +285,10 @@ def _run_pr_review(
         for judges, c in sorted_comments:
             color = severity_colors.get(c.severity, "white")
             console.print(f"  [cyan][{judges}][/cyan]")
-            console.print(f"    [{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
-            body_preview = c.body.split("\n")[0][:80]
-            console.print(f"             {body_preview}")
+            console.print(f"  [{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
+            # Show first line of body, wrap if needed
+            body_first_line = c.body.split("\n")[0]
+            console.print(f"  {body_first_line}")
     elif all_issues:
         console.print(f"[bold]Issues ({len(all_issues)}):[/bold]")
         for judge_name, issue in all_issues[:10]:
