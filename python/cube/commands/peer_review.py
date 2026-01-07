@@ -113,9 +113,7 @@ def _run_pr_review(
 ## Your Task
 
 Review this PR and create your decision file at:
-`{PROJECT_ROOT}/.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`
-
-⚠️ **IMPORTANT**: Use the ABSOLUTE path above. Do NOT write to the worktree's .prompts folder.
+`.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`
 
 ## Review Checklist
 
@@ -242,7 +240,7 @@ This is a COMPLETE review - include ALL issues you find, even if you've mentione
 
     # Aggregate decisions and post to GitHub
     from ..core.decision_parser import get_peer_review_status
-    from ..core.user_config import get_judge_config
+    from ..core.user_config import get_judge_config, get_judge_configs
 
     status = get_peer_review_status(task_id, project_root=PROJECT_ROOT)
 
@@ -263,14 +261,19 @@ This is a COMPLETE review - include ALL issues you find, even if you've mentione
         summary = f"❌ {total} judge(s) requested changes."
 
     # Collect issues and inline comments from all decisions
+    from ..core.decision_parser import get_decision_file_path
+
     all_issues: list[tuple[str, str]] = []
     all_comments: list[tuple[str, ReviewComment]] = []  # (judge_label, comment)
-    decisions_dir = PROJECT_ROOT / ".prompts" / "decisions"
 
-    for f in decisions_dir.glob(f"*-{task_id}-peer-review.json"):
+    # Use get_decision_file_path which checks worktrees and copies to PROJECT_ROOT
+    for jconfig in get_judge_configs():
+        decision_path = get_decision_file_path(jconfig.key, task_id, review_type="peer-review")
+        if not decision_path.exists():
+            continue
         try:
-            data = json.loads(f.read_text())
-            judge_key = data.get("judge", f.stem.split("-")[0])
+            data = json.loads(decision_path.read_text())
+            judge_key = data.get("judge", jconfig.key)
             judge_cfg = get_judge_config(judge_key)
             judge_label = judge_cfg.label if judge_cfg else judge_key
 
