@@ -66,7 +66,14 @@ def get_decision_file_path(
     if found:
         return found
 
-    return root / ".prompts" / "decisions" / f"{judge_key}-{task_id}-{review_type}.json"
+    # Check both underscore and hyphen variants (judge_1 vs judge-1)
+    decisions_dir = root / ".prompts" / "decisions"
+    for variant in [judge_key, judge_key.replace("_", "-")]:
+        path = decisions_dir / f"{variant}-{task_id}-{review_type}.json"
+        if path.exists():
+            return path
+
+    return decisions_dir / f"{judge_key}-{task_id}-{review_type}.json"
 
 
 def parse_single_decision_file(filepath: Path) -> Optional[Dict[str, Any]]:
