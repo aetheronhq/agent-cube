@@ -154,12 +154,14 @@ Review this PR and create your decision file at:
 
 ## Inline Comment Rules
 
+- **ONLY post issues** - things that need attention or questions
+- **NO positive feedback** as inline comments - put "Good: ..." observations in summary instead
 - **Max 10 comments** per judge (prioritize critical issues)
-- **severity**: Only use "critical", "warning", or "nitpick"
+- **severity**: "critical" (must fix), "warning" (should fix), "nitpick" (minor style issue)
 - **line**: Use line numbers from NEW file (lines starting with +)
 - **path**: Use relative path from repo root
 - Questions count as comments: "Why was this changed from X to Y?"
-- If code looks good, approve with empty inline_comments array
+- If code looks good, APPROVE with empty inline_comments array and mention positives in summary
 """)
 
     if skip_agents:
