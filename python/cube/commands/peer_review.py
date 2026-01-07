@@ -268,32 +268,40 @@ def _run_pr_review(
     # Display inline comments
     if dedupe_result.inline_comments:
         severity_order = {"critical": 0, "warning": 1, "nitpick": 2}
-        sorted_comments = sorted(dedupe_result.inline_comments, key=lambda c: severity_order.get(c.severity, 99))
+        sorted_comments = sorted(
+            dedupe_result.inline_comments, key=lambda ic: severity_order.get(ic.comment.severity, 99)
+        )
 
         console.print(f"[bold]Inline comments ({len(sorted_comments)}):[/bold]")
         console.print()
         severity_colors = {"critical": "red", "warning": "yellow", "nitpick": "dim"}
-        for c in sorted_comments:
+        for ic in sorted_comments:
+            c = ic.comment
+            judges_str = ", ".join(ic.judges) if ic.judges else "Agent Cube"
             color = severity_colors.get(c.severity, "white")
             console.print(f"[{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
-            body_first_line = c.body.split("\n")[0]
-            console.print(f"  {body_first_line}")
+            console.print(f"[cyan][{judges_str}][/cyan]")
+            # Show full body (minus signature)
+            body_lines = c.body.split("\n\n— *Agent Cube")[0]
+            console.print(f"  {body_lines}")
             console.print()
 
     if not dedupe_result.summary_issues and not dedupe_result.inline_comments:
         console.print("[dim]No new issues to post[/dim]")
 
     # Post review
+    comments_to_post = [ic.comment for ic in dedupe_result.inline_comments]
+
     if dry_run:
         print_warning("Dry run - review NOT posted to GitHub")
-        if dedupe_result.inline_comments:
-            console.print(f"[dim]Would post {len(dedupe_result.inline_comments)} inline comment(s)[/dim]")
+        if comments_to_post:
+            console.print(f"[dim]Would post {len(comments_to_post)} inline comment(s)[/dim]")
     else:
         print_info("Posting review to GitHub...")
         try:
-            review = Review(decision=decision, summary=summary, comments=dedupe_result.inline_comments)
+            review = Review(decision=decision, summary=summary, comments=comments_to_post)
             post_review(pr_number, review, cwd=str(PROJECT_ROOT))
-            print_success(f"Review posted to PR #{pr_number} ({len(dedupe_result.inline_comments)} inline comments)")
+            print_success(f"Review posted to PR #{pr_number} ({len(comments_to_post)} inline comments)")
         except RuntimeError as e:
             print_error(f"Failed to post review: {e}")
             raise typer.Exit(1)

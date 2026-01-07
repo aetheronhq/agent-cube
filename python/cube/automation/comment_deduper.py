@@ -10,10 +10,18 @@ from ..github.reviews import ExistingComment, ReviewComment
 
 
 @dataclass
+class InlineComment:
+    """An inline comment with judge attribution."""
+
+    comment: ReviewComment
+    judges: list[str]
+
+
+@dataclass
 class DedupeResult:
     """Result of AI deduplication."""
 
-    inline_comments: list[ReviewComment]  # Comments with file:line to post as inline
+    inline_comments: list[InlineComment]  # Comments with file:line to post as inline
     summary_issues: list[str]  # Issues without file:line to include in summary
     skipped_count: int
 
@@ -85,10 +93,12 @@ Deduplicate and organize the feedback into two categories:
 
 ### Rules
 - SKIP feedback that duplicates existing PR comments
+- SKIP positive/praise feedback (👍, "good", "nice", etc.) - do NOT post as inline comments
 - MERGE similar feedback from different judges into one
+- ONLY include actual issues, concerns, or questions - things that need attention
 - If feedback has file:line → inline_comments
 - If feedback is general (no file:line) → summary_issues
-- Credit all contributing judges
+- Credit all contributing judges in the `judges` field
 - Clean up text - be concise, remove redundancy
 
 ## Output Format
@@ -179,14 +189,13 @@ def _fallback_result(feedback: list[JudgeFeedback]) -> DedupeResult:
     summary = []
     for f in feedback:
         if f.path and f.line:
-            inline.append(
-                ReviewComment(
-                    path=f.path,
-                    line=f.line,
-                    body=f"{f.body}\n\n— *Agent Cube / {f.judge}* 🤖",
-                    severity=f.severity,
-                )
+            comment = ReviewComment(
+                path=f.path,
+                line=f.line,
+                body=f"{f.body}\n\n— *Agent Cube / {f.judge}* 🤖",
+                severity=f.severity,
             )
+            inline.append(InlineComment(comment=comment, judges=[f.judge]))
         else:
             summary.append(f"[{f.judge}] {f.body}")
     return DedupeResult(inline_comments=inline, summary_issues=summary, skipped_count=0)
@@ -201,14 +210,13 @@ def _parse_dedupe_result(data: dict) -> DedupeResult:
         judge_str = ", ".join(judges) if judges else "Agent Cube"
         body = f"{item['body']}\n\n— *Agent Cube / {judge_str}* 🤖"
 
-        inline_comments.append(
-            ReviewComment(
-                path=item["path"],
-                line=item["line"],
-                body=body,
-                severity=item.get("severity", "warning"),
-            )
+        comment = ReviewComment(
+            path=item["path"],
+            line=item["line"],
+            body=body,
+            severity=item.get("severity", "warning"),
         )
+        inline_comments.append(InlineComment(comment=comment, judges=judges))
 
     summary_issues = data.get("summary_issues", [])
     skipped_count = data.get("skipped_count", 0)
