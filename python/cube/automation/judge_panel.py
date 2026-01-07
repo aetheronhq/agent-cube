@@ -164,6 +164,7 @@ def _parse_decision_status(judge_info: JudgeInfo) -> str:
     winner = data.get("winner", "")
     remaining_issues = data.get("remaining_issues", [])
     blocker_issues = data.get("blocker_issues", [])
+    inline_comments = data.get("inline_comments", [])
 
     scores = data.get("scores", {})
 
@@ -178,7 +179,9 @@ def _parse_decision_status(judge_info: JudgeInfo) -> str:
         writer_scores.append((writer_key, score))
 
     if judge_info.review_type == "peer-review":
-        return _format_peer_review_status(decision, remaining_issues)
+        # Count both remaining_issues and inline_comments for accurate issue count
+        all_issues = remaining_issues + inline_comments
+        return _format_peer_review_status(decision, all_issues)
 
     score_text = " / ".join([f"{s:.0f}" for _, s in writer_scores if s is not None])
 
