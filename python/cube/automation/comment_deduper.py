@@ -159,9 +159,10 @@ async def run_dedupe_agent(
     print_info(f"Running dedupe agent ({model}) on {len(feedback)} items...")
 
     parser = get_parser("cursor-agent")
+    agent_stream = run_agent(PROJECT_ROOT, model, prompt)
 
     try:
-        async for line in run_agent(PROJECT_ROOT, model, prompt):
+        async for line in agent_stream:
             msg = parser.parse(line)
             if msg and msg.type == "assistant" and msg.content:
                 console.print(".", end="", style="dim")
@@ -181,6 +182,9 @@ async def run_dedupe_agent(
     except Exception as e:
         console.print(f"\n[yellow]Dedupe agent failed: {e}. Using fallback.[/yellow]")
         return _fallback_result(feedback)
+    finally:
+        # Properly close async generator to avoid event loop warnings
+        await agent_stream.aclose()
 
 
 def _fallback_result(feedback: list[JudgeFeedback]) -> DedupeResult:
