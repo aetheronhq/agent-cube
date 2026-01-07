@@ -218,51 +218,44 @@ def _run_pr_review(
                     except (ValueError, TypeError):
                         continue
                     all_comments.append(
-                        {
-                            "judge_label": judge_label,
-                            "path": c["path"],
-                            "line": line_num,
-                            "body": c["body"],
-                            "severity": c.get("severity", "warning"),
-                        }
+                        (
+                            judge_label,
+                            ReviewComment(
+                                path=c["path"],
+                                line=line_num,
+                                body=c["body"],
+                                severity=c.get("severity", "warning"),
+                            ),
+                        )
                     )
         except (json.JSONDecodeError, OSError):
             pass
 
-    # Merge comments on same file:line
-    severity_order = {"critical": 0, "warning": 1, "nitpick": 2}
-    merged: dict[tuple[str, int], dict] = {}
-    for c in all_comments:
-        key = (c["path"], c["line"])
-        if key not in merged:
-            merged[key] = {
-                "path": c["path"],
-                "line": c["line"],
-                "bodies": [(c["judge_label"], c["body"])],
-                "judges": [c["judge_label"]],
-                "severity": c["severity"],
-            }
-        else:
-            merged[key]["bodies"].append((c["judge_label"], c["body"]))
-            merged[key]["judges"].append(c["judge_label"])
-            if severity_order.get(c["severity"], 2) < severity_order.get(merged[key]["severity"], 2):
-                merged[key]["severity"] = c["severity"]
+    # Fetch existing comments for AI deduplication
+    from ..github.reviews import fetch_existing_comments
 
-    # Convert to ReviewComment objects with judge info for display
-    final_comments: list[tuple[str, ReviewComment]] = []
-    for m in merged.values():
-        display_judges = ", ".join(m["judges"])
-        # Build signature: "— *Agent Cube / Judge Opus*" or "— *Agent Cube / Judge Opus, Judge Gemini*"
-        signature = f"\n\n— *Agent Cube / {display_judges}* 🤖"
-        if len(m["bodies"]) == 1:
-            _, body = m["bodies"][0]
-            combined_body = body + signature
-        else:
-            parts = [f"**{judge}**: {body}" for judge, body in m["bodies"]]
-            combined_body = "\n\n---\n\n".join(parts) + signature
-        final_comments.append(
-            (display_judges, ReviewComment(path=m["path"], line=m["line"], body=combined_body, severity=m["severity"]))
+    print_info("Fetching existing comments from PR...")
+    existing_comments = fetch_existing_comments(pr_number, cwd=str(PROJECT_ROOT))
+    console.print(f"[dim]Found {len(existing_comments)} existing comments[/dim]")
+
+    # Use AI deduper to intelligently combine/skip comments
+    from ..automation.comment_deduper import run_dedupe_agent
+
+    dedupe_result = asyncio.run(
+        run_dedupe_agent(
+            new_comments=all_comments,
+            existing_comments=existing_comments,
+            pr_diff=pr.diff,
+            pr_number=pr_number,
         )
+    )
+
+    comments_to_post = dedupe_result.comments_to_post
+
+    if dedupe_result.skipped:
+        console.print(f"[dim]Skipping {len(dedupe_result.skipped)} comment(s) (duplicates/low-value)[/dim]")
+    if dedupe_result.merged:
+        console.print(f"[dim]Merged {len(dedupe_result.merged)} comment group(s)[/dim]")
 
     # Build summary with issues
     if all_issues:
@@ -276,19 +269,18 @@ def _run_pr_review(
     console.print(f"[bold]Summary:[/bold] {summary[:200]}...")
     console.print()
 
-    if final_comments:
-        # Sort by severity: critical > warning > nitpick
+    if comments_to_post:
         severity_order = {"critical": 0, "warning": 1, "nitpick": 2}
-        sorted_comments = sorted(final_comments, key=lambda x: severity_order.get(x[1].severity, 99))
+        sorted_comments = sorted(comments_to_post, key=lambda c: severity_order.get(c.severity, 99))
 
-        console.print(f"[bold]Inline Comments ({len(sorted_comments)}):[/bold]")
+        console.print(f"[bold]Comments to post ({len(sorted_comments)}):[/bold]")
         console.print()
         severity_colors = {"critical": "red", "warning": "yellow", "nitpick": "dim"}
-        for judges, c in sorted_comments:
+        for c in sorted_comments:
             color = severity_colors.get(c.severity, "white")
             console.print(f"[{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
             body_first_line = c.body.split("\n")[0]
-            console.print(f"[cyan][{judges}][/cyan] {body_first_line}")
+            console.print(f"  {body_first_line}")
             console.print()
     elif all_issues:
         console.print(f"[bold]Issues ({len(all_issues)}):[/bold]")
@@ -298,22 +290,6 @@ def _run_pr_review(
             console.print(f"  [dim]... and {len(all_issues) - 10} more[/dim]")
     else:
         console.print("[dim]No issues found[/dim]")
-
-    # Fetch existing comments and filter duplicates
-    from ..github.reviews import fetch_existing_comments, filter_duplicate_comments
-
-    comments_only = [c for _, c in final_comments]
-
-    print_info("Checking for existing comments on PR...")
-    existing_comments = fetch_existing_comments(pr_number, cwd=str(PROJECT_ROOT))
-    console.print(f"[dim]Found {len(existing_comments)} existing comments[/dim]")
-
-    comments_to_post, skipped = filter_duplicate_comments(comments_only, existing_comments)
-
-    if skipped:
-        console.print(f"[dim]Skipping {len(skipped)} duplicate comment(s) already on PR[/dim]")
-        for c in skipped:
-            console.print(f"  [dim]- {c.path}:{c.line}[/dim]")
 
     # Post review
     if dry_run:
