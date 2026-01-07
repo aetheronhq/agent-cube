@@ -166,7 +166,11 @@ Review this PR and create your decision file at:
 - **line**: Use line numbers from NEW file (lines starting with +)
 - **path**: Use relative path from repo root
 - Questions count as comments: "Why was this changed from X to Y?"
-- If code looks good, APPROVE with empty inline_comments array and mention positives in summary
+
+## Decision Rules
+- **APPROVED**: ONLY if NO critical or warning issues. Nitpicks alone are OK to approve.
+- **REQUEST_CHANGES**: If ANY critical or warning issues exist (even unanswered questions)
+- Do NOT approve if you have warnings - warnings mean "should fix" before merge
 
 ## Complete Review Required
 
