@@ -130,6 +130,15 @@ Include specific questions in your `remaining_issues` for anything unclear.
     if skip_agents:
         print_info(f"Skipping agents, using existing decisions for PR #{pr_number}...")
     else:
+        # Clear old decision files to avoid stale results
+        decisions_dir = PROJECT_ROOT / ".prompts" / "decisions"
+        if decisions_dir.exists():
+            old_decisions = list(decisions_dir.glob(f"*-{task_id}-peer-review.json"))
+            if old_decisions:
+                print_info(f"Clearing {len(old_decisions)} old decision file(s)...")
+                for f in old_decisions:
+                    f.unlink()
+
         # Get judges, optionally excluding cli-review types (like CodeRabbit)
         from ..core.user_config import get_judge_configs
 
