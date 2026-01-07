@@ -82,17 +82,49 @@ def _run_pr_review(
 
 ## Your Task
 
-Review this PR and create your decision file at:
+Review this PR thoroughly and create your decision file at:
 `.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`
 
-Focus on:
-1. Security issues
-2. Performance concerns
-3. Code quality
-4. Missing tests
-5. Documentation
+## Review Checklist
 
-If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
+### 1. Planning & Architecture Alignment
+- **Check planning docs first** - Read any `docs/`, `planning/`, `ARCHITECTURE.md`, `ADR/` files
+- **Verify documented decisions** - Does this change align with existing architecture decisions?
+- **Flag conflicts** - If changes contradict documented patterns (e.g., auth approach, data flow), flag immediately
+
+### 2. Scope & Intent
+- **Stated vs actual changes** - Does the PR description match what's actually changed?
+- **Undocumented changes** - Flag any significant changes not mentioned in the PR description
+- **Question unclear intent** - Ask "Why was this done?" for changes that seem unrelated to the stated goal
+- **Scope creep** - Identify changes that weren't necessary for the stated task
+
+### 3. Technical Review
+- Security issues (auth, secrets, input validation)
+- Performance concerns (N+1 queries, unbounded loops)
+- Code quality and readability
+- Missing tests for new functionality
+- Error handling gaps
+
+### 4. Simplification Opportunities
+- **Existing patterns** - Could this use existing modules, utilities, or patterns in the codebase?
+- **Redundant config** - Is this specifying default behavior explicitly?
+- **DRY violations** - Is there duplication that could be avoided?
+
+### 5. Questions to Ask
+- For any change that seems significant but unexplained, ask WHY
+- For architectural changes, verify if this was intentional
+- For config changes, ask if there's a better place for them
+
+## Decision Criteria
+
+- **APPROVED** - Code is good, aligns with architecture, scope is appropriate
+- **REQUEST_CHANGES** - Has issues that must be fixed:
+  - Conflicts with documented architecture
+  - Significant undocumented changes
+  - Security/performance issues
+  - Scope creep without justification
+
+Include specific questions in your `remaining_issues` for anything unclear.
 """)
 
     if skip_agents:

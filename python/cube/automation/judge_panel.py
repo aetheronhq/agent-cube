@@ -326,6 +326,41 @@ Use read_file or git commands to review the actual code changes.
 
 ---
 
+## Review Checklist
+
+### 1. Planning & Architecture Alignment (CHECK FIRST)
+- **Read planning docs** - Check `docs/`, `planning/`, `ARCHITECTURE.md`, `ADR/` in the repo
+- **Verify documented decisions** - Does this change align with existing architecture?
+- **Flag conflicts immediately** - If changes contradict documented patterns (e.g., auth approach, data flow, credential management)
+
+### 2. Scope & Intent
+- **Task alignment** - Do the changes match the original task requirements?
+- **Undocumented changes** - Flag significant changes not mentioned in the task
+- **Question unclear intent** - Ask "Why was this done?" for changes unrelated to the task
+- **Scope creep** - Identify unnecessary changes that weren't required
+
+### 3. Technical Review
+- Security issues (auth changes, secrets handling, input validation)
+- Performance concerns (N+1 queries, unbounded operations)
+- Code quality and maintainability
+- Missing tests for new functionality
+- Error handling
+
+### 4. Simplification Opportunities
+- **Existing patterns** - Could this use existing modules/utilities?
+- **Redundant config** - Is this specifying default behavior explicitly?
+- **Best practices** - Should config be in a file instead of inline?
+
+### 5. Questions to Include
+For any change that seems significant but unexplained:
+- "Why was X changed from Y to Z?"
+- "Is this architectural change intentional?"
+- "Should this config be in a different location?"
+
+Add questions to `remaining_issues` even if approving - these warrant discussion.
+
+---
+
 # REQUIRED: Peer Review Decision File
 
 **You MUST create this JSON file at the end of your review:**
@@ -392,7 +427,28 @@ git fetch origin
 git reset --hard origin/writer-{wconfig.name}/{task_id}
 ```""")
 
-        review_instructions_parts.append("\n---")
+        review_instructions_parts.append("""
+---
+
+## Review Checklist (CHECK BEFORE SCORING)
+
+### 1. Planning & Architecture Alignment
+- **Read planning docs FIRST** - Check `docs/`, `planning/`, `ARCHITECTURE.md`, `ADR/` in the repo
+- **Verify against documented decisions** - Does each implementation align with existing architecture?
+- **Flag conflicts** - If changes contradict documented patterns (auth approach, data flow, etc.)
+
+### 2. Scope Verification
+- **Task alignment** - Do changes match the task requirements?
+- **Undocumented changes** - Flag significant changes not mentioned in the task
+- **Scope creep** - Identify unnecessary changes
+
+### 3. Questions to Raise
+Include in `blocker_issues` any significant questions like:
+- "Why was auth changed from X to Y? This contradicts docs/architecture.md"
+- "Is the change to [component] intentional? Not mentioned in task"
+
+---
+""")
 
         for writer_key in config.writer_order:
             wconfig = config.writers[writer_key]
@@ -412,6 +468,8 @@ git diff main...HEAD --stat
         scores_template = {}
         for writer_key in config.writer_order:
             scores_template[writer_key] = {
+                "planning_alignment": "0-10 (matches docs/planning/architecture)",
+                "scope_adherence": "0-10 (no undocumented changes)",
                 "kiss_compliance": "0-10",
                 "architecture": "0-10",
                 "type_safety": "0-10",

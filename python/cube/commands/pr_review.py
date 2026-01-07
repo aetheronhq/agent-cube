@@ -99,19 +99,35 @@ Review this PR and output a structured JSON response:
 }}
 ```
 
-## Review Criteria
+## Review Checklist
 
-1. **Security** - Auth issues, input validation, secrets exposure
-2. **Performance** - N+1 queries, unbounded loops, missing caching
-3. **Code Quality** - Type safety, error handling, readability
-4. **Testing** - Missing tests, edge cases not covered
-5. **Documentation** - Missing docstrings, unclear code
+### 1. Planning & Architecture Alignment
+- **First**: Check `docs/`, `planning/`, `ARCHITECTURE.md`, `ADR/` for documented decisions
+- **Flag conflicts**: If changes contradict documented architecture (e.g., auth patterns, data flow)
+- **Verify intent**: Does this align with the project's established patterns?
+
+### 2. Scope & Intent
+- **Stated vs actual**: Does the PR description match what's actually changed?
+- **Undocumented changes**: Flag significant changes not mentioned in the description
+- **Question unclear intent**: Ask "Why?" for changes unrelated to the stated goal
+- **Scope creep**: Identify unnecessary changes
+
+### 3. Technical Review
+- **Security** - Auth issues, input validation, secrets exposure
+- **Performance** - N+1 queries, unbounded loops, missing caching
+- **Code Quality** - Type safety, error handling, readability
+- **Testing** - Missing tests, edge cases not covered
+
+### 4. Simplification & Best Practices
+- Could this use existing modules/utilities in the codebase?
+- Is this specifying default behavior explicitly (redundant)?
+- Should config be in a config file instead of inline?
 
 ## Output Rules
 
 - Max 15 comments (prioritize critical and warning issues)
 - Only use severity: "critical", "warning", or "nitpick" - do NOT use "info"
-- Positive observations go in the summary, not as comments
+- **Include questions** - If something is unclear, ask "Why was this changed?"
 - Each comment must reference a specific line in the diff
 - Use line numbers from the NEW file (lines starting with +)
 - Be constructive, not just critical
