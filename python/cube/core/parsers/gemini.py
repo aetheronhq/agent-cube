@@ -91,8 +91,8 @@ class GeminiParser(ParserAdapter):
 
         except json.JSONDecodeError:
             line = line.strip()
-            if line and not line.startswith(("{", "[")):
-                # Show debug/log output as thinking so there's something in the thinking box
+            if line:
+                # Show any unhandled output as thinking
                 return StreamMessage(type="thinking", content=line[:200])
             return None
         except (KeyError, TypeError, AttributeError):
