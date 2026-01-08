@@ -65,14 +65,33 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
     project_name = Path(get_project_root()).name
 
     if winner:
-        winner_cfg = get_writer_by_key(winner)
-        winner_path = get_worktree_path(project_name, winner_cfg.name, task_id)
+        # Try current config first
+        try:
+            winner_cfg = get_writer_by_key(winner)
+            winner_name = winner_cfg.name
+            winner_label = winner_cfg.label
+        except KeyError:
+            # Orphaned writer - check metadata
+            from ..core.writer_metadata import load_writer_metadata
+
+            metadata = load_writer_metadata(winner.lower(), task_id)
+            if metadata:
+                winner_name = metadata.name
+                winner_label = metadata.label
+            else:
+                raise KeyError(
+                    f"Unknown writer: {winner}\n"
+                    f"  Not in config and no metadata at .prompts/writers/{winner.lower()}-{task_id}.json\n"
+                    f"  Try: cube peer-review <task-id> --local"
+                )
+
+        winner_path = get_worktree_path(project_name, winner_name, task_id)
         if not winner_path.exists():
             raise FileNotFoundError(
                 f"Winner worktree does not exist: {winner_path}\n"
                 f"  If you want to review a different branch, use: cube peer-review <task-id> --local"
             )
-        return {winner_cfg.label: winner_path}
+        return {winner_label: winner_path}
 
     config = load_config()
     writers = {
