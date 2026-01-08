@@ -151,17 +151,15 @@ git diff origin/{base_branch}...origin/{head_branch} -- path/to/file.ts
 
 ## Your Task
 
-**If you have a prior decision file:** You MUST verify each issue before keeping it:
-1. Read your decision file: `.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`
-2. For EACH inline_comment: `read_file` the path and check the specific line - is the issue STILL there?
-3. For EACH remaining_issue: verify with git commands or read_file - is it STILL a problem?
-4. **REMOVE any issue that has been FIXED** - do NOT blindly copy old issues
-5. Only keep issues you have VERIFIED still exist in the CURRENT code
-6. Update decision: APPROVED if all issues resolved, REQUEST_CHANGES only if verified issues remain
+Do a **full code review** of this PR:
+1. Review all changed files using `git diff` commands
+2. Look for bugs, security issues, missing error handling, etc.
+3. Check code quality, patterns, and best practices
 
-⚠️ DO NOT just rewrite your old issues - you MUST check each one against current code!
-
-**If no prior decision:** Review this PR for issues, then create your decision file.
+**If you have a prior decision file** (`.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`):
+- Read it first to see what you flagged before
+- Verify each prior issue: is it STILL there in the current code? Remove any that are now fixed
+- Add any NEW issues you find in this review
 
 {build_review_checklist()}
 
