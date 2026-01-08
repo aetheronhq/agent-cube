@@ -18,12 +18,21 @@ class InlineComment:
 
 
 @dataclass
+class SkippedItem:
+    """A skipped feedback item with reason."""
+
+    judge: str
+    reason: str
+    body: str
+
+
+@dataclass
 class DedupeResult:
     """Result of AI deduplication."""
 
     inline_comments: list[InlineComment]  # Comments with file:line to post as inline
     summary_issues: list[str]  # Issues without file:line to include in summary
-    skipped_count: int
+    skipped: list[SkippedItem]  # Items that were skipped with reasons
 
 
 @dataclass
@@ -120,7 +129,10 @@ Write to: `{PROJECT_ROOT}/.prompts/decisions/dedupe-result.json`
     "Documentation contradicts implementation - needs update",
     "Missing error handling in auth flow"
   ],
-  "skipped_count": 5
+  "skipped": [
+    {{"judge": "Judge Opus", "reason": "duplicate of existing comment", "body": "..."}},
+    {{"judge": "Judge Gemini", "reason": "positive feedback", "body": "Good job on..."}}
+  ]
 }}
 ```
 """
@@ -202,7 +214,7 @@ def _fallback_result(feedback: list[JudgeFeedback]) -> DedupeResult:
             inline.append(InlineComment(comment=comment, judges=[f.judge]))
         else:
             summary.append(f"[{f.judge}] {f.body}")
-    return DedupeResult(inline_comments=inline, summary_issues=summary, skipped_count=0)
+    return DedupeResult(inline_comments=inline, summary_issues=summary, skipped=[])
 
 
 def _parse_dedupe_result(data: dict) -> DedupeResult:
@@ -223,10 +235,19 @@ def _parse_dedupe_result(data: dict) -> DedupeResult:
         inline_comments.append(InlineComment(comment=comment, judges=judges))
 
     summary_issues = data.get("summary_issues", [])
-    skipped_count = data.get("skipped_count", 0)
+
+    skipped = []
+    for item in data.get("skipped", []):
+        skipped.append(
+            SkippedItem(
+                judge=item.get("judge", "Unknown"),
+                reason=item.get("reason", ""),
+                body=item.get("body", "")[:100],  # Truncate long bodies
+            )
+        )
 
     return DedupeResult(
         inline_comments=inline_comments,
         summary_issues=summary_issues,
-        skipped_count=skipped_count,
+        skipped=skipped,
     )
