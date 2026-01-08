@@ -199,6 +199,9 @@ def resume(
     target: Annotated[str, typer.Argument(help="Target to resume (writer alias or judge key)")],
     task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None,
     message: Annotated[Optional[str], typer.Argument(help="Message to send (optional, defaults to 'continue')")] = None,
+    model: Annotated[
+        Optional[str], typer.Option("--model", "-m", help="Model to use (for writers not in config)")
+    ] = None,
 ):
     """Resume a writer or judge session with a message."""
     from .core.config import resolve_task_id, set_current_task_id
@@ -218,7 +221,7 @@ def resume(
         raise typer.Exit(1)
 
     set_current_task_id(resolved_task_id)
-    resume_command(target, resolved_task_id, message)
+    resume_command(target, resolved_task_id, message, model_override=model)
 
 
 @app.command(name="peer-review")
@@ -231,6 +234,7 @@ def peer_review(
     fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False,
     judge: Annotated[Optional[str], typer.Option("--judge", "-j", help="Run only this judge (e.g., judge_4)")] = None,
     local: Annotated[bool, typer.Option("--local", "-l", help="Review current branch (not cube-managed)")] = False,
+    branch: Annotated[Optional[str], typer.Option("--branch", "-b", help="Review specific branch directly")] = None,
     pr: Annotated[Optional[int], typer.Option("--pr", help="GitHub PR number to review with full panel")] = None,
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Show review but don't post to GitHub (with --pr)")
