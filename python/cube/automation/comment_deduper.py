@@ -154,8 +154,12 @@ async def run_dedupe_agent(
         pr_number: PR number for logging
 
     Returns:
-        DedupeResult with inline_comments, summary_issues, and skipped_count
+        DedupeResult with inline_comments, summary_issues, and skipped
     """
+    # Early return if nothing to process
+    if not feedback:
+        return DedupeResult(inline_comments=[], summary_issues=[], skipped=[])
+
     from ..core.agent import run_agent
     from ..core.parsers.registry import get_parser
 
