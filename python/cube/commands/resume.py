@@ -84,13 +84,7 @@ def resume_command(target: str, task_id: str, message: str = None, model_overrid
             if not model:
                 model = MODELS.get(writer_cfg.name, writer_cfg.model)
         except KeyError:
-            if not model_override:
-                from ..core.user_config import get_judge_aliases, get_writer_aliases
-
-                valid = ", ".join(list(get_writer_aliases())[:5] + list(get_judge_aliases())[:5])
-                print_error(f"Invalid target: {target}. Examples: {valid}")
-                print_info("Tip: Use --model to specify model for writers not in config")
-                raise typer.Exit(1) from None
+            pass  # Will try orphaned writer metadata below
 
     if judge_cfg:
         session_id = load_session(judge_cfg.key.upper(), f"{task_id}_panel")
@@ -133,10 +127,21 @@ def resume_command(target: str, task_id: str, message: str = None, model_overrid
             target_label = metadata.label
             color = metadata.color
             writer_key = metadata.key.upper()
-        else:
+        elif model_override:
+            # Have model but no metadata - use defaults
             writer_key = f"WRITER_{target.upper().replace('-', '_')}"
             target_label = f"Writer {target.title()}"
             color = "cyan"
+        else:
+            # No config, no metadata, no model override - can't proceed
+            from ..core.user_config import get_judge_aliases, get_writer_aliases
+
+            valid = ", ".join(list(get_writer_aliases())[:5] + list(get_judge_aliases())[:5])
+            print_error(f"Unknown writer: {target}")
+            print_info(f"Not in config and no metadata at .prompts/writers/{target.lower()}-{task_id}.json")
+            print_info(f"Known targets: {valid}")
+            print_info("Tip: Use --model to specify model manually")
+            raise typer.Exit(1)
 
         session_id = load_session(writer_key, task_id)
         if not session_id:
