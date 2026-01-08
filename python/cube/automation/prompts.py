@@ -151,7 +151,14 @@ git diff origin/{base_branch}...origin/{head_branch} -- path/to/file.ts
 
 ## Your Task
 
-Review this PR for issues, then create your decision file.
+**If you have a prior decision file:** Read it first, then check if your issues are still valid:
+1. Read your decision file: `.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`
+2. For each issue in `remaining_issues` and `inline_comments`, verify it still exists in the current code
+3. REMOVE issues that have been fixed in new commits
+4. Keep issues that are still present
+5. Update your decision (APPROVED if all issues resolved, REQUEST_CHANGES if issues remain)
+
+**If no prior decision:** Review this PR for issues, then create your decision file.
 
 {build_review_checklist()}
 
