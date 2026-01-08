@@ -493,7 +493,8 @@ git diff main...HEAD --stat
         console.print()
         if winner.startswith("LOCAL:"):
             branch_name = winner.replace("LOCAL:", "")
-            console.print(f"Local branch: [green]{branch_name}[/green]")
+            console.print(f"PR branch: [green]{branch_name}[/green]")
+            console.print(f"Worktree: [green]~/.cube/worktrees/{project_name}/pr-{task_id}/[/green]")
         else:
             winner_cfg = get_writer_by_key(winner)
             console.print(
