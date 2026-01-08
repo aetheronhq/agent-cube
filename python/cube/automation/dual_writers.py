@@ -119,7 +119,7 @@ async def launch_dual_writers(
         wconfig = get_writer_config(writer_key)
         boxes[writer_key] = wconfig.label
 
-    DynamicLayout.initialize(boxes, lines_per_box=3)
+    DynamicLayout.initialize(boxes, lines_per_box=3, task_name=task_id)
 
     # Create minimal state file for UI tracking
     if not resume_mode:

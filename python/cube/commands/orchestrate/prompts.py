@@ -275,7 +275,7 @@ Task: {task_id}
     console.print()
 
     boxes = {entry["box_id"]: entry["label"] for entry in entries}
-    DynamicLayout.initialize(boxes, lines_per_box=2)
+    DynamicLayout.initialize(boxes, lines_per_box=2, task_name=task_id)
     layout = DynamicLayout
     layout.start()
 

@@ -44,7 +44,7 @@ async def send_dual_feedback(task_id: str, feedbacks: List[FeedbackInfo]) -> Non
         wconfig = get_writer_config(fb.writer_key)
         boxes[f"prompter_{fb.writer_key}"] = f"Prompter {wconfig.label}"
 
-    DynamicLayout.initialize(boxes, lines_per_box=2)
+    DynamicLayout.initialize(boxes, lines_per_box=2, task_name=task_id)
     layout = DynamicLayout
     layout.start()
 

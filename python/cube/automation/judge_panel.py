@@ -297,7 +297,7 @@ async def launch_judge_panel(
         judge_configs = all_judges
 
     boxes = {j.key: j.label for j in judge_configs}
-    DynamicLayout.initialize(boxes, lines_per_box=2)
+    DynamicLayout.initialize(boxes, lines_per_box=2, task_name=task_id)
     panel_layout = DynamicLayout
 
     base_prompt = prompt_file.read_text()
