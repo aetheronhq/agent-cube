@@ -55,9 +55,7 @@ def resume_command(target: str, task_id: str, message: str = None) -> None:
         print_error("cursor-agent CLI is not installed")
         raise typer.Exit(1)
 
-    if not message:
-        message = "Resume from where you left off. Complete any remaining tasks and push your changes."
-
+    # Default message set later based on target type (judge vs writer)
     model = None
     target_label = target
     color = "green"
@@ -87,9 +85,12 @@ def resume_command(target: str, task_id: str, message: str = None) -> None:
             pass  # Will try orphaned writer metadata below
 
     if judge_cfg:
-        session_id = load_session(judge_cfg.key.upper(), f"{task_id}_panel")
+        # Try peer-review first (more common for resume), then panel
+        session_id = load_session(judge_cfg.key.upper(), f"{task_id}_peer-review")
+        session_type = "peer-review"
         if not session_id:
-            session_id = load_session(judge_cfg.key.upper(), f"{task_id}_peer-review")
+            session_id = load_session(judge_cfg.key.upper(), f"{task_id}_panel")
+            session_type = "panel"
 
         if not session_id:
             print_error(f"Session ID not found for {target}")
@@ -99,6 +100,22 @@ def resume_command(target: str, task_id: str, message: str = None) -> None:
         worktree = PROJECT_ROOT
         target_label = judge_cfg.label
         color = judge_cfg.color
+
+        # Build a more specific message for judges if not provided
+        if not message:
+            judge_key = judge_cfg.key.replace("_", "-")
+            decision_file = f".prompts/decisions/{judge_key}-{task_id}-{session_type}.json"
+            message = f"""Resume your {session_type} for task: {task_id}
+
+**IMPORTANT: You are a JUDGE, not an orchestrator!**
+- Do NOT checkout branches, merge code, or create PRs
+- Do NOT push to main or modify the repository
+- Your ONLY job is to review code and write your decision
+
+Your decision file: `{decision_file}`
+
+If you already completed your review, just confirm it's done.
+If not, complete your review and write your decision JSON."""
     elif writer_cfg:
         target_label = writer_cfg.label
         color = writer_cfg.color
@@ -145,6 +162,10 @@ def resume_command(target: str, task_id: str, message: str = None) -> None:
     if not worktree.exists():
         print_error(f"Worktree not found: {worktree}")
         raise typer.Exit(1)
+
+    # Default message for writers if not provided and not already set (judges set their own)
+    if not message:
+        message = "Resume from where you left off. Complete any remaining tasks and push your changes."
 
     print_info(f"Resuming {target} for task: {task_id}")
     console.print()
