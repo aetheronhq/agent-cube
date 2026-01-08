@@ -71,14 +71,19 @@ def _run_pr_review(
         console.print("Auth:    gh auth login")
         raise typer.Exit(1)
 
-    print_info(f"Fetching PR #{pr_number}...")
+    console.print()
+    console.print("[bold cyan]🔍 PR Review[/bold cyan]")
+    console.print(f"[bold]PR:[/bold] #{pr_number}")
+    console.print()
+
+    print_info("Fetching PR...")
     try:
         pr = fetch_pr(pr_number, cwd=str(PROJECT_ROOT))
     except RuntimeError as e:
         print_error(str(e))
         raise typer.Exit(1)
 
-    print_info(f"PR: {pr.title}")
+    console.print(f"[bold]Title:[/bold] {pr.title}")
     print_info(f"Branch: {pr.head_branch} → {pr.base_branch}")
 
     # Ensure local branch is up to date with remote

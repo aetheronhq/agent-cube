@@ -463,9 +463,12 @@ git diff main...HEAD --stat
             )
         )
 
+    console.print()
+    console.print("[bold cyan]⚖️  Judge Panel[/bold cyan]")
+    console.print(f"[bold]Task:[/bold] {task_id}")
+    console.print()
+
     if resume_mode:
-        print_info(f"Resuming Judge Panel for Task: {task_id}")
-        console.print()
         console.print("[yellow]📋 Found existing judge sessions to resume:[/yellow]")
         for judge in judges:
             if judge.session_id:
@@ -475,8 +478,6 @@ git diff main...HEAD --stat
                     f"  [{judge.color}]{judge.label}[/{judge.color}] ({judge.model}): [red]No session found[/red]"
                 )
         console.print()
-    else:
-        print_info(f"Launching Judge Panel for Task: {task_id}")
 
     print_info(f"Prompt: {prompt_file}")
     print_info(f"Review Type: {review_type}")
