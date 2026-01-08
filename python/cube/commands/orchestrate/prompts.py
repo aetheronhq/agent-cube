@@ -2,6 +2,7 @@
 
 import asyncio
 from pathlib import Path
+from typing import Any
 
 from ...core.agent_runner import run_agent_with_layout
 from ...core.config import PROJECT_ROOT
@@ -208,8 +209,19 @@ Task: {task_id}
             raise RuntimeError("No session found for winner. Cannot send feedback.")
 
         project_name = Path(PROJECT_ROOT).name
-        worktree = WORKTREE_BASE / project_name / f"writer-{entry['cfg'].name}-{task_id}"  # type: ignore[attr-defined]
-        await send_feedback_async(entry["cfg"].name, task_id, entry["path"], session, worktree)  # type: ignore[attr-defined]
+        cfg: Any = entry["cfg"]
+        worktree = WORKTREE_BASE / project_name / f"writer-{cfg.name}-{task_id}"
+        await send_feedback_async(
+            task_id=task_id,
+            feedback_file=entry["path"],
+            session_id=session,
+            worktree=worktree,
+            writer_name=cfg.name,
+            writer_model=cfg.model,
+            writer_label=cfg.label,
+            writer_key=cfg.key,
+            writer_color=cfg.color,
+        )
         return
 
     console.print("Generating feedback for all writers in parallel...")
@@ -256,8 +268,21 @@ Task: {task_id}
         if session:
             any_session_found = True
             project_name = Path(PROJECT_ROOT).name
-            worktree = WORKTREE_BASE / project_name / f"writer-{entry['cfg'].name}-{task_id}"  # type: ignore[attr-defined]
-            tasks.append(send_feedback_async(entry["cfg"].name, task_id, entry["path"], session, worktree))  # type: ignore[attr-defined]
+            wcfg: Any = entry["cfg"]
+            worktree = WORKTREE_BASE / project_name / f"writer-{wcfg.name}-{task_id}"
+            tasks.append(
+                send_feedback_async(
+                    task_id=task_id,
+                    feedback_file=entry["path"],
+                    session_id=session,
+                    worktree=worktree,
+                    writer_name=wcfg.name,
+                    writer_model=wcfg.model,
+                    writer_label=wcfg.label,
+                    writer_key=wcfg.key,
+                    writer_color=wcfg.color,
+                )
+            )
         else:
             cfg_label = entry["cfg"].label  # type: ignore[attr-defined]
             print_warning(f"No session found for {cfg_label}. Feedback generated at {entry['path']} but not sent.")
