@@ -1,5 +1,6 @@
 """Phase execution handlers for Agent Cube workflow."""
 
+import json
 from pathlib import Path
 
 from ...automation.judge_panel import launch_judge_panel
@@ -8,7 +9,53 @@ from ...core.agent import run_agent
 from ...core.config import PROJECT_ROOT, WORKTREE_BASE
 from ...core.output import console, print_info, print_success
 from ...core.parsers.registry import get_parser
+from ...core.session import get_prompter_session, save_prompter_session
 from ...core.user_config import get_prompter_model
+
+
+async def run_prompter_with_session(task_id: str, prompt: str, layout, output_path, label: str = "Prompter"):
+    """Run prompter with session management.
+
+    Resumes existing session if available, otherwise captures and saves new session ID.
+    """
+    parser = get_parser("cursor-agent")
+    session_id, should_resume = get_prompter_session(task_id)
+    captured_session_id: str | None = None
+
+    stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=session_id, resume=should_resume)
+
+    async for line in stream:
+        # Capture session ID from first line if starting fresh
+        if not should_resume and not captured_session_id:
+            try:
+                data = json.loads(line)
+                if "session_id" in data:
+                    captured_session_id = data["session_id"]
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        msg = parser.parse(line)
+        if msg:
+            formatted = format_stream_message(msg, label, "cyan")
+            if formatted:
+                if formatted.startswith("[thinking]"):
+                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                    layout.add_thinking(thinking_text)
+                elif msg.type == "assistant" and msg.content:
+                    layout.add_assistant_message(msg.content, label, "cyan")
+                else:
+                    layout.add_output(formatted)
+
+        if output_path.exists():
+            print_success(f"Created: {output_path}")
+            break
+
+    # Save session ID if we captured a new one
+    if captured_session_id and not should_resume:
+        save_prompter_session(task_id, captured_session_id)
+
+    if not output_path.exists():
+        raise RuntimeError(f"Prompter failed to generate {output_path}")
 
 
 async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
@@ -86,33 +133,12 @@ Tell the winner: "Read `.prompts/reviews/{task_id}-writer-{{a|b}}-coderabbit.txt
 
 Save to: `.prompts/synthesis-{task_id}.md`"""
 
-        parser = get_parser("cursor-agent")
         layout = SingleAgentLayout
         layout.initialize("Prompter")
         layout.start()
 
         try:
-            stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
-
-            async for line in stream:
-                msg = parser.parse(line)
-                if msg:
-                    formatted = format_stream_message(msg, "Prompter", "cyan")
-                    if formatted:
-                        if formatted.startswith("[thinking]"):
-                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(thinking_text)
-                        elif msg.type == "assistant" and msg.content:
-                            layout.add_assistant_message(msg.content, "Prompter", "cyan")
-                        else:
-                            layout.add_output(formatted)
-
-                if synthesis_path.exists():
-                    print_success(f"Created: {synthesis_path}")
-                    break
-
-            if not synthesis_path.exists():
-                raise RuntimeError(f"Prompter failed to generate synthesis prompt at {synthesis_path}")
+            await run_prompter_with_session(task_id, prompt, layout, synthesis_path)
         finally:
             layout.close()
 
@@ -173,33 +199,12 @@ Save to: `.prompts/peer-review-{task_id}.md`
 
 Include the worktree location and git commands for reviewing."""
 
-        parser = get_parser("cursor-agent")
         layout = SingleAgentLayout
         layout.initialize("Prompter")
         layout.start()
 
         try:
-            stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
-
-            async for line in stream:
-                msg = parser.parse(line)
-                if msg:
-                    formatted = format_stream_message(msg, "Prompter", "cyan")
-                    if formatted:
-                        if formatted.startswith("[thinking]"):
-                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(thinking_text)
-                        elif msg.type == "assistant" and msg.content:
-                            layout.add_assistant_message(msg.content, "Prompter", "cyan")
-                        else:
-                            layout.add_output(formatted)
-
-                if peer_review_path.exists():
-                    print_success(f"Created: {peer_review_path}")
-                    break
-
-            if not peer_review_path.exists():
-                raise RuntimeError(f"Prompter failed to generate peer review prompt at {peer_review_path}")
+            await run_prompter_with_session(task_id, prompt, layout, peer_review_path)
         finally:
             layout.close()
 
@@ -249,33 +254,12 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
 
     from ...core.single_layout import SingleAgentLayout
 
-    parser = get_parser("cursor-agent")
     layout = SingleAgentLayout
     layout.initialize("Prompter")
     layout.start()
 
     try:
-        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
-
-        async for line in stream:
-            msg = parser.parse(line)
-            if msg:
-                formatted = format_stream_message(msg, "Prompter", "cyan")
-                if formatted:
-                    if formatted.startswith("[thinking]"):
-                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking(thinking_text)
-                    elif msg.type == "assistant" and msg.content:
-                        layout.add_assistant_message(msg.content, "Prompter", "cyan")
-                    else:
-                        layout.add_output(formatted)
-
-            if minor_fixes_path.exists():
-                print_success(f"Created: {minor_fixes_path}")
-                break
-
-        if not minor_fixes_path.exists():
-            raise RuntimeError(f"Failed to generate minor fixes prompt for {winner_name} (task: {task_id})")
+        await run_prompter_with_session(task_id, prompt, layout, minor_fixes_path)
     finally:
         layout.close()
 
