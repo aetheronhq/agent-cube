@@ -12,7 +12,7 @@ from ..core.git import branch_exists, fetch_branches, get_commit_hash, sync_work
 from ..core.output import console, print_error, print_info, print_success
 from ..core.parsers.registry import get_parser
 from ..core.session import load_session, save_session
-from ..core.user_config import get_judge_configs, get_writer_by_key, load_config
+from ..core.user_config import get_judge_configs, get_writer_by_key, get_writer_by_key_or_metadata, load_config
 from ..models.types import JudgeInfo
 from .stream import format_stream_message
 
@@ -37,7 +37,7 @@ async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
     config = load_config()
 
     if winner:
-        winner_cfg = get_writer_by_key(winner)
+        winner_cfg = get_writer_by_key_or_metadata(winner, task_id)
         writers = [(winner_cfg.name, f"writer-{winner_cfg.name}/{task_id}")]
     else:
         writers = [
@@ -65,25 +65,9 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
     project_name = Path(get_project_root()).name
 
     if winner:
-        # Try current config first
-        try:
-            winner_cfg = get_writer_by_key(winner)
-            winner_name = winner_cfg.name
-            winner_label = winner_cfg.label
-        except KeyError:
-            # Orphaned writer - check metadata
-            from ..core.writer_metadata import load_writer_metadata
-
-            metadata = load_writer_metadata(winner.lower(), task_id)
-            if metadata:
-                winner_name = metadata.name
-                winner_label = metadata.label
-            else:
-                raise KeyError(
-                    f"Unknown writer: {winner}\n"
-                    f"  Not in config and no metadata at .prompts/writers/{winner.lower()}-{task_id}.json\n"
-                    f"  Try: cube peer-review <task-id> --local"
-                )
+        winner_cfg = get_writer_by_key_or_metadata(winner, task_id)
+        winner_name = winner_cfg.name
+        winner_label = winner_cfg.label
 
         winner_path = get_worktree_path(project_name, winner_name, task_id)
         if not winner_path.exists():
@@ -445,7 +429,7 @@ git diff main...HEAD --stat
             prompt = prompt.replace("{winner}", f"Local branch ({branch_name})")
             prompt = prompt.replace("{branch}", branch_name)
         else:
-            winner_cfg = get_writer_by_key(winner)
+            winner_cfg = get_writer_by_key_or_metadata(winner, task_id)
             prompt = prompt.replace("{winner}", winner_cfg.name)
 
     # Don't re-filter - already filtered correctly above based on review_type and single_judge
@@ -520,7 +504,7 @@ git diff main...HEAD --stat
             console.print(f"PR branch: [green]{branch_name}[/green]")
             console.print(f"Worktree: [green]~/.cube/worktrees/{project_name}/{task_id}/[/green]")
         else:
-            winner_cfg = get_writer_by_key(winner)
+            winner_cfg = get_writer_by_key_or_metadata(winner, task_id)
             console.print(
                 f"{winner_cfg.label}: [green]~/.cube/worktrees/{project_name}/writer-{winner_cfg.name}-{task_id}/[/green]"
             )
