@@ -136,17 +136,17 @@ def build_pr_review_prompt(
 {context_section}
 ## View Changes
 
-Run these commands to review the PR:
+Run these commands to review the PR (using origin/ to ensure you see the latest remote commits):
 
 ```bash
 # See what files changed
-git diff {base_branch}...{head_branch} --stat
+git diff origin/{base_branch}...origin/{head_branch} --stat
 
 # View full diff
-git diff {base_branch}...{head_branch}
+git diff origin/{base_branch}...origin/{head_branch}
 
 # View specific file
-git diff {base_branch}...{head_branch} -- path/to/file.ts
+git diff origin/{base_branch}...origin/{head_branch} -- path/to/file.ts
 ```
 
 ## Your Task
