@@ -68,7 +68,10 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
         winner_cfg = get_writer_by_key(winner)
         winner_path = get_worktree_path(project_name, winner_cfg.name, task_id)
         if not winner_path.exists():
-            raise FileNotFoundError(f"Winner worktree does not exist: {winner_path}")
+            raise FileNotFoundError(
+                f"Winner worktree does not exist: {winner_path}\n"
+                f"  If you want to review a different branch, use: cube peer-review <task-id> --local"
+            )
         return {winner_cfg.label: winner_path}
 
     config = load_config()
@@ -553,7 +556,9 @@ git diff main...HEAD --stat
             console.print(f"  {label}: {error}")
         console.print()
         failed_names = ", ".join(label for label, _ in errors)
-        raise RuntimeError(f"Judge panel incomplete: {len(errors)} judge(s) failed ({failed_names}). Fix and retry.")
+        print_info("To retry failed judges, run the same command again (without --fresh)")
+        print_info("To retry a specific judge: cube resume <judge-key> <task-id>")
+        raise RuntimeError(f"Judge panel incomplete: {len(errors)} judge(s) failed ({failed_names}).")
 
     console.print("✅ All judges completed successfully")
     console.print()
