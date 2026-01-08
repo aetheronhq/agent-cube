@@ -222,6 +222,7 @@ def resume(
 
 
 @app.command(name="peer-review")
+@app.command(name="review", hidden=True)
 def peer_review(
     task_id_or_prompt: Annotated[Optional[str], typer.Argument(help="Task ID or prompt message")] = None,
     peer_review_prompt_file: Annotated[
