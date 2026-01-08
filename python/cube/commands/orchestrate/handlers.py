@@ -317,7 +317,7 @@ def register_phases() -> None:
             Phase(7, "Peer Review", synthesis_peer_review),
             Phase(8, "Final Decision", synthesis_final_decision),
             Phase(9, "Address Minor Issues", synthesis_minor_fixes),
-            Phase(10, "Create PR", synthesis_final_peer_review),
+            Phase(10, "Re-Review & PR", synthesis_final_peer_review),
         ]
     )
 
