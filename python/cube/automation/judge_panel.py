@@ -26,7 +26,7 @@ async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
         branch_name = winner.replace("LOCAL:", "")
         print_info(f"Syncing worktree for PR branch: {branch_name}")
 
-        worktree = WORKTREE_BASE / project_name / f"pr-{task_id}"
+        worktree = WORKTREE_BASE / project_name / task_id
         commit = sync_worktree(worktree, branch_name)
         if not commit:
             raise RuntimeError(f"Failed to sync worktree for branch {branch_name}. Check branch exists on origin.")
@@ -60,7 +60,7 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
         branch_name = winner.replace("LOCAL:", "")
         project_name = Path(get_project_root()).name
         # PR reviews use a dedicated worktree synced to the PR branch
-        return {f"PR ({branch_name})": WORKTREE_BASE / project_name / f"pr-{task_id}"}
+        return {f"PR ({branch_name})": WORKTREE_BASE / project_name / task_id}
 
     project_name = Path(get_project_root()).name
 
@@ -496,7 +496,7 @@ git diff main...HEAD --stat
         if winner.startswith("LOCAL:"):
             branch_name = winner.replace("LOCAL:", "")
             console.print(f"PR branch: [green]{branch_name}[/green]")
-            console.print(f"Worktree: [green]~/.cube/worktrees/{project_name}/pr-{task_id}/[/green]")
+            console.print(f"Worktree: [green]~/.cube/worktrees/{project_name}/{task_id}/[/green]")
         else:
             winner_cfg = get_writer_by_key(winner)
             console.print(
