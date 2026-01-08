@@ -242,8 +242,11 @@ def _run_pr_review(
         )
     )
 
-    if dedupe_result.skipped_count:
-        console.print(f"[dim]Skipped {dedupe_result.skipped_count} duplicate/low-value item(s)[/dim]")
+    # Calculate actual skipped count (input - output)
+    output_count = len(dedupe_result.inline_comments) + len(dedupe_result.summary_issues)
+    actual_skipped = len(all_feedback) - output_count
+    if actual_skipped > 0:
+        console.print(f"[dim]Skipped {actual_skipped} duplicate/low-value item(s)[/dim]")
 
     # Build summary with deduped issues
     if dedupe_result.summary_issues:
