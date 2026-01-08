@@ -193,14 +193,19 @@ def _run_pr_review(
         print_error("No judge decisions found - cannot post review")
         raise typer.Exit(1)
 
-    # Always COMMENT - never auto-approve, that's for humans
-    decision = "COMMENT"
+    # Compute actual aggregate decision for display
     if status["approved"]:
+        display_decision = "APPROVED"
         summary = f"✅ All {approvals}/{total} judges approved this PR."
     elif approvals > 0:
+        display_decision = "REQUEST_CHANGES"
         summary = f"⚠️ {approvals}/{total} judges approved. Some requested changes."
     else:
+        display_decision = "REQUEST_CHANGES"
         summary = f"❌ {total} judge(s) requested changes."
+
+    # Always POST as COMMENT - never auto-approve, that's for humans
+    post_action = "COMMENT"
 
     # Collect ALL feedback (issues + inline comments) from judge decisions
     from ..automation.comment_deduper import JudgeFeedback, run_dedupe_agent
@@ -276,7 +281,7 @@ def _run_pr_review(
 
     # Display results
     console.print()
-    console.print(f"[bold]Decision:[/bold] {decision}")
+    console.print(f"[bold]Decision:[/bold] {display_decision}")
     console.print(f"[bold]Summary:[/bold] {summary[:200]}...")
     console.print()
 
@@ -330,7 +335,7 @@ def _run_pr_review(
     else:
         print_info("Posting review to GitHub...")
         try:
-            review = Review(decision=decision, summary=summary, comments=comments_to_post)
+            review = Review(decision=post_action, summary=summary, comments=comments_to_post)
             post_review(pr_number, review, cwd=str(PROJECT_ROOT))
             print_success(f"Review posted to PR #{pr_number} ({len(comments_to_post)} inline comments)")
         except RuntimeError as e:
