@@ -179,7 +179,7 @@ def build_peer_review_prompt(
     if is_pr_review:
         # PR reviews use a dedicated worktree synced to origin
         worktree_path = f"{worktree_base}/{project_name}/pr-{task_id}"
-        branch_ref = "origin/{{branch}}"  # Filled in by caller
+        branch_ref = "origin/{branch}"  # Filled in by caller
     else:
         # Writer reviews use writer-specific worktrees
         worktree_path = f"{worktree_base}/{project_name}/writer-{{{{winner}}}}-{task_id}"
