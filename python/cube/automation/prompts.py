@@ -151,12 +151,15 @@ git diff origin/{base_branch}...origin/{head_branch} -- path/to/file.ts
 
 ## Your Task
 
-**If you have a prior decision file:** Read it first, then check if your issues are still valid:
+**If you have a prior decision file:** You MUST verify each issue before keeping it:
 1. Read your decision file: `.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`
-2. For each issue in `remaining_issues` and `inline_comments`, verify it still exists in the current code
-3. REMOVE issues that have been fixed in new commits
-4. Keep issues that are still present
-5. Update your decision (APPROVED if all issues resolved, REQUEST_CHANGES if issues remain)
+2. For EACH inline_comment: `read_file` the path and check the specific line - is the issue STILL there?
+3. For EACH remaining_issue: verify with git commands or read_file - is it STILL a problem?
+4. **REMOVE any issue that has been FIXED** - do NOT blindly copy old issues
+5. Only keep issues you have VERIFIED still exist in the CURRENT code
+6. Update decision: APPROVED if all issues resolved, REQUEST_CHANGES only if verified issues remain
+
+⚠️ DO NOT just rewrite your old issues - you MUST check each one against current code!
 
 **If no prior decision:** Review this PR for issues, then create your decision file.
 
@@ -170,21 +173,31 @@ def build_peer_review_prompt(
     task_id: str,
     worktree_base: Path,
     project_name: str,
+    is_pr_review: bool = False,
 ) -> str:
     """Build prompt for peer review of worktree implementations."""
+    if is_pr_review:
+        # PR reviews use a dedicated worktree synced to origin
+        worktree_path = f"{worktree_base}/{project_name}/pr-{task_id}"
+        branch_ref = "origin/{{branch}}"  # Filled in by caller
+    else:
+        # Writer reviews use writer-specific worktrees
+        worktree_path = f"{worktree_base}/{project_name}/writer-{{{{winner}}}}-{task_id}"
+        branch_ref = f"writer-{{{{winner}}}}/{task_id}"
+
     return f"""# Peer Review Context
 
-**You are reviewing the WINNING implementation only.**
+**You are reviewing the {'PR' if is_pr_review else 'WINNING implementation'}.**
 
-The winning writer's code is at:
-**Worktree:** `{worktree_base}/{project_name}/writer-{{{{winner}}}}-{task_id}/`
-**Branch:** `writer-{{{{winner}}}}/{task_id}`
+The code is at:
+**Worktree:** `{worktree_path}/`
+**Branch:** `{branch_ref}`
 
 ## Review Scope
 
 Check what was changed since branching from main:
 ```bash
-cd {worktree_base}/{project_name}/writer-{{{{winner}}}}-{task_id}/
+cd {worktree_path}/
 git log --oneline main..HEAD
 git diff main...HEAD --stat
 ```

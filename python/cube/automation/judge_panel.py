@@ -19,12 +19,20 @@ from .stream import format_stream_message
 
 async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
     """Fetch and sync writer worktrees to latest remote commits before judge review."""
+    project_name = Path(PROJECT_ROOT).name
+
     if winner and winner.startswith("LOCAL:"):
-        print_info(f"Reviewing local branch: {winner.replace('LOCAL:', '')}")
+        # PR review - create/sync worktree for the PR branch
+        branch_name = winner.replace("LOCAL:", "")
+        print_info(f"Syncing worktree for PR branch: {branch_name}")
+
+        worktree = WORKTREE_BASE / project_name / f"pr-{task_id}"
+        commit = sync_worktree(worktree, branch_name)
+        console.print(f"  {'✅' if commit else '⚠️ '} {branch_name}: {commit or 'sync failed'}")
+        console.print()
         return
 
     config = load_config()
-    project_name = Path(PROJECT_ROOT).name
 
     if winner:
         winner_cfg = get_writer_by_key(winner)
@@ -48,7 +56,9 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
     """Get worktree paths for CLI review adapters."""
     if winner and winner.startswith("LOCAL:"):
         branch_name = winner.replace("LOCAL:", "")
-        return {f"Local ({branch_name})": Path(get_project_root())}
+        project_name = Path(get_project_root()).name
+        # PR reviews use a dedicated worktree synced to the PR branch
+        return {f"PR ({branch_name})": WORKTREE_BASE / project_name / f"pr-{task_id}"}
 
     project_name = Path(get_project_root()).name
 
@@ -298,10 +308,12 @@ When creating your decision file, use judge key {judge_key}.
     if review_type == "peer-review":
         from .prompts import build_peer_review_prompt
 
+        is_pr_review = winner and winner.startswith("LOCAL:")
         review_instructions = build_peer_review_prompt(
             task_id=task_id,
             worktree_base=WORKTREE_BASE,
             project_name=project_name,
+            is_pr_review=is_pr_review,
         )
     else:
         config = load_config()
@@ -402,11 +414,12 @@ git diff main...HEAD --stat
 
     prompt = judge_assignments + review_instructions + base_prompt
 
-    # Substitute {winner} placeholder for peer-review prompts
+    # Substitute placeholders for peer-review prompts
     if review_type == "peer-review" and winner:
         if winner.startswith("LOCAL:"):
             branch_name = winner.replace("LOCAL:", "")
             prompt = prompt.replace("{winner}", f"Local branch ({branch_name})")
+            prompt = prompt.replace("{branch}", branch_name)
         else:
             winner_cfg = get_writer_by_key(winner)
             prompt = prompt.replace("{winner}", winner_cfg.name)
