@@ -129,6 +129,7 @@ async def run_subprocess_streaming(
     tool_name: str,
     env: Optional[dict] = None,
     output_timeout: float = 600.0,  # 10 minutes
+    stdin_data: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """Run a subprocess with health monitoring and stream output.
 
@@ -140,6 +141,7 @@ async def run_subprocess_streaming(
         tool_name: Name for error messages
         env: Environment variables (defaults to os.environ.copy())
         output_timeout: Fail if no output for this many seconds (default 10 min)
+        stdin_data: Optional data to write to stdin before reading output
 
     Yields:
         Lines of output from the subprocess
@@ -153,12 +155,19 @@ async def run_subprocess_streaming(
 
     process = await asyncio.create_subprocess_exec(
         *cmd,
+        stdin=asyncio.subprocess.PIPE if stdin_data else None,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
         cwd=cwd,
         env=env or os.environ.copy(),
         limit=1024 * 1024 * 10,
     )
+
+    if stdin_data and process.stdin:
+        process.stdin.write(stdin_data.encode())
+        await process.stdin.drain()
+        process.stdin.close()
+        await process.stdin.wait_closed()
 
     # Track process for cleanup on Ctrl+C
     _active_processes.add(process)

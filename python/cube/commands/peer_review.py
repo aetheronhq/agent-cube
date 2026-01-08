@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -11,6 +12,30 @@ from ..core.agent import check_cursor_agent
 from ..core.config import PROJECT_ROOT, resolve_path
 from ..core.output import console, print_error, print_info, print_success, print_warning
 from ..core.state import update_phase
+
+
+def _load_repo_context() -> str:
+    """Load repo context for review (planning docs, README, CONTRIBUTING)."""
+    context_parts = []
+    project_root = Path(PROJECT_ROOT)
+
+    planning_dir = project_root / "planning"
+    if planning_dir.exists():
+        for doc in sorted(planning_dir.glob("*.md"))[:5]:
+            try:
+                content = doc.read_text()[:2000]
+                context_parts.append(f"## {doc.name}\n{content}")
+            except (OSError, IOError):
+                pass
+
+    readme = project_root / "README.md"
+    if readme.exists():
+        try:
+            context_parts.append(f"## README.md\n{readme.read_text()[:2000]}")
+        except (OSError, IOError):
+            pass
+
+    return "\n\n---\n\n".join(context_parts) if context_parts else ""
 
 
 def _get_winner_from_aggregated(task_id: str) -> Optional[str]:
@@ -56,6 +81,26 @@ def _run_pr_review(
     print_info(f"PR: {pr.title}")
     print_info(f"Branch: {pr.head_branch} → {pr.base_branch}")
 
+    # Ensure local branch is up to date with remote
+    from ..core.git import get_repo
+
+    repo = get_repo()
+    try:
+        repo.remotes.origin.fetch()
+        # Checkout PR branch and pull latest
+        if pr.head_branch in repo.heads:
+            repo.heads[pr.head_branch].checkout()
+            repo.remotes.origin.pull(pr.head_branch)
+            print_info(f"Checked out and updated {pr.head_branch}")
+        else:
+            # Branch doesn't exist locally, create from origin
+            repo.create_head(pr.head_branch, f"origin/{pr.head_branch}")
+            repo.heads[pr.head_branch].checkout()
+            print_info(f"Checked out origin/{pr.head_branch}")
+    except Exception as e:
+        print_warning(f"Could not checkout PR branch: {e}")
+        print_info("Judges will use git commands to view remote changes")
+
     if not pr.diff.strip():
         print_warning("PR has no diff - nothing to review")
         raise typer.Exit(0)
@@ -64,36 +109,24 @@ def _run_pr_review(
     prompts_dir = PROJECT_ROOT / ".prompts"
     prompts_dir.mkdir(exist_ok=True)
 
+    # Load repo context (planning docs, README, etc.)
+    repo_context = _load_repo_context()
+
+    from ..automation.prompts import build_pr_review_prompt
+
     prompt_path = prompts_dir / f"peer-review-{task_id}.md"
-    prompt_path.write_text(f"""# Peer Review: PR #{pr_number}
-
-## PR: {pr.title}
-
-{pr.body or "(No description)"}
-
-## Branch
-- Head: {pr.head_branch} ({pr.head_sha})
-- Base: {pr.base_branch}
-
-## Diff
-```diff
-{pr.diff}
-```
-
-## Your Task
-
-Review this PR and create your decision file at:
-`.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`
-
-Focus on:
-1. Security issues
-2. Performance concerns
-3. Code quality
-4. Missing tests
-5. Documentation
-
-If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
-""")
+    prompt_path.write_text(
+        build_pr_review_prompt(
+            pr_number=pr_number,
+            title=pr.title,
+            body=pr.body or "",
+            head_branch=pr.head_branch,
+            head_sha=pr.head_sha,
+            base_branch=pr.base_branch,
+            task_id=task_id,
+            repo_context=repo_context,
+        )
+    )
 
     if skip_agents:
         print_info(f"Skipping agents, using existing decisions for PR #{pr_number}...")
@@ -149,6 +182,7 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
 
     # Aggregate decisions and post to GitHub
     from ..core.decision_parser import get_peer_review_status
+    from ..core.user_config import get_judge_config, get_judge_configs
 
     status = get_peer_review_status(task_id, project_root=PROJECT_ROOT)
 
@@ -159,59 +193,151 @@ If the code is good, APPROVE it. If issues need fixing, REQUEST_CHANGES.
         print_error("No judge decisions found - cannot post review")
         raise typer.Exit(1)
 
-    # Always COMMENT - never auto-approve, that's for humans
-    decision = "COMMENT"
+    # Compute actual aggregate decision for display
     if status["approved"]:
+        display_decision = "APPROVED"
         summary = f"✅ All {approvals}/{total} judges approved this PR."
     elif approvals > 0:
+        display_decision = "REQUEST_CHANGES"
         summary = f"⚠️ {approvals}/{total} judges approved. Some requested changes."
     else:
+        display_decision = "REQUEST_CHANGES"
         summary = f"❌ {total} judge(s) requested changes."
 
-    # Collect issues from all decisions (check both field names)
-    all_issues = []
-    decisions_dir = PROJECT_ROOT / ".prompts" / "decisions"
-    for f in decisions_dir.glob(f"*-{task_id}-peer-review.json"):
-        try:
-            data = json.loads(f.read_text())
-            judge_key = data.get("judge", f.stem.split("-")[0])
-            from ..core.user_config import get_judge_config
+    # Always POST as COMMENT - never auto-approve, that's for humans
+    post_action = "COMMENT"
 
+    # Collect ALL feedback (issues + inline comments) from judge decisions
+    from ..automation.comment_deduper import JudgeFeedback, run_dedupe_agent
+    from ..core.decision_parser import get_decision_file_path
+
+    all_feedback: list[JudgeFeedback] = []
+
+    for jconfig in get_judge_configs():
+        decision_path = get_decision_file_path(jconfig.key, task_id, review_type="peer-review")
+        console.print(f"[dim]Looking for {jconfig.key}: {decision_path} (exists: {decision_path.exists()})[/dim]")
+        if not decision_path.exists():
+            print_warning(f"Decision file not found for {jconfig.label}: {decision_path}")
+            continue
+        try:
+            data = json.loads(decision_path.read_text())
+            judge_key = data.get("judge", jconfig.key)
             judge_cfg = get_judge_config(judge_key)
             judge_label = judge_cfg.label if judge_cfg else judge_key
-            issues = data.get("blocker_issues", []) + data.get("remaining_issues", [])
-            for issue in issues:
-                all_issues.append((judge_label, issue))
+
+            # Collect text issues (general feedback without file:line)
+            for issue in data.get("blocker_issues", []) + data.get("remaining_issues", []):
+                all_feedback.append(JudgeFeedback(judge=judge_label, body=issue, severity="warning"))
+
+            # Collect inline comments (feedback with file:line)
+            for c in data.get("inline_comments", []):
+                if "path" in c and "line" in c and "body" in c:
+                    try:
+                        line_num = int(c["line"])
+                        if line_num <= 0:
+                            continue
+                    except (ValueError, TypeError):
+                        continue
+                    all_feedback.append(
+                        JudgeFeedback(
+                            judge=judge_label,
+                            body=c["body"],
+                            path=c["path"],
+                            line=line_num,
+                            severity=c.get("severity", "warning"),
+                        )
+                    )
         except (json.JSONDecodeError, OSError):
             pass
 
-    if all_issues:
-        summary += "\n\n**Issues found:**\n" + "\n".join(f"- [{j}] {issue}" for j, issue in all_issues[:10])
+    # Fetch existing comments for AI deduplication
+    from ..github.reviews import fetch_existing_comments
+
+    print_info("Fetching existing comments from PR...")
+    existing_comments = fetch_existing_comments(pr_number, cwd=str(PROJECT_ROOT))
+    console.print(f"[dim]Found {len(existing_comments)} existing comments[/dim]")
+
+    # Use AI deduper to intelligently combine/dedupe all feedback
+    dedupe_result = asyncio.run(
+        run_dedupe_agent(
+            feedback=all_feedback,
+            existing_comments=existing_comments,
+            pr_diff=pr.diff,
+            pr_number=pr_number,
+        )
+    )
+
+    # Show skipped items in dim text
+    if dedupe_result.skipped:
+        console.print(f"[dim]Skipped {len(dedupe_result.skipped)} item(s):[/dim]")
+        for item in dedupe_result.skipped:
+            console.print(f"[dim]  • [{item.judge}] {item.reason}: {item.body}[/dim]")
+
+    # Build summary with deduped issues
+    if dedupe_result.summary_issues:
+        summary += "\n\n**Issues:**\n" + "\n".join(f"- {issue}" for issue in dedupe_result.summary_issues)
 
     summary += "\n\n---\n🤖 Agent Cube Peer Review"
 
+    # Display results
     console.print()
-    console.print(f"[bold]Decision:[/bold] {decision}")
+    console.print(f"[bold]Decision:[/bold] {display_decision}")
     console.print(f"[bold]Summary:[/bold] {summary[:200]}...")
     console.print()
 
-    if all_issues:
-        console.print(f"[bold]Issues ({len(all_issues)}):[/bold]")
-        for judge_name, issue in all_issues[:10]:
-            console.print(f"  [cyan][{judge_name}][/cyan] {issue}")
-        if len(all_issues) > 10:
-            console.print(f"  [dim]... and {len(all_issues) - 10} more[/dim]")
-    else:
-        console.print("[dim]No blocking issues found[/dim]")
+    # Display summary issues
+    if dedupe_result.summary_issues:
+        console.print(f"[bold]Issues ({len(dedupe_result.summary_issues)}):[/bold]")
+        for issue in dedupe_result.summary_issues:
+            console.print(f"  {issue}")
+        console.print()
+
+    # Display inline comments
+    if dedupe_result.inline_comments:
+        severity_order = {"critical": 0, "warning": 1, "nitpick": 2}
+        sorted_comments = sorted(
+            dedupe_result.inline_comments, key=lambda ic: severity_order.get(ic.comment.severity, 99)
+        )
+
+        console.print(f"[bold]Inline comments ({len(sorted_comments)}):[/bold]")
+        console.print()
+        severity_colors = {"critical": "red", "warning": "yellow", "nitpick": "dim"}
+        for ic in sorted_comments:
+            c = ic.comment
+            color = severity_colors.get(c.severity, "white")
+            console.print(f"[{color}]{c.severity.upper():8}[/{color}] {c.path}:{c.line}")
+            # Show judges with their config colors
+            judge_parts = []
+            for judge_label in ic.judges:
+                # Find judge config by label to get color
+                judge_color = "cyan"  # fallback
+                for jc in get_judge_configs():
+                    if jc.label == judge_label:
+                        judge_color = jc.color
+                        break
+                judge_parts.append(f"[{judge_color}]{judge_label}[/{judge_color}]")
+            judges_display = ", ".join(judge_parts) if judge_parts else "[cyan]Agent Cube[/cyan]"
+            # Show full body (minus signature) next to judge label
+            body_text = c.body.split("\n\n— *Agent Cube")[0]
+            console.print(f"[{judges_display}] {body_text}")
+            console.print()
+
+    if not dedupe_result.summary_issues and not dedupe_result.inline_comments:
+        console.print("[dim]No new issues to post[/dim]")
+
+    # Post review
+    comments_to_post = [ic.comment for ic in dedupe_result.inline_comments]
 
     if dry_run:
         print_warning("Dry run - review NOT posted to GitHub")
+        if comments_to_post:
+            console.print(f"[dim]Would post {len(comments_to_post)} inline comment(s)[/dim]")
     else:
         print_info("Posting review to GitHub...")
         try:
-            review = Review(decision=decision, summary=summary, comments=[])
+            review = Review(decision=post_action, summary=summary, comments=comments_to_post)
             post_review(pr_number, review, cwd=str(PROJECT_ROOT))
-            print_success(f"Review posted to PR #{pr_number}")
+            print_success(f"Review posted to PR #{pr_number} ({len(comments_to_post)} inline comments)")
         except RuntimeError as e:
             print_error(f"Failed to post review: {e}")
             raise typer.Exit(1)

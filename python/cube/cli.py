@@ -11,10 +11,9 @@ from .commands.decide import decide_command
 from .commands.feedback import feedback_command
 from .commands.install import install_command
 from .commands.logs import logs_command
-from .commands.orchestrate import extract_task_id_from_file, orchestrate_auto_command, orchestrate_prompt_command
+from .commands.orchestrate import extract_task_id_from_file, orchestrate_auto_command
 from .commands.panel import panel_command
 from .commands.peer_review import peer_review_command
-from .commands.pr_review import pr_review_command
 from .commands.resume import resume_command
 from .commands.run import run_command
 from .commands.sessions import sessions_command
@@ -223,6 +222,7 @@ def resume(
 
 
 @app.command(name="peer-review")
+@app.command(name="review", hidden=True)
 def peer_review(
     task_id_or_prompt: Annotated[Optional[str], typer.Argument(help="Task ID or prompt message")] = None,
     peer_review_prompt_file: Annotated[
@@ -231,6 +231,7 @@ def peer_review(
     fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False,
     judge: Annotated[Optional[str], typer.Option("--judge", "-j", help="Run only this judge (e.g., judge_4)")] = None,
     local: Annotated[bool, typer.Option("--local", "-l", help="Review current branch (not cube-managed)")] = False,
+    branch: Annotated[Optional[str], typer.Option("--branch", "-b", help="Review specific branch directly")] = None,
     pr: Annotated[Optional[int], typer.Option("--pr", help="GitHub PR number to review with full panel")] = None,
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Show review but don't post to GitHub (with --pr)")
@@ -306,9 +307,8 @@ def sessions():
 
 @app.command(name="orchestrate")
 def orchestrate(
-    subcommand: Annotated[str, typer.Argument(help="Subcommand (prompt|auto)")],
+    subcommand: Annotated[str, typer.Argument(help="Subcommand: auto")],
     task_file: Annotated[str, typer.Argument(help="Path to the task file")],
-    copy: Annotated[bool, typer.Option("--copy", help="Copy to clipboard (prompt only)")] = False,
     resume_from: Annotated[
         Optional[str], typer.Option("--resume-from", help=f"Resume from phase number or alias ({PHASE_ALIAS_SUMMARY})")
     ] = None,
@@ -319,10 +319,8 @@ def orchestrate(
         Optional[str], typer.Option("--writer", "-w", help="Specific writer for single mode (opus, codex, a, b)")
     ] = None,
 ):
-    """Generate orchestrator prompt or run autonomous orchestration."""
-    if subcommand == "prompt":
-        orchestrate_prompt_command(task_file, copy)
-    elif subcommand == "auto":
+    """Run autonomous orchestration workflow."""
+    if subcommand == "auto":
         from .core.output import print_error, print_info
         from .core.user_config import get_default_writer, is_single_mode_default, resolve_writer_alias
 
@@ -473,19 +471,6 @@ def clean(
 ):
     """Clean up completed or stale sessions."""
     clean_command(task_id, old, all_tasks, full, dry_run)
-
-
-@app.command(name="pr-review")
-def pr_review(
-    pr_number: Annotated[int, typer.Argument(help="PR number to review")],
-    focus: Annotated[
-        Optional[str], typer.Option("--focus", "-f", help="Focus area (security, performance, tests, types)")
-    ] = None,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview without posting to GitHub")] = False,
-    model: Annotated[Optional[str], typer.Option("--model", "-m", help="Model to use for review")] = None,
-):
-    """Review a GitHub PR and post inline comments."""
-    pr_review_command(pr_number, focus, dry_run, model)
 
 
 @app.command(name="auto")

@@ -14,9 +14,9 @@ from ...core.user_config import get_prompter_model
 async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
     """Phase 6: Run synthesis if needed."""
     from ...core.single_layout import SingleAgentLayout
-    from ...core.user_config import get_writer_by_key
+    from ...core.user_config import get_writer_by_key_or_metadata
 
-    winner_cfg = get_writer_by_key(result["winner"])
+    winner_cfg = get_writer_by_key_or_metadata(result["winner"], task_id)
     winner_name = result["winner"]
 
     synthesis_path = prompts_dir / f"synthesis-{task_id}.md"
@@ -126,7 +126,17 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
 
     project_name = Path(PROJECT_ROOT).name
     worktree = WORKTREE_BASE / project_name / f"writer-{winner_cfg.name}-{task_id}"
-    await send_feedback_async(winner_cfg.name, task_id, synthesis_path, session_id, worktree)
+    await send_feedback_async(
+        task_id=task_id,
+        feedback_file=synthesis_path,
+        session_id=session_id,
+        worktree=worktree,
+        writer_name=winner_cfg.name,
+        writer_model=winner_cfg.model,
+        writer_label=winner_cfg.label,
+        writer_key=winner_cfg.key,
+        writer_color=winner_cfg.color,
+    )
 
 
 async def run_peer_review(
@@ -134,9 +144,9 @@ async def run_peer_review(
 ):
     """Phase 7: Run peer review. Set run_all_judges=True for single writer mode, or pass specific judges_to_run."""
     from ...core.single_layout import SingleAgentLayout
-    from ...core.user_config import get_writer_by_key
+    from ...core.user_config import get_writer_by_key_or_metadata
 
-    winner_cfg = get_writer_by_key(result["winner"])
+    winner_cfg = get_writer_by_key_or_metadata(result["winner"], task_id)
 
     peer_review_path = prompts_dir / f"peer-review-{task_id}.md"
 
@@ -207,9 +217,9 @@ Include the worktree location and git commands for reviewing."""
 
 async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):
     """Address minor issues from peer review."""
-    from ...core.user_config import get_writer_by_key
+    from ...core.user_config import get_writer_by_key_or_metadata
 
-    winner_cfg = get_writer_by_key(result["winner"])
+    winner_cfg = get_writer_by_key_or_metadata(result["winner"], task_id)
     winner_name = winner_cfg.name
 
     minor_fixes_path = prompts_dir / f"minor-fixes-{task_id}.md"
@@ -278,4 +288,14 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
 
     project_name = Path(PROJECT_ROOT).name
     worktree = WORKTREE_BASE / project_name / f"writer-{winner_name}-{task_id}"
-    await send_feedback_async(winner_name, task_id, minor_fixes_path, session_id, worktree)
+    await send_feedback_async(
+        task_id=task_id,
+        feedback_file=minor_fixes_path,
+        session_id=session_id,
+        worktree=worktree,
+        writer_name=winner_cfg.name,
+        writer_model=winner_cfg.model,
+        writer_label=winner_cfg.label,
+        writer_key=winner_cfg.key,
+        writer_color=winner_cfg.color,
+    )

@@ -219,7 +219,7 @@ async def synthesis_minor_fixes(ctx: WorkflowContext) -> PhaseResult:
 async def synthesis_final_peer_review(ctx: WorkflowContext) -> PhaseResult:
     """Phase 10: Final peer review and PR creation."""
     clear_peer_review_decisions(ctx.task_id)
-    await run_peer_review(ctx.task_id, ctx.result, ctx.prompts_dir)
+    await run_peer_review(ctx.task_id, ctx.result, ctx.prompts_dir, run_all_judges=True)
 
     final_check = run_decide_peer_review(ctx.task_id)
     if final_check["approved"] and not final_check["remaining_issues"]:
@@ -317,7 +317,7 @@ def register_phases() -> None:
             Phase(7, "Peer Review", synthesis_peer_review),
             Phase(8, "Final Decision", synthesis_final_decision),
             Phase(9, "Address Minor Issues", synthesis_minor_fixes),
-            Phase(10, "Create PR", synthesis_final_peer_review),
+            Phase(10, "Re-Review & PR", synthesis_final_peer_review),
         ]
     )
 

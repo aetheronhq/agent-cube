@@ -12,22 +12,32 @@ from ..core.git import branch_exists, fetch_branches, get_commit_hash, sync_work
 from ..core.output import console, print_error, print_info, print_success
 from ..core.parsers.registry import get_parser
 from ..core.session import load_session, save_session
-from ..core.user_config import get_judge_configs, get_writer_by_key, load_config
+from ..core.user_config import get_judge_configs, get_writer_by_key, get_writer_by_key_or_metadata, load_config
 from ..models.types import JudgeInfo
 from .stream import format_stream_message
 
 
 async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
     """Fetch and sync writer worktrees to latest remote commits before judge review."""
+    project_name = Path(PROJECT_ROOT).name
+
     if winner and winner.startswith("LOCAL:"):
-        print_info(f"Reviewing local branch: {winner.replace('LOCAL:', '')}")
+        # PR review - create/sync worktree for the PR branch
+        branch_name = winner.replace("LOCAL:", "")
+        print_info(f"Syncing worktree for PR branch: {branch_name}")
+
+        worktree = WORKTREE_BASE / project_name / task_id
+        commit = sync_worktree(worktree, branch_name)
+        if not commit:
+            raise RuntimeError(f"Failed to sync worktree for branch {branch_name}. Check branch exists on origin.")
+        console.print(f"  ✅ {branch_name}: {commit}")
+        console.print()
         return
 
     config = load_config()
-    project_name = Path(PROJECT_ROOT).name
 
     if winner:
-        winner_cfg = get_writer_by_key(winner)
+        winner_cfg = get_writer_by_key_or_metadata(winner, task_id)
         writers = [(winner_cfg.name, f"writer-{winner_cfg.name}/{task_id}")]
     else:
         writers = [
@@ -48,16 +58,24 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
     """Get worktree paths for CLI review adapters."""
     if winner and winner.startswith("LOCAL:"):
         branch_name = winner.replace("LOCAL:", "")
-        return {f"Local ({branch_name})": Path(get_project_root())}
+        project_name = Path(get_project_root()).name
+        # PR reviews use a dedicated worktree synced to the PR branch
+        return {f"PR ({branch_name})": WORKTREE_BASE / project_name / task_id}
 
     project_name = Path(get_project_root()).name
 
     if winner:
-        winner_cfg = get_writer_by_key(winner)
-        winner_path = get_worktree_path(project_name, winner_cfg.name, task_id)
+        winner_cfg = get_writer_by_key_or_metadata(winner, task_id)
+        winner_name = winner_cfg.name
+        winner_label = winner_cfg.label
+
+        winner_path = get_worktree_path(project_name, winner_name, task_id)
         if not winner_path.exists():
-            raise FileNotFoundError(f"Winner worktree does not exist: {winner_path}")
-        return {winner_cfg.label: winner_path}
+            raise FileNotFoundError(
+                f"Winner worktree does not exist: {winner_path}\n"
+                f"  If you want to review a different branch, use: cube peer-review <task-id> --local"
+            )
+        return {winner_label: winner_path}
 
     config = load_config()
     writers = {
@@ -143,7 +161,9 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
 
     status = _parse_decision_status(judge_info)
     layout.mark_complete(judge_info.key, status)
-    console.print(f"[{judge_info.color}][{judge_info.label}][/{judge_info.color}] ✅ {status}")
+    # Only show ✅ for approved, otherwise just show status
+    icon = "✅" if "APPROVED" in status or "Ready to merge" in status else ""
+    console.print(f"[{judge_info.color}][{judge_info.label}][/{judge_info.color}] {icon} {status}".strip())
     return final_line_count
 
 
@@ -162,6 +182,7 @@ def _parse_decision_status(judge_info: JudgeInfo) -> str:
     winner = data.get("winner", "")
     remaining_issues = data.get("remaining_issues", [])
     blocker_issues = data.get("blocker_issues", [])
+    inline_comments = data.get("inline_comments", [])
 
     scores = data.get("scores", {})
 
@@ -176,7 +197,9 @@ def _parse_decision_status(judge_info: JudgeInfo) -> str:
         writer_scores.append((writer_key, score))
 
     if judge_info.review_type == "peer-review":
-        return _format_peer_review_status(decision, remaining_issues)
+        # Count both remaining_issues and inline_comments for accurate issue count
+        all_issues = remaining_issues + inline_comments
+        return _format_peer_review_status(decision, all_issues)
 
     score_text = " / ".join([f"{s:.0f}" for _, s in writer_scores if s is not None])
 
@@ -291,108 +314,39 @@ When creating your decision file, use judge key {judge_key}.
 """
 
     if review_type == "peer-review":
-        review_instructions = f"""# Peer Review Context
+        from .prompts import build_peer_review_prompt
 
-**You are reviewing the WINNING implementation only.**
-
-The winning writer's code is at:
-**Location:** `{WORKTREE_BASE}/{project_name}/writer-{{winner}}-{task_id}/`
-**Branch:** `writer-{{winner}}/{task_id}`
-
-## ⚠️ CRITICAL: Fetch Latest Code First
-
-**BEFORE reviewing, you MUST run these commands to get the latest code:**
-
-```bash
-cd {WORKTREE_BASE}/{project_name}/writer-{{winner}}-{task_id}/
-git fetch origin
-git reset --hard origin/writer-{{winner}}/{task_id}
-```
-
-Then verify you have the latest:
-```bash
-git log --oneline -5
-```
-
-## Review Scope
-
-Review ALL commits since branching from main:
-```bash
-git log --oneline main..HEAD
-git diff main...HEAD --stat
-```
-
-Use read_file or git commands to review the actual code changes.
-
----
-
-# REQUIRED: Peer Review Decision File
-
-**You MUST create this JSON file at the end of your review:**
-
-**File:** `.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`
-
-⚠️ **EXACT FILENAME REQUIRED** - Use your judge key exactly as shown (e.g., `judge_1`, `judge_2`).
-Example: If you are `judge_1`, create `.prompts/decisions/judge_1-{task_id}-peer-review.json`
-
-**REQUIRED FORMAT (TOP-LEVEL FIELDS MANDATORY):**
-```json
-{{
-  "judge": "{{judge_key}}",
-  "task_id": "{task_id}",
-  "review_type": "peer-review",
-  "timestamp": "{{current-iso-timestamp}}",
-  "decision": "APPROVED" | "REQUEST_CHANGES" | "REJECTED",
-  "remaining_issues": [
-    "Specific issue to fix (REQUIRED if REQUEST_CHANGES, empty array if APPROVED)"
-  ],
-  "recommendation": "Ready to merge" | "Needs more work",
-  "verification": {{
-    "your_detailed_checks": "optional_object"
-  }}
-}}
-```
-
-**⚠️ CRITICAL - EXACT SPELLING REQUIRED:**
-- The "decision" field MUST be at the TOP LEVEL of the JSON
-- Use EXACT strings: `"APPROVED"`, `"REQUEST_CHANGES"`, or `"REJECTED"`
-- NOT "Approved", "approve", "APPROVE", "approved" - use exactly `"APPROVED"`
-- The parser will reject anything other than these exact strings
-
-**If decision is REQUEST_CHANGES:**
-- You MUST list specific issues in "remaining_issues" array
-- Empty remaining_issues with REQUEST_CHANGES will be treated as malformed
-
-**If decision is APPROVED:**
-- Set "remaining_issues" to empty array: []
-- You may include additional verification details in nested objects
-
----
-
-"""
+        is_pr_review = winner and winner.startswith("LOCAL:")
+        review_instructions = build_peer_review_prompt(
+            task_id=task_id,
+            worktree_base=WORKTREE_BASE,
+            project_name=project_name,
+            is_pr_review=is_pr_review,
+        )
     else:
         config = load_config()
+
+        from .prompts import build_review_checklist
 
         review_instructions_parts = [
             """# Code Review Locations
 
-## ⚠️ CRITICAL: Fetch Latest Code First
-
-**BEFORE reviewing any writer, you MUST fetch the latest commits for all of them:**
+Review each writer's implementation in their worktree:
 """
         ]
 
-        for writer_key in config.writer_order:
-            wconfig = config.writers[writer_key]
-            review_instructions_parts.append(f"""
-```bash
-# Fetch {wconfig.label}'s latest
-cd {WORKTREE_BASE}/{project_name}/writer-{wconfig.name}-{task_id}/
-git fetch origin
-git reset --hard origin/writer-{wconfig.name}/{task_id}
-```""")
+        review_instructions_parts.append(f"""
+---
 
-        review_instructions_parts.append("\n---")
+{build_review_checklist()}
+
+### Panel-Specific: Questions for `blocker_issues`
+Include significant questions that block approval:
+- "Why was auth changed from X to Y? This contradicts docs/architecture.md"
+- "Is the change to [component] intentional? Not mentioned in task"
+
+---
+""")
 
         for writer_key in config.writer_order:
             wconfig = config.writers[writer_key]
@@ -412,8 +366,10 @@ git diff main...HEAD --stat
         scores_template = {}
         for writer_key in config.writer_order:
             scores_template[writer_key] = {
-                "kiss_compliance": "0-10",
-                "architecture": "0-10",
+                "planning_alignment": "0-10 (matches docs/planning/architecture)",
+                "scope_adherence": "0-10 (no undocumented changes)",
+                "kiss_compliance": "0-10 (simple, elegant, minimal - no over-engineering)",
+                "architecture": "0-10 (clean structure, good abstractions)",
                 "type_safety": "0-10",
                 "tests": "0-10",
                 "production_ready": "0-10",
@@ -432,16 +388,9 @@ git diff main...HEAD --stat
 
 **You MUST create this JSON file at the end of your review:**
 
-**File:** `.prompts/decisions/{{judge_key}}-{task_id}-decision.json`
+**File:** `{PROJECT_ROOT}/.prompts/decisions/{{{{judge_key}}}}-{task_id}-decision.json`
 
-⚠️ **EXACT FILENAME REQUIRED** - Use your judge key exactly as shown (e.g., `judge_1`, `judge_2`).
-Example: If you are `judge_1`, create `.prompts/decisions/judge_1-{task_id}-decision.json`
-
-**CRITICAL for Gemini users:**
-You're running from `~/.cube`. You MUST write your decision to:
-- `{{PROJECT_ROOT}}/.prompts/decisions/{{judge_key}}-{task_id}-decision.json`
-
-Use absolute path when writing the file. The project root is available in your workspace context.
+⚠️ **Use this EXACT absolute path. Do NOT write to a worktree.**
 
 **Format:**
 ```json
@@ -473,13 +422,14 @@ Use absolute path when writing the file. The project root is available in your w
 
     prompt = judge_assignments + review_instructions + base_prompt
 
-    # Substitute {winner} placeholder for peer-review prompts
+    # Substitute placeholders for peer-review prompts
     if review_type == "peer-review" and winner:
         if winner.startswith("LOCAL:"):
             branch_name = winner.replace("LOCAL:", "")
             prompt = prompt.replace("{winner}", f"Local branch ({branch_name})")
+            prompt = prompt.replace("{branch}", branch_name)
         else:
-            winner_cfg = get_writer_by_key(winner)
+            winner_cfg = get_writer_by_key_or_metadata(winner, task_id)
             prompt = prompt.replace("{winner}", winner_cfg.name)
 
     # Don't re-filter - already filtered correctly above based on review_type and single_judge
@@ -551,9 +501,10 @@ Use absolute path when writing the file. The project root is available in your w
         console.print()
         if winner.startswith("LOCAL:"):
             branch_name = winner.replace("LOCAL:", "")
-            console.print(f"Local branch: [green]{branch_name}[/green]")
+            console.print(f"PR branch: [green]{branch_name}[/green]")
+            console.print(f"Worktree: [green]~/.cube/worktrees/{project_name}/{task_id}/[/green]")
         else:
-            winner_cfg = get_writer_by_key(winner)
+            winner_cfg = get_writer_by_key_or_metadata(winner, task_id)
             console.print(
                 f"{winner_cfg.label}: [green]~/.cube/worktrees/{project_name}/writer-{winner_cfg.name}-{task_id}/[/green]"
             )
@@ -608,7 +559,9 @@ Use absolute path when writing the file. The project root is available in your w
             console.print(f"  {label}: {error}")
         console.print()
         failed_names = ", ".join(label for label, _ in errors)
-        raise RuntimeError(f"Judge panel incomplete: {len(errors)} judge(s) failed ({failed_names}). Fix and retry.")
+        print_info("To retry failed judges, run the same command again (without --fresh)")
+        print_info("To retry a specific judge: cube resume <judge-key> <task-id>")
+        raise RuntimeError(f"Judge panel incomplete: {len(errors)} judge(s) failed ({failed_names}).")
 
     console.print("✅ All judges completed successfully")
     console.print()

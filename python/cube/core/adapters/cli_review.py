@@ -111,11 +111,14 @@ class CLIReviewAdapter(CLIAdapter):
 
         # Stream output as it arrives
         completed = set()
+        single_writer = num_writers == 1
         while len(completed) < len(self.writer_worktrees):
             writer, msg_type, content = await queue.get()
 
             if msg_type == "thinking":
-                yield json.dumps({"type": "assistant", "content": f"{writer}: {content}\n"})
+                # Skip writer prefix when reviewing single writer
+                prefix = "" if single_writer else f"{writer}: "
+                yield json.dumps({"type": "assistant", "content": f"{prefix}{content}\n"})
             elif msg_type == "error":
                 errors.add(writer)
                 yield json.dumps(
