@@ -229,7 +229,18 @@ def is_single_mode_default() -> bool:
 def get_cli_tool_for_model(model: str) -> str:
     """Get the CLI tool to use for a given model."""
     config = load_config()
-    return config.cli_tools.get(model, "cursor-agent")
+
+    # Check explicit config first
+    if model in config.cli_tools:
+        return config.cli_tools[model]
+
+    # Auto-detect based on model name prefix
+    model_lower = model.lower()
+    if model_lower.startswith("gemini"):
+        return "gemini"
+
+    # Default fallback
+    return "cursor-agent"
 
 
 def get_prompter_model() -> str:
