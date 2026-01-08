@@ -28,7 +28,9 @@ async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
 
         worktree = WORKTREE_BASE / project_name / f"pr-{task_id}"
         commit = sync_worktree(worktree, branch_name)
-        console.print(f"  {'✅' if commit else '⚠️ '} {branch_name}: {commit or 'sync failed'}")
+        if not commit:
+            raise RuntimeError(f"Failed to sync worktree for branch {branch_name}. Check branch exists on origin.")
+        console.print(f"  ✅ {branch_name}: {commit}")
         console.print()
         return
 
