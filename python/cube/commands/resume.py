@@ -48,7 +48,7 @@ async def resume_async(
     layout.close()
 
 
-def resume_command(target: str, task_id: str, message: str = None, model_override: str = None) -> None:
+def resume_command(target: str, task_id: str, message: str = None) -> None:
     """Resume a writer or judge session with a message."""
 
     if not check_cursor_agent():
@@ -58,7 +58,7 @@ def resume_command(target: str, task_id: str, message: str = None, model_overrid
     if not message:
         message = "Resume from where you left off. Complete any remaining tasks and push your changes."
 
-    model = model_override
+    model = None
     target_label = target
     color = "green"
     writer_cfg = None
@@ -122,25 +122,18 @@ def resume_command(target: str, task_id: str, message: str = None, model_overrid
         # Try to load saved writer metadata
         metadata = load_writer_metadata(target.lower(), task_id)
         if metadata:
-            if not model:
-                model = metadata.model
+            model = metadata.model
             target_label = metadata.label
             color = metadata.color
             writer_key = metadata.key.upper()
-        elif model_override:
-            # Have model but no metadata - use defaults
-            writer_key = f"WRITER_{target.upper().replace('-', '_')}"
-            target_label = f"Writer {target.title()}"
-            color = "cyan"
         else:
-            # No config, no metadata, no model override - can't proceed
+            # No config, no metadata - can't proceed
             from ..core.user_config import get_judge_aliases, get_writer_aliases
 
             valid = ", ".join(list(get_writer_aliases())[:5] + list(get_judge_aliases())[:5])
             print_error(f"Unknown writer: {target}")
             print_info(f"Not in config and no metadata at .prompts/writers/{target.lower()}-{task_id}.json")
             print_info(f"Known targets: {valid}")
-            print_info("Tip: Use --model to specify model manually")
             raise typer.Exit(1)
 
         session_id = load_session(writer_key, task_id)

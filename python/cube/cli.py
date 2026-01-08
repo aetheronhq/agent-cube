@@ -199,9 +199,6 @@ def resume(
     target: Annotated[str, typer.Argument(help="Target to resume (writer alias or judge key)")],
     task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None,
     message: Annotated[Optional[str], typer.Argument(help="Message to send (optional, defaults to 'continue')")] = None,
-    model: Annotated[
-        Optional[str], typer.Option("--model", "-m", help="Model to use (for writers not in config)")
-    ] = None,
 ):
     """Resume a writer or judge session with a message."""
     from .core.config import resolve_task_id, set_current_task_id
@@ -221,7 +218,7 @@ def resume(
         raise typer.Exit(1)
 
     set_current_task_id(resolved_task_id)
-    resume_command(target, resolved_task_id, message, model_override=model)
+    resume_command(target, resolved_task_id, message)
 
 
 @app.command(name="peer-review")
