@@ -22,7 +22,7 @@ Example:
 
 import os
 from collections import deque
-from threading import Lock
+from threading import RLock
 from typing import Dict, Optional
 
 from rich.console import Console
@@ -70,7 +70,7 @@ class BaseThinkingLayout:
         self.live = None
         self.layout = None
         self.started = False
-        self.lock = Lock()
+        self.lock = RLock()  # RLock allows same thread to re-acquire (needed for start() from add_*)
 
     def _term_width(self) -> int:
         try:
