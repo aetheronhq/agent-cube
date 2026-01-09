@@ -17,8 +17,11 @@ from ..models.types import JudgeInfo
 from .stream import format_stream_message
 
 
-async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
-    """Fetch and sync writer worktrees to latest remote commits before judge review."""
+async def _prefetch_worktrees(task_id: str, winner: str = None) -> str | None:
+    """Fetch and sync writer worktrees to latest remote commits before judge review.
+
+    Returns the HEAD SHA for PR reviews (used for verification in prompts).
+    """
     project_name = Path(PROJECT_ROOT).name
 
     if winner and winner.startswith("LOCAL:"):
@@ -32,7 +35,7 @@ async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
             raise RuntimeError(f"Failed to sync worktree for branch {branch_name}. Check branch exists on origin.")
         console.print(f"  ✅ {branch_name}: {commit}")
         console.print()
-        return
+        return commit  # Return SHA for verification
 
     config = load_config()
 
@@ -52,6 +55,7 @@ async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
         console.print(f"  {'✅' if commit else '⚠️ '} {branch}: {commit or 'sync failed'}")
 
     console.print()
+    return None  # No SHA verification for writer reviews
 
 
 def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
@@ -270,7 +274,7 @@ async def launch_judge_panel(
     if not prompt_file.exists():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
 
-    await _prefetch_worktrees(task_id, winner)
+    worktree_head_sha = await _prefetch_worktrees(task_id, winner)
 
     all_judges = get_judge_configs()
 
@@ -322,6 +326,7 @@ When creating your decision file, use judge key {judge_key}.
             worktree_base=WORKTREE_BASE,
             project_name=project_name,
             is_pr_review=is_pr_review,
+            head_sha=worktree_head_sha or "",
         )
     else:
         config = load_config()
