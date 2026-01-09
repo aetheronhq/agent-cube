@@ -78,3 +78,43 @@ def check_cursor_agent() -> bool:
     from .adapters.cursor import CursorAdapter
 
     return CursorAdapter().check_installed()
+
+
+def run_async(coro):
+    """Run async code with proper cleanup to avoid 'Event loop is closed' warnings.
+
+    This is a replacement for asyncio.run() that properly handles:
+    - Cancelling pending tasks
+    - Closing subprocess transports
+    - Shutting down async generators
+
+    Args:
+        coro: The coroutine to run
+
+    Returns:
+        The result of the coroutine
+    """
+    import warnings
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        # Cancel all pending tasks
+        pending = asyncio.all_tasks(loop)
+        for task in pending:
+            task.cancel()
+
+        # Let cancelled tasks complete
+        if pending:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+
+        # Shutdown async generators
+        loop.run_until_complete(loop.shutdown_asyncgens())
+
+        # Close the loop
+        loop.close()

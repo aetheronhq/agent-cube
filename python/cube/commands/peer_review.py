@@ -1,6 +1,5 @@
 """Peer review command."""
 
-import asyncio
 import json
 from pathlib import Path
 from typing import Optional
@@ -8,7 +7,7 @@ from typing import Optional
 import typer
 
 from ..automation.judge_panel import launch_judge_panel
-from ..core.agent import check_cursor_agent
+from ..core.agent import check_cursor_agent, run_async
 from ..core.config import PROJECT_ROOT, resolve_path
 from ..core.output import console, print_error, print_info, print_success, print_warning
 from ..core.state import update_phase
@@ -170,7 +169,7 @@ def _run_pr_review(
             print_info(f"Excluding {excluded} cli-review judge(s)")
 
         try:
-            asyncio.run(
+            run_async(
                 launch_judge_panel(
                     task_id,
                     prompt_path,
@@ -263,7 +262,7 @@ def _run_pr_review(
     console.print(f"[dim]Found {len(existing_comments)} existing comments[/dim]")
 
     # Use AI deduper to intelligently combine/dedupe all feedback
-    dedupe_result = asyncio.run(
+    dedupe_result = run_async(
         run_dedupe_agent(
             feedback=all_feedback,
             existing_comments=existing_comments,
@@ -411,7 +410,7 @@ def peer_review_command(
         if judge:
             # Run single judge
             print_info(f"Running single judge: {judge}")
-            asyncio.run(
+            run_async(
                 launch_judge_panel(
                     task_id, prompt_path, "peer-review", resume_mode=not fresh, winner=winner, single_judge=judge
                 )
@@ -419,7 +418,7 @@ def peer_review_command(
         elif fresh:
             print_info("Launching fresh judge panel for peer review")
             # For local branches, run ALL judges (not just peer_review_only)
-            asyncio.run(
+            run_async(
                 launch_judge_panel(
                     task_id, prompt_path, "peer-review", resume_mode=False, winner=winner, run_all_judges=local
                 )
@@ -449,7 +448,7 @@ def peer_review_command(
                 console.print("Or use --fresh to launch new judges instead")
                 raise typer.Exit(1)
 
-            asyncio.run(launch_judge_panel(task_id, prompt_path, "peer-review", resume_mode=True, winner=winner))
+            run_async(launch_judge_panel(task_id, prompt_path, "peer-review", resume_mode=True, winner=winner))
 
         update_phase(task_id, 7, peer_review_complete=True)
     except RuntimeError as e:
