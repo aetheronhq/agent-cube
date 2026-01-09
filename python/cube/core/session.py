@@ -61,6 +61,20 @@ def session_exists(session_type: str, task_id: str) -> bool:
     return session_file.exists()
 
 
+def clear_session(session_type: str, task_id: str) -> bool:
+    """Delete a session file. Returns True if deleted, False if didn't exist."""
+    sessions_dir = get_sessions_dir()
+    session_file = sessions_dir / f"{session_type}_{task_id}_SESSION_ID.txt"
+    meta_file = sessions_dir / f"{session_type}_{task_id}_SESSION_ID.txt.meta"
+    deleted = False
+    if session_file.exists():
+        session_file.unlink()
+        deleted = True
+    if meta_file.exists():
+        meta_file.unlink()
+    return deleted
+
+
 # Prompter session helpers
 def get_prompter_session(task_id: str) -> tuple[str | None, bool]:
     """Get prompter session for a task.

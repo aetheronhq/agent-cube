@@ -211,7 +211,9 @@ async def synthesis_minor_fixes(ctx: WorkflowContext) -> PhaseResult:
     elif not final_result["remaining_issues"]:
         print_warning("No specific issues listed - skipping minor fixes")
     else:
-        await run_minor_fixes(ctx.task_id, ctx.result, final_result["remaining_issues"], ctx.prompts_dir)
+        await run_minor_fixes(
+            ctx.task_id, ctx.result, final_result["remaining_issues"], ctx.prompts_dir, ctx.fresh_writer
+        )
 
     return PhaseResult()
 

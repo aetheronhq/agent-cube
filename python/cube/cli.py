@@ -485,6 +485,9 @@ def auto(
     writer: Annotated[
         Optional[str], typer.Option("--writer", "-w", help="Specific writer for single mode (opus, codex, a, b)")
     ] = None,
+    fresh_writer: Annotated[
+        bool, typer.Option("--fresh-writer", help="Clear winner's session and start fresh (for dead sessions)")
+    ] = False,
 ):
     """Shortcut for: cube orchestrate auto <task-file>
 
@@ -581,6 +584,7 @@ def auto(
                 resume_alias=resume_alias,
                 single_mode=single_mode,
                 writer_key=writer_key,
+                fresh_writer=fresh_writer,
             )
         )
     except Exception as e:

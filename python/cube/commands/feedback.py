@@ -15,7 +15,7 @@ from ..core.user_config import get_writer_aliases, resolve_writer_alias
 async def send_feedback_async(
     task_id: str,
     feedback_file: Path,
-    session_id: str,
+    session_id: str | None,
     worktree: Path,
     writer_name: str,
     writer_model: str,
@@ -23,7 +23,10 @@ async def send_feedback_async(
     writer_key: str,
     writer_color: str = "green",
 ) -> None:
-    """Send feedback to a writer asynchronously."""
+    """Send feedback to a writer asynchronously.
+
+    If session_id is None, starts a new session instead of resuming.
+    """
     from ..automation.stream import format_stream_message
     from ..core.agent_logger import agent_logging_context
     from ..core.parsers.registry import get_parser
@@ -39,7 +42,9 @@ async def send_feedback_async(
 
     feedback_message = feedback_file.read_text()
 
-    stream = run_agent(worktree, writer_model, feedback_message, session_id=session_id, resume=True)
+    # If no session_id, start fresh; otherwise resume
+    resume = session_id is not None
+    stream = run_agent(worktree, writer_model, feedback_message, session_id=session_id, resume=resume)
 
     layout = SingleAgentLayout
     layout.initialize(writer_label)

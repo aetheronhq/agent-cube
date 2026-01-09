@@ -220,7 +220,7 @@ Include the worktree location and git commands for reviewing."""
     )
 
 
-async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):
+async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path, fresh_writer: bool = False):
     """Address minor issues from peer review."""
     from ...core.user_config import get_writer_by_key_or_metadata
 
@@ -266,9 +266,9 @@ Save to: `.prompts/minor-fixes-{task_id}.md`"""
     from ...core.session import load_session
     from ..feedback import send_feedback_async
 
-    session_id = load_session(winner_cfg.key.upper(), task_id)
-    if not session_id:
-        raise RuntimeError(f"No session found for {winner_cfg.label}. Cannot send minor fixes.")
+    session_id = None if fresh_writer else load_session(winner_cfg.key.upper(), task_id)
+    if not session_id and not fresh_writer:
+        raise RuntimeError(f"No session found for {winner_cfg.label}. Use --fresh-writer to start new.")
 
     project_name = Path(PROJECT_ROOT).name
     worktree = WORKTREE_BASE / project_name / f"writer-{winner_name}-{task_id}"
