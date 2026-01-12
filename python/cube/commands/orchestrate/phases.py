@@ -232,11 +232,14 @@ async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir:
     if minor_fixes_path.exists():
         minor_fixes_path.unlink()
 
+    branch_name = f"writer-{winner_name}/{task_id}"
     prompt = f"""Generate a minor fixes prompt for the winning writer.
 
 ## Context
 
 Winner: Writer {result['winner']} ({winner_cfg.label})
+Branch: `{branch_name}`
+Worktree: `~/.cube/worktrees/{Path(PROJECT_ROOT).name}/writer-{winner_name}-{task_id}/`
 
 ## Minor Issues from Peer Review
 
@@ -249,6 +252,12 @@ Create a brief prompt telling the winner to:
 2. Address the minor issues listed above
 3. Keep their implementation intact, just fix these specific points
 4. Commit and push when complete
+
+**CRITICAL**: Include these warnings in the prompt:
+- ⚠️ DO NOT create new branches! Stay on `{branch_name}`
+- ⚠️ DO NOT checkout other branches
+- ⚠️ Work only in your worktree directory
+- ⚠️ Commit and push to your existing branch
 
 Save to: `.prompts/minor-fixes-{task_id}.md`"""
 
