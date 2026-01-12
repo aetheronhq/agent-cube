@@ -94,6 +94,8 @@ def run_async(coro):
     Returns:
         The result of the coroutine
     """
+    import gc
+    import sys
     import warnings
 
     loop = asyncio.new_event_loop()
@@ -102,19 +104,41 @@ def run_async(coro):
     try:
         return loop.run_until_complete(coro)
     finally:
-        # Cancel all pending tasks
-        pending = asyncio.all_tasks(loop)
-        for task in pending:
-            task.cancel()
+        try:
+            # Cancel all pending tasks
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
 
-        # Let cancelled tasks complete
-        if pending:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            # Let cancelled tasks complete
+            if pending:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
 
-        # Shutdown async generators
-        loop.run_until_complete(loop.shutdown_asyncgens())
+            # Shutdown async generators
+            loop.run_until_complete(loop.shutdown_asyncgens())
+
+            # Shutdown default executor (Python 3.9+)
+            loop.run_until_complete(loop.shutdown_default_executor())
+
+            # Force garbage collection while loop is still open
+            gc.collect()
+        except Exception:
+            pass  # Best effort cleanup
+
+        # Suppress 'Event loop is closed' RuntimeErrors from subprocess cleanup
+        # These are harmless but noisy - they occur when subprocess transports
+        # are garbage collected after the loop closes. They use unraisablehook.
+        original_unraisablehook = sys.unraisablehook
+
+        def quiet_unraisablehook(unraisable):
+            if isinstance(unraisable.exc_value, RuntimeError):
+                if "Event loop is closed" in str(unraisable.exc_value):
+                    return  # Silently ignore
+            original_unraisablehook(unraisable)
+
+        sys.unraisablehook = quiet_unraisablehook
 
         # Close the loop
         loop.close()
