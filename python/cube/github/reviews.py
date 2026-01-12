@@ -71,6 +71,23 @@ def post_review(pr_number: int, review: Review, cwd: Optional[str] = None) -> bo
     return True
 
 
+def _get_pr_diff_files(pr_number: int, cwd: Optional[str] = None) -> set[str]:
+    """Get list of files changed in PR."""
+    result = subprocess.run(
+        ["gh", "pr", "view", str(pr_number), "--json", "files"],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+    )
+    if result.returncode != 0:
+        return set()
+    try:
+        data = json.loads(result.stdout)
+        return {f.get("path", "") for f in data.get("files", [])}
+    except (json.JSONDecodeError, KeyError):
+        return set()
+
+
 def _post_review_with_comments(pr_number: int, review: Review, body: str, cwd: Optional[str] = None) -> bool:
     """Post review with inline comments using gh api."""
     result = subprocess.run(
@@ -92,11 +109,26 @@ def _post_review_with_comments(pr_number: int, review: Review, body: str, cwd: O
     if not commit_id:
         raise RuntimeError("Could not determine PR head commit")
 
+    # Get files in the PR to validate comment paths
+    pr_files = _get_pr_diff_files(pr_number, cwd)
+
     api_comments = []
+    skipped_comments = []
     for c in review.comments:
+        # Skip comments on files not in the PR diff
+        if pr_files and c.path not in pr_files:
+            skipped_comments.append(f"{c.path}:{c.line}")
+            continue
         severity_prefix = f"**[{c.severity.upper()}]** " if c.severity != "info" else ""
         comment_body = f"{severity_prefix}{c.body}"
         api_comments.append({"path": c.path, "line": c.line, "body": comment_body})
+
+    if skipped_comments:
+        # Add skipped comments info to body
+        skipped_note = "\n\n<details><summary>⚠️ Some comments skipped (files not in diff)</summary>\n\n"
+        skipped_note += "\n".join(f"- `{s}`" for s in skipped_comments)
+        skipped_note += "\n</details>"
+        body += skipped_note
 
     event_map = {
         "APPROVE": "APPROVE",
@@ -105,7 +137,11 @@ def _post_review_with_comments(pr_number: int, review: Review, body: str, cwd: O
     }
     event = event_map.get(review.decision, "COMMENT")
 
-    payload = {"commit_id": commit_id, "body": body, "event": event, "comments": api_comments}
+    # If no comments to post (all skipped), post review without inline comments
+    if not api_comments:
+        payload = {"commit_id": commit_id, "body": body, "event": event, "comments": []}
+    else:
+        payload = {"commit_id": commit_id, "body": body, "event": event, "comments": api_comments}
 
     result = subprocess.run(
         ["gh", "api", "repos/{owner}/{repo}/pulls/" + str(pr_number) + "/reviews", "-X", "POST", "--input", "-"],
@@ -125,6 +161,34 @@ def _post_review_with_comments(pr_number: int, review: Review, body: str, cwd: O
                 error += ": " + str(err_data["errors"])
         except (json.JSONDecodeError, KeyError):
             pass
+
+        # If batch failed due to line resolution, try posting without inline comments
+        if "could not be resolved" in error.lower() and api_comments:
+            # Add inline comments to body as fallback
+            body += "\n\n---\n**⚠️ Inline comments (couldn't attach to diff):**\n"
+            for comment_dict in api_comments:
+                body += f"\n**`{comment_dict['path']}:{comment_dict['line']}`**: {comment_dict['body']}\n"
+
+            payload = {"commit_id": commit_id, "body": body, "event": event, "comments": []}
+            result = subprocess.run(
+                [
+                    "gh",
+                    "api",
+                    "repos/{owner}/{repo}/pulls/" + str(pr_number) + "/reviews",
+                    "-X",
+                    "POST",
+                    "--input",
+                    "-",
+                ],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to post review: {error}")
+            return True
+
         raise RuntimeError(f"Failed to post review: {error}")
 
     return True
