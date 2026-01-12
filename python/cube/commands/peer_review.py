@@ -85,25 +85,14 @@ def _run_pr_review(
     console.print(f"[bold]Title:[/bold] {pr.title}")
     print_info(f"Branch: {pr.head_branch} → {pr.base_branch}")
 
-    # Ensure local branch is up to date with remote
+    # Fetch latest from remote (judges will use worktrees, not checkout)
     from ..core.git import get_repo
 
     repo = get_repo()
     try:
         repo.remotes.origin.fetch()
-        # Checkout PR branch and pull latest
-        if pr.head_branch in repo.heads:
-            repo.heads[pr.head_branch].checkout()
-            repo.remotes.origin.pull(pr.head_branch)
-            print_info(f"Checked out and updated {pr.head_branch}")
-        else:
-            # Branch doesn't exist locally, create from origin
-            repo.create_head(pr.head_branch, f"origin/{pr.head_branch}")
-            repo.heads[pr.head_branch].checkout()
-            print_info(f"Checked out origin/{pr.head_branch}")
     except Exception as e:
-        print_warning(f"Could not checkout PR branch: {e}")
-        print_info("Judges will use git commands to view remote changes")
+        print_warning(f"Could not fetch from origin: {e}")
 
     if not pr.diff.strip():
         print_warning("PR has no diff - nothing to review")
