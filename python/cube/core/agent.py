@@ -98,6 +98,22 @@ def run_async(coro):
     import sys
     import warnings
 
+    # Suppress asyncio cleanup warnings upfront
+    warnings.filterwarnings("ignore", message=".*Event loop is closed.*")
+    warnings.filterwarnings("ignore", message=".*was destroyed but it is pending.*")
+
+    # Install quiet unraisablehook early to catch all cleanup errors
+    original_unraisablehook = getattr(sys, "unraisablehook", None)
+
+    def quiet_unraisablehook(unraisable):
+        msg = str(unraisable.exc_value) if unraisable.exc_value else ""
+        if "Event loop is closed" in msg or "pending" in msg.lower():
+            return  # Silently ignore async cleanup noise
+        if original_unraisablehook:
+            original_unraisablehook(unraisable)
+
+    sys.unraisablehook = quiet_unraisablehook
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
@@ -126,19 +142,6 @@ def run_async(coro):
             gc.collect()
         except Exception:
             pass  # Best effort cleanup
-
-        # Suppress 'Event loop is closed' RuntimeErrors from subprocess cleanup
-        # These are harmless but noisy - they occur when subprocess transports
-        # are garbage collected after the loop closes. They use unraisablehook.
-        original_unraisablehook = sys.unraisablehook
-
-        def quiet_unraisablehook(unraisable):
-            if isinstance(unraisable.exc_value, RuntimeError):
-                if "Event loop is closed" in str(unraisable.exc_value):
-                    return  # Silently ignore
-            original_unraisablehook(unraisable)
-
-        sys.unraisablehook = quiet_unraisablehook
 
         # Close the loop
         loop.close()
