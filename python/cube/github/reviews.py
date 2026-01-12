@@ -96,7 +96,8 @@ def _post_review_with_comments(pr_number: int, review: Review, body: str, cwd: O
     for c in review.comments:
         severity_prefix = f"**[{c.severity.upper()}]** " if c.severity != "info" else ""
         comment_body = f"{severity_prefix}{c.body}"
-        api_comments.append({"path": c.path, "line": c.line, "body": comment_body})
+        # side: RIGHT = new file version (what we're reviewing)
+        api_comments.append({"path": c.path, "line": c.line, "side": "RIGHT", "body": comment_body})
 
     event_map = {
         "APPROVE": "APPROVE",
@@ -126,13 +127,46 @@ def _post_review_with_comments(pr_number: int, review: Review, body: str, cwd: O
         except (json.JSONDecodeError, KeyError):
             pass
 
-        # If batch failed due to line resolution, try posting without inline comments
+        # If batch failed due to line resolution, try posting comments individually
         if "could not be resolved" in error.lower() and api_comments:
-            # Add inline comments to body as fallback
-            body += "\n\n---\n**⚠️ Inline comments (couldn't attach to diff):**\n"
-            for comment_dict in api_comments:
-                body += f"\n**`{comment_dict['path']}:{comment_dict['line']}`**: {comment_dict['body']}\n"
+            successful_comments = []
+            failed_comments = []
 
+            # Try each comment individually
+            for comment_dict in api_comments:
+                single_payload = {
+                    "commit_id": commit_id,
+                    "body": "Single comment",
+                    "event": "COMMENT",
+                    "comments": [comment_dict],
+                }
+                single_result = subprocess.run(
+                    [
+                        "gh",
+                        "api",
+                        "repos/{owner}/{repo}/pulls/" + str(pr_number) + "/reviews",
+                        "-X",
+                        "POST",
+                        "--input",
+                        "-",
+                    ],
+                    input=json.dumps(single_payload),
+                    capture_output=True,
+                    text=True,
+                    cwd=cwd,
+                )
+                if single_result.returncode == 0:
+                    successful_comments.append(comment_dict)
+                else:
+                    failed_comments.append(comment_dict)
+
+            # Post the main review with failed comments in body
+            if failed_comments:
+                body += "\n\n---\n**⚠️ Comments (lines not in diff):**\n"
+                for comment_dict in failed_comments:
+                    body += f"\n**`{comment_dict['path']}:{comment_dict['line']}`**: {comment_dict['body']}\n"
+
+            # Post the actual review decision (without inline comments since we posted them separately)
             payload = {"commit_id": commit_id, "body": body, "event": event, "comments": []}
             result = subprocess.run(
                 [
