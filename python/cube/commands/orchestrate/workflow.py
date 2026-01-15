@@ -93,7 +93,11 @@ async def _orchestrate_auto_impl(
 
     # If resuming from phase 6+, load the aggregated result
     if resume_from >= 6:
-        ctx.result = _load_aggregated_result(task_id, prompts_dir)
+        if single_mode and writer_key:
+            # Single mode: reconstruct result from state
+            ctx.result = {"winner": writer_key, "all_approved": False}
+        else:
+            ctx.result = _load_aggregated_result(task_id, prompts_dir)
 
     await execute_workflow(ctx)
 
