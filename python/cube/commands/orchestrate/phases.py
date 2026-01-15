@@ -60,6 +60,8 @@ async def run_prompter_with_session(task_id: str, prompt: str, layout, output_pa
 
 async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
     """Phase 6: Run synthesis if needed."""
+    import json
+
     from ...core.single_layout import SingleAgentLayout
     from ...core.user_config import get_writer_by_key_or_metadata
 
@@ -79,6 +81,24 @@ async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
         )
         judge_log_files = "\n".join(
             [f"- `~/.cube/logs/{j.key.replace('_', '-')}-{task_id}-panel-*.json`" for j in judge_configs]
+        )
+
+        blocker_issues = result.get("blocker_issues", [])
+        if not blocker_issues:
+            decisions_dir = prompts_dir / "decisions"
+            for j in judge_configs:
+                decision_file = decisions_dir / f"{j.key.replace('_', '-')}-{task_id}-decision.json"
+                if decision_file.exists():
+                    try:
+                        data = json.loads(decision_file.read_text())
+                        blocker_issues.extend(data.get("blocker_issues", []))
+                    except (json.JSONDecodeError, OSError):
+                        pass
+
+        blocker_section = (
+            chr(10).join("- " + issue for issue in blocker_issues)
+            if blocker_issues
+            else "(Read judge decision files for issues)"
         )
 
         prompt = f"""Generate a synthesis prompt for the WINNING writer.
@@ -111,7 +131,7 @@ Optional: Read for deeper understanding of judge concerns.
 
 ## Blocker Issues to Address
 
-{chr(10).join('- ' + issue for issue in result['blocker_issues'])}
+{blocker_section}
 
 ## Your Task
 
