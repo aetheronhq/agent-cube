@@ -136,7 +136,7 @@ def _post_review_with_comments(pr_number: int, review: Review, body: str, cwd: O
             for comment_dict in api_comments:
                 single_payload = {
                     "commit_id": commit_id,
-                    "body": "Single comment",
+                    "body": "",  # Empty body since comment is inline
                     "event": "COMMENT",
                     "comments": [comment_dict],
                 }
