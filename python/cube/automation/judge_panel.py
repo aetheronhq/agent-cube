@@ -361,11 +361,12 @@ Include significant questions that block approval:
 **Branch:** `writer-{wconfig.name}/{task_id}`
 **Location:** `{WORKTREE_BASE}/{project_name}/writer-{wconfig.name}-{task_id}/`
 
-Review commits since main:
+Review commits since branching from main:
 ```bash
 cd {WORKTREE_BASE}/{project_name}/writer-{wconfig.name}-{task_id}/
-git log --oneline main..HEAD
-git diff main...HEAD --stat
+git fetch origin main
+git log --oneline origin/main..HEAD
+git diff origin/main...HEAD --stat
 ```""")
 
         scores_template = {}

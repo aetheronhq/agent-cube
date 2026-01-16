@@ -218,8 +218,9 @@ If the SHA doesn't match, run: `git fetch origin && git reset --hard origin/{{br
 Check what was changed since branching from main:
 ```bash
 cd {worktree_path}/
-git log --oneline main..HEAD
-git diff main...HEAD --stat
+git fetch origin main
+git log --oneline origin/main..HEAD
+git diff origin/main...HEAD --stat
 ```
 
 Use read_file WITH THE FULL WORKTREE PATH to review code.
