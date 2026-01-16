@@ -127,48 +127,13 @@ def _post_review_with_comments(pr_number: int, review: Review, body: str, cwd: O
         except (json.JSONDecodeError, KeyError):
             pass
 
-        # If batch failed due to line resolution, try posting comments individually
+        # If batch failed due to line resolution, post review first then add comments individually
         if "could not be resolved" in error.lower() and api_comments:
-            successful_comments = []
             failed_comments = []
 
-            # Try each comment individually
-            for comment_dict in api_comments:
-                single_payload = {
-                    "commit_id": commit_id,
-                    "body": "",  # Empty body since comment is inline
-                    "event": "COMMENT",
-                    "comments": [comment_dict],
-                }
-                single_result = subprocess.run(
-                    [
-                        "gh",
-                        "api",
-                        "repos/{owner}/{repo}/pulls/" + str(pr_number) + "/reviews",
-                        "-X",
-                        "POST",
-                        "--input",
-                        "-",
-                    ],
-                    input=json.dumps(single_payload),
-                    capture_output=True,
-                    text=True,
-                    cwd=cwd,
-                )
-                if single_result.returncode == 0:
-                    successful_comments.append(comment_dict)
-                else:
-                    failed_comments.append(comment_dict)
-
-            # Post the main review with failed comments in body
-            if failed_comments:
-                body += "\n\n---\n**⚠️ Comments (lines not in diff):**\n"
-                for comment_dict in failed_comments:
-                    body += f"\n**`{comment_dict['path']}:{comment_dict['line']}`**: {comment_dict['body']}\n"
-
-            # Post the actual review decision (without inline comments since we posted them separately)
-            payload = {"commit_id": commit_id, "body": body, "event": event, "comments": []}
-            result = subprocess.run(
+            # Post the main review first (without inline comments)
+            review_payload = {"commit_id": commit_id, "body": body, "event": event, "comments": []}
+            review_result = subprocess.run(
                 [
                     "gh",
                     "api",
@@ -178,13 +143,54 @@ def _post_review_with_comments(pr_number: int, review: Review, body: str, cwd: O
                     "--input",
                     "-",
                 ],
-                input=json.dumps(payload),
+                input=json.dumps(review_payload),
                 capture_output=True,
                 text=True,
                 cwd=cwd,
             )
-            if result.returncode != 0:
+            if review_result.returncode != 0:
                 raise RuntimeError(f"Failed to post review: {error}")
+
+            # Now try adding each comment as a standalone PR comment (not a review)
+            for comment_dict in api_comments:
+                comment_payload = {
+                    "commit_id": commit_id,
+                    "path": comment_dict["path"],
+                    "line": comment_dict["line"],
+                    "side": comment_dict.get("side", "RIGHT"),
+                    "body": comment_dict["body"],
+                }
+                comment_result = subprocess.run(
+                    [
+                        "gh",
+                        "api",
+                        "repos/{owner}/{repo}/pulls/" + str(pr_number) + "/comments",
+                        "-X",
+                        "POST",
+                        "--input",
+                        "-",
+                    ],
+                    input=json.dumps(comment_payload),
+                    capture_output=True,
+                    text=True,
+                    cwd=cwd,
+                )
+                if comment_result.returncode != 0:
+                    failed_comments.append(comment_dict)
+
+            # If any comments failed, add them as a follow-up comment on the PR
+            if failed_comments:
+                fallback_body = "**⚠️ Additional comments (lines not in diff):**\n"
+                for comment_dict in failed_comments:
+                    fallback_body += f"\n**`{comment_dict['path']}:{comment_dict['line']}`**: {comment_dict['body']}\n"
+
+                subprocess.run(
+                    ["gh", "pr", "comment", str(pr_number), "--body", fallback_body],
+                    capture_output=True,
+                    text=True,
+                    cwd=cwd,
+                )
+
             return True
 
         raise RuntimeError(f"Failed to post review: {error}")
