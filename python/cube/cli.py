@@ -234,13 +234,13 @@ def peer_review(
     branch: Annotated[Optional[str], typer.Option("--branch", "-b", help="Review specific branch directly")] = None,
     pr: Annotated[Optional[int], typer.Option("--pr", help="GitHub PR number to review with full panel")] = None,
     dry_run: Annotated[
-        bool, typer.Option("--dry-run", help="Show review but don't post to GitHub (with --pr)")
+        bool, typer.Option("--dry-run", "--dry", help="Show review but don't post to GitHub (with --pr)")
     ] = False,
     include_cli: Annotated[
         bool, typer.Option("--include-cli", help="Include cli-review judges like CodeRabbit (with --pr)")
     ] = False,
     skip_agents: Annotated[
-        bool, typer.Option("--skip-agents", help="Skip AI, just aggregate existing decisions")
+        bool, typer.Option("--skip-agents", "--skip", help="Skip AI, just aggregate existing decisions")
     ] = False,
 ):
     """Resume judge panel for peer review of winner's implementation."""
@@ -467,7 +467,7 @@ def clean(
     old: Annotated[bool, typer.Option("--old", help="Clean sessions older than 7 days")] = False,
     all_tasks: Annotated[bool, typer.Option("--all", help="Clean all completed tasks")] = False,
     full: Annotated[bool, typer.Option("--full", help="Full reset: + worktrees, branches, decisions, logs")] = False,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview without deleting")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", "--dry", help="Preview without deleting")] = False,
 ):
     """Clean up completed or stale sessions."""
     clean_command(task_id, old, all_tasks, full, dry_run)
