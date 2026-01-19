@@ -77,17 +77,15 @@ async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
 
         judge_configs = get_judge_configs()
         judge_decision_files = "\n".join(
-            [f"- `.prompts/decisions/{j.key.replace('_', '-')}-{task_id}-decision.json`" for j in judge_configs]
+            [f"- `.prompts/decisions/{j.key}-{task_id}-decision.json`" for j in judge_configs]
         )
-        judge_log_files = "\n".join(
-            [f"- `~/.cube/logs/{j.key.replace('_', '-')}-{task_id}-panel-*.json`" for j in judge_configs]
-        )
+        judge_log_files = "\n".join([f"- `~/.cube/logs/{j.key}-{task_id}-panel-*.json`" for j in judge_configs])
 
         blocker_issues = result.get("blocker_issues", [])
         if not blocker_issues:
             decisions_dir = prompts_dir / "decisions"
             for j in judge_configs:
-                decision_file = decisions_dir / f"{j.key.replace('_', '-')}-{task_id}-decision.json"
+                decision_file = decisions_dir / f"{j.key}-{task_id}-decision.json"
                 if decision_file.exists():
                     try:
                         data = json.loads(decision_file.read_text())
