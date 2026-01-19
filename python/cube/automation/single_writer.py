@@ -43,6 +43,8 @@ async def run_single_writer(writer_info: WriterInfo, prompt: str, resume: bool) 
 
             msg = parser.parse(line)
             if msg:
+                if msg.type == "system" and msg.subtype == "init":
+                    msg.resumed = resume
                 if msg.session_id and not writer_info.session_id:
                     writer_info.session_id = msg.session_id
                     save_session(

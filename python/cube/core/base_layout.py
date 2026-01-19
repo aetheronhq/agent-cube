@@ -22,7 +22,7 @@ Example:
 
 import os
 from collections import deque
-from threading import Lock
+from threading import RLock
 from typing import Dict, Optional
 
 from rich.console import Console
@@ -54,9 +54,10 @@ class BaseThinkingLayout:
         layout.close()
     """
 
-    def __init__(self, boxes: Dict[str, str], lines_per_box: int = 3):
+    def __init__(self, boxes: Dict[str, str], lines_per_box: int = 3, task_name: str = None):
         self.boxes = boxes
         self.lines_per_box = lines_per_box
+        self.task_name = task_name
         self.thinking_buffers = {box_id: deque(maxlen=lines_per_box) for box_id in boxes}
         self.thinking_current = {box_id: "" for box_id in boxes}
         self.output_lines = deque(maxlen=500)
@@ -69,7 +70,7 @@ class BaseThinkingLayout:
         self.live = None
         self.layout = None
         self.started = False
-        self.lock = Lock()
+        self.lock = RLock()  # RLock allows same thread to re-acquire (needed for start() from add_*)
 
     def _term_width(self) -> int:
         try:
@@ -132,9 +133,20 @@ class BaseThinkingLayout:
                 return
 
             self.layout = Layout()
-            regions = [Layout(name=box_id, size=self.lines_per_box + 2) for box_id in self.boxes]
+
+            # Add header region if task_name provided
+            regions = []
+            if self.task_name:
+                regions.append(Layout(name="header", size=1))
+
+            regions.extend([Layout(name=box_id, size=self.lines_per_box + 2) for box_id in self.boxes])
             regions.append(Layout(name="output", ratio=1))
             self.layout.split_column(*regions)
+
+            # Update header with task name
+            if self.task_name:
+                header_text = Text(f"🤖 Agent Cube ▶ {self.task_name}", style="bold cyan", justify="center")
+                self.layout["header"].update(header_text)
 
             for box_id, title in self.boxes.items():
                 self.layout[box_id].update(self._make_panel(box_id, title))

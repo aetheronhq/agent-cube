@@ -51,18 +51,19 @@ class DynamicLayout:
     _instance: Optional[BaseThinkingLayout] = None
 
     @classmethod
-    def initialize(cls, boxes: Dict[str, str], lines_per_box: int = 2):
+    def initialize(cls, boxes: Dict[str, str], lines_per_box: int = 2, task_name: str = None):
         """Initialize layout with specific boxes (closes previous instance if exists).
 
         Args:
             boxes: Dict of {key: label} e.g. {"judge_1": "Judge Sonnet", "<writer_key>": "<Writer Label>"}
             lines_per_box: Number of lines per thinking box
+            task_name: Optional task name to display in header
         """
         # Close previous instance to avoid multiple Live() displays
         if cls._instance:
             cls._instance.close()
 
-        cls._instance = BaseThinkingLayout(boxes, lines_per_box)
+        cls._instance = BaseThinkingLayout(boxes, lines_per_box, task_name=task_name)
 
     @classmethod
     def add_thinking(cls, key: str, text: str):

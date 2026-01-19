@@ -50,6 +50,7 @@ def build_dedupe_prompt(
     feedback: list[JudgeFeedback],
     existing_comments: list[ExistingComment],
     pr_diff: str,
+    pr_number: int,
 ) -> str:
     """Build prompt for the deduplication agent."""
 
@@ -112,7 +113,7 @@ Deduplicate and organize the feedback into two categories:
 
 ## Output Format
 
-Write to: `{PROJECT_ROOT}/.prompts/decisions/dedupe-result.json`
+Write to: `{PROJECT_ROOT}/.prompts/decisions/dedupe-pr-{pr_number}.json`
 
 ```json
 {{
@@ -163,8 +164,8 @@ async def run_dedupe_agent(
     from ..core.agent import run_agent
     from ..core.parsers.registry import get_parser
 
-    prompt = build_dedupe_prompt(feedback, existing_comments, pr_diff)
-    output_file = PROJECT_ROOT / ".prompts" / "decisions" / "dedupe-result.json"
+    prompt = build_dedupe_prompt(feedback, existing_comments, pr_diff, pr_number)
+    output_file = PROJECT_ROOT / ".prompts" / "decisions" / f"dedupe-pr-{pr_number}.json"
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     # Clear old result

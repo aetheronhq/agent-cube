@@ -27,6 +27,7 @@ class WorkflowContext:
     resume_alias: Optional[str] = None
     result: dict[str, Any] = field(default_factory=dict)
     final_result: dict[str, Any] = field(default_factory=dict)
+    fresh_writer: bool = False  # Clear winner's session and start fresh
 
     @property
     def writer_prompt_path(self) -> Path:

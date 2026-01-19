@@ -17,8 +17,11 @@ from ..models.types import JudgeInfo
 from .stream import format_stream_message
 
 
-async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
-    """Fetch and sync writer worktrees to latest remote commits before judge review."""
+async def _prefetch_worktrees(task_id: str, winner: str = None) -> str | None:
+    """Fetch and sync writer worktrees to latest remote commits before judge review.
+
+    Returns the HEAD SHA for PR reviews (used for verification in prompts).
+    """
     project_name = Path(PROJECT_ROOT).name
 
     if winner and winner.startswith("LOCAL:"):
@@ -32,7 +35,7 @@ async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
             raise RuntimeError(f"Failed to sync worktree for branch {branch_name}. Check branch exists on origin.")
         console.print(f"  ✅ {branch_name}: {commit}")
         console.print()
-        return
+        return commit  # Return SHA for verification
 
     config = load_config()
 
@@ -52,6 +55,7 @@ async def _prefetch_worktrees(task_id: str, winner: str = None) -> None:
         console.print(f"  {'✅' if commit else '⚠️ '} {branch}: {commit or 'sync failed'}")
 
     console.print()
+    return None  # No SHA verification for writer reviews
 
 
 def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
@@ -85,11 +89,21 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
     return writers
 
 
-async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, winner: str = None) -> int:
+RETRYABLE_PATTERNS = ["unavailable", "retriable", "rate limit", "capacity", "network", "timeout", "connection"]
+
+
+def _is_retryable(error_msg: str) -> bool:
+    """Check if error is retryable."""
+    error_lower = error_msg.lower()
+    return any(p in error_lower for p in RETRYABLE_PATTERNS)
+
+
+async def run_judge(
+    judge_info: JudgeInfo, prompt: str, resume: bool, layout, winner: str = None, max_retries: int = 2
+) -> int:
     """Run a single judge agent and return line count."""
     config = load_config()
 
-    # Determine CLI tool based on judge type or model mapping
     is_cli_review = judge_info.adapter_config and judge_info.adapter_config.get("type") == "cli-review"
     cli_name = "cli-review" if is_cli_review else config.cli_tools.get(judge_info.model, "cursor-agent")
 
@@ -103,68 +117,83 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
     from ..core.agent_logger import agent_logging_context
 
     session_id = judge_info.session_id if resume else None
-
-    console.print(f"[dim]{judge_info.label}: Starting with model {judge_info.model} (CLI: {cli_name})...[/dim]")
-
     run_dir = WORKTREE_BASE.parent if cli_name == "gemini" else PROJECT_ROOT
-
     judge_specific_prompt = prompt.replace("{{judge_key}}", judge_info.key).replace("{judge_key}", judge_info.key)
 
-    stream = adapter.run(run_dir, judge_info.model, judge_specific_prompt, session_id=session_id, resume=resume)
+    last_error = None
 
-    # Use generic logging context
-    async with agent_logging_context(
-        agent_type="judge",
-        agent_name=judge_info.key,
-        task_id=judge_info.task_id,
-        suffix=judge_info.review_type,
-        session_key=judge_info.key.upper(),
-        session_task_key=f"{judge_info.task_id}_{judge_info.review_type}",
-        metadata=f"{judge_info.label} ({judge_info.key}) - {judge_info.task_id} - {judge_info.review_type} - {datetime.now()}",
-    ) as logger:
-        async for line in stream:  # type: ignore[attr-defined]
-            logger.write_line(line)
+    for attempt in range(max_retries + 1):
+        if attempt > 0:
+            console.print(f"[yellow]{judge_info.label}: Retry {attempt}/{max_retries}...[/yellow]")
+            await asyncio.sleep(2)
 
-            msg = parser.parse(line)
-            if msg:
-                if msg.session_id and not judge_info.session_id:
-                    judge_info.session_id = msg.session_id
-                    # Save session immediately when captured
-                    save_session(
-                        judge_info.key.upper(),
-                        f"{judge_info.task_id}_{judge_info.review_type}",
-                        msg.session_id,
-                        f"{judge_info.label} ({judge_info.model})",
+        try:
+            console.print(f"[dim]{judge_info.label}: Starting with model {judge_info.model} (CLI: {cli_name})...[/dim]")
+
+            stream = adapter.run(run_dir, judge_info.model, judge_specific_prompt, session_id=session_id, resume=resume)
+
+            async with agent_logging_context(
+                agent_type="judge",
+                agent_name=judge_info.key,
+                task_id=judge_info.task_id,
+                suffix=judge_info.review_type,
+                session_key=judge_info.key.upper(),
+                session_task_key=f"{judge_info.task_id}_{judge_info.review_type}",
+                metadata=f"{judge_info.label} ({judge_info.key}) - {judge_info.task_id} - {judge_info.review_type} - {datetime.now()}",
+            ) as logger:
+                async for line in stream:  # type: ignore[attr-defined]
+                    logger.write_line(line)
+
+                    msg = parser.parse(line)
+                    if msg:
+                        if msg.type == "system" and msg.subtype == "init":
+                            msg.resumed = resume
+                        if msg.session_id and not judge_info.session_id:
+                            judge_info.session_id = msg.session_id
+                            save_session(
+                                judge_info.key.upper(),
+                                f"{judge_info.task_id}_{judge_info.review_type}",
+                                msg.session_id,
+                                f"{judge_info.label} ({judge_info.model})",
+                            )
+
+                        formatted = format_stream_message(msg, judge_info.label, judge_info.color)
+                        if formatted:
+                            if formatted.startswith("[thinking]"):
+                                thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                                layout.add_thinking(judge_info.key, thinking_text)
+                            elif msg.type == "assistant" and msg.content:
+                                layout.add_assistant_message(
+                                    judge_info.key, msg.content, judge_info.label, judge_info.color
+                                )
+                            else:
+                                layout.add_output(formatted)
+
+                layout.flush_buffers()
+
+                if logger.line_count < 10:
+                    raise RuntimeError(
+                        f"{judge_info.label} completed suspiciously quickly ({logger.line_count} lines). Check {logger.log_file}"
                     )
 
-                formatted = format_stream_message(msg, judge_info.label, judge_info.color)
-                if formatted:
-                    if formatted.startswith("[thinking]"):
-                        # Thinking message -> thinking box (buffered)
-                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking(judge_info.key, thinking_text)
-                    elif msg.type == "assistant" and msg.content:
-                        # Assistant message -> buffered per agent, no emoji logic
-                        layout.add_assistant_message(judge_info.key, msg.content, judge_info.label, judge_info.color)
-                    else:
-                        # Tool calls, errors, etc -> immediate
-                        layout.add_output(formatted)
+                final_line_count = logger.line_count
 
-        layout.flush_buffers()
+            status = _parse_decision_status(judge_info)
+            layout.mark_complete(judge_info.key, status)
+            icon = "✅" if "APPROVED" in status or "Ready to merge" in status else ""
+            console.print(f"[{judge_info.color}][{judge_info.label}][/{judge_info.color}] {icon} {status}".strip())
+            return final_line_count
 
-        if logger.line_count < 10:
-            raise RuntimeError(
-                f"{judge_info.label} completed suspiciously quickly ({logger.line_count} lines). Check {logger.log_file}"
-            )
+        except RuntimeError as e:
+            last_error = e
+            if attempt < max_retries and _is_retryable(str(e)):
+                console.print(f"[yellow]{judge_info.label}: Retryable error: {str(e)[:80]}[/yellow]")
+                continue
+            raise
 
-        final_line_count = logger.line_count
-
-    status = _parse_decision_status(judge_info)
-    layout.mark_complete(judge_info.key, status)
-    # Only show ✅ for approved, otherwise just show status
-    icon = "✅" if "APPROVED" in status or "Ready to merge" in status else ""
-    console.print(f"[{judge_info.color}][{judge_info.label}][/{judge_info.color}] {icon} {status}".strip())
-    return final_line_count
+    if last_error:
+        raise last_error
+    raise RuntimeError(f"{judge_info.label} failed after {max_retries} retries")
 
 
 def _parse_decision_status(judge_info: JudgeInfo) -> str:
@@ -270,7 +299,7 @@ async def launch_judge_panel(
     if not prompt_file.exists():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
 
-    await _prefetch_worktrees(task_id, winner)
+    worktree_head_sha = await _prefetch_worktrees(task_id, winner)
 
     all_judges = get_judge_configs()
 
@@ -297,7 +326,7 @@ async def launch_judge_panel(
         judge_configs = all_judges
 
     boxes = {j.key: j.label for j in judge_configs}
-    DynamicLayout.initialize(boxes, lines_per_box=2)
+    DynamicLayout.initialize(boxes, lines_per_box=2, task_name=task_id)
     panel_layout = DynamicLayout
 
     base_prompt = prompt_file.read_text()
@@ -322,6 +351,7 @@ When creating your decision file, use judge key {judge_key}.
             worktree_base=WORKTREE_BASE,
             project_name=project_name,
             is_pr_review=is_pr_review,
+            head_sha=worktree_head_sha or "",
         )
     else:
         config = load_config()
@@ -356,11 +386,12 @@ Include significant questions that block approval:
 **Branch:** `writer-{wconfig.name}/{task_id}`
 **Location:** `{WORKTREE_BASE}/{project_name}/writer-{wconfig.name}-{task_id}/`
 
-Review commits since main:
+Review commits since branching from main:
 ```bash
 cd {WORKTREE_BASE}/{project_name}/writer-{wconfig.name}-{task_id}/
-git log --oneline main..HEAD
-git diff main...HEAD --stat
+git fetch origin main
+git log --oneline origin/main..HEAD
+git diff origin/main...HEAD --stat
 ```""")
 
         scores_template = {}
@@ -463,9 +494,12 @@ git diff main...HEAD --stat
             )
         )
 
+    console.print()
+    console.print("[bold cyan]⚖️  Judge Panel[/bold cyan]")
+    console.print(f"[bold]Task:[/bold] {task_id}")
+    console.print()
+
     if resume_mode:
-        print_info(f"Resuming Judge Panel for Task: {task_id}")
-        console.print()
         console.print("[yellow]📋 Found existing judge sessions to resume:[/yellow]")
         for judge in judges:
             if judge.session_id:
@@ -475,8 +509,6 @@ git diff main...HEAD --stat
                     f"  [{judge.color}]{judge.label}[/{judge.color}] ({judge.model}): [red]No session found[/red]"
                 )
         console.print()
-    else:
-        print_info(f"Launching Judge Panel for Task: {task_id}")
 
     print_info(f"Prompt: {prompt_file}")
     print_info(f"Review Type: {review_type}")

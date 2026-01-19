@@ -1,7 +1,8 @@
 """Helper for running agents with consistent output handling."""
 
+import json
 from pathlib import Path
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 from ..automation.stream import format_stream_message
 from .agent import run_agent
@@ -20,6 +21,7 @@ async def run_agent_with_layout(
     resume: bool = False,
     cli_name: str = "cursor-agent",
     stop_when_exists: Optional[Path] = None,
+    capture_session_callback: Optional[Callable[[str], None]] = None,
 ) -> None:
     """Run an agent and pipe output to a layout.
 
@@ -35,15 +37,29 @@ async def run_agent_with_layout(
         resume: Whether to resume existing session
         cli_name: CLI adapter name
         stop_when_exists: Stop early when this file exists
+        capture_session_callback: Optional callback to receive session_id when captured
     """
     parser = get_parser(cli_name)
     stream = run_agent(cwd, model, prompt, session_id=session_id, resume=resume)
 
     is_dynamic = box_id is not None
+    session_captured = False
 
     async for line in stream:
+        # Capture session ID from first line if callback provided
+        if capture_session_callback and not session_captured:
+            try:
+                data = json.loads(line)
+                if "session_id" in data:
+                    capture_session_callback(data["session_id"])
+                    session_captured = True
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         msg = parser.parse(line)
         if msg:
+            if msg.type == "system" and msg.subtype == "init":
+                msg.resumed = resume
             formatted = format_stream_message(msg, label, color)
             if formatted:
                 if formatted.startswith("[thinking]"):

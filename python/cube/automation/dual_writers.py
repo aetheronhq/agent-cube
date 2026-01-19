@@ -50,9 +50,10 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
 
             msg = parser.parse(line)
             if msg:
+                if msg.type == "system" and msg.subtype == "init":
+                    msg.resumed = resume
                 if msg.session_id and not writer_info.session_id:
                     writer_info.session_id = msg.session_id
-                    # Save session immediately when captured
                     save_session(
                         writer_info.key.upper(),
                         writer_info.task_id,
@@ -119,7 +120,7 @@ async def launch_dual_writers(
         wconfig = get_writer_config(writer_key)
         boxes[writer_key] = wconfig.label
 
-    DynamicLayout.initialize(boxes, lines_per_box=3)
+    DynamicLayout.initialize(boxes, lines_per_box=3, task_name=task_id)
 
     # Create minimal state file for UI tracking
     if not resume_mode:

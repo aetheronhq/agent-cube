@@ -1,5 +1,6 @@
 """Phase execution handlers for Agent Cube workflow."""
 
+import json
 from pathlib import Path
 
 from ...automation.judge_panel import launch_judge_panel
@@ -8,11 +9,61 @@ from ...core.agent import run_agent
 from ...core.config import PROJECT_ROOT, WORKTREE_BASE
 from ...core.output import console, print_info, print_success
 from ...core.parsers.registry import get_parser
+from ...core.session import get_prompter_session, save_prompter_session
 from ...core.user_config import get_prompter_model
+
+
+async def run_prompter_with_session(task_id: str, prompt: str, layout, output_path, label: str = "Prompter"):
+    """Run prompter with session management.
+
+    Resumes existing session if available, otherwise captures and saves new session ID.
+    """
+    parser = get_parser("cursor-agent")
+    session_id, should_resume = get_prompter_session(task_id)
+    captured_session_id: str | None = None
+
+    stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=session_id, resume=should_resume)
+
+    async for line in stream:
+        # Capture session ID from first line if starting fresh
+        if not should_resume and not captured_session_id:
+            try:
+                data = json.loads(line)
+                if "session_id" in data:
+                    captured_session_id = data["session_id"]
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        msg = parser.parse(line)
+        if msg:
+            if msg.type == "system" and msg.subtype == "init":
+                msg.resumed = should_resume
+            formatted = format_stream_message(msg, label, "cyan")
+            if formatted:
+                if formatted.startswith("[thinking]"):
+                    thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                    layout.add_thinking(thinking_text)
+                elif msg.type == "assistant" and msg.content:
+                    layout.add_assistant_message(msg.content, label, "cyan")
+                else:
+                    layout.add_output(formatted)
+
+        if output_path.exists():
+            print_success(f"Created: {output_path}")
+            break
+
+    # Save session ID if we captured a new one
+    if captured_session_id and not should_resume:
+        save_prompter_session(task_id, captured_session_id)
+
+    if not output_path.exists():
+        raise RuntimeError(f"Prompter failed to generate {output_path}")
 
 
 async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
     """Phase 6: Run synthesis if needed."""
+    import json
+
     from ...core.single_layout import SingleAgentLayout
     from ...core.user_config import get_writer_by_key_or_metadata
 
@@ -28,10 +79,26 @@ async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
 
         judge_configs = get_judge_configs()
         judge_decision_files = "\n".join(
-            [f"- `.prompts/decisions/{j.key.replace('_', '-')}-{task_id}-decision.json`" for j in judge_configs]
+            [f"- `.prompts/decisions/{j.key}-{task_id}-decision.json`" for j in judge_configs]
         )
-        judge_log_files = "\n".join(
-            [f"- `~/.cube/logs/{j.key.replace('_', '-')}-{task_id}-panel-*.json`" for j in judge_configs]
+        judge_log_files = "\n".join([f"- `~/.cube/logs/{j.key}-{task_id}-panel-*.json`" for j in judge_configs])
+
+        blocker_issues = result.get("blocker_issues", [])
+        if not blocker_issues:
+            decisions_dir = prompts_dir / "decisions"
+            for j in judge_configs:
+                decision_file = decisions_dir / f"{j.key}-{task_id}-decision.json"
+                if decision_file.exists():
+                    try:
+                        data = json.loads(decision_file.read_text())
+                        blocker_issues.extend(data.get("blocker_issues", []))
+                    except (json.JSONDecodeError, OSError):
+                        pass
+
+        blocker_section = (
+            chr(10).join("- " + issue for issue in blocker_issues)
+            if blocker_issues
+            else "(Read judge decision files for issues)"
         )
 
         prompt = f"""Generate a synthesis prompt for the WINNING writer.
@@ -64,7 +131,7 @@ Optional: Read for deeper understanding of judge concerns.
 
 ## Blocker Issues to Address
 
-{chr(10).join('- ' + issue for issue in result['blocker_issues'])}
+{blocker_section}
 
 ## Your Task
 
@@ -86,33 +153,12 @@ Tell the winner: "Read `.prompts/reviews/{task_id}-writer-{{a|b}}-coderabbit.txt
 
 Save to: `.prompts/synthesis-{task_id}.md`"""
 
-        parser = get_parser("cursor-agent")
         layout = SingleAgentLayout
         layout.initialize("Prompter")
         layout.start()
 
         try:
-            stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
-
-            async for line in stream:
-                msg = parser.parse(line)
-                if msg:
-                    formatted = format_stream_message(msg, "Prompter", "cyan")
-                    if formatted:
-                        if formatted.startswith("[thinking]"):
-                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(thinking_text)
-                        elif msg.type == "assistant" and msg.content:
-                            layout.add_assistant_message(msg.content, "Prompter", "cyan")
-                        else:
-                            layout.add_output(formatted)
-
-                if synthesis_path.exists():
-                    print_success(f"Created: {synthesis_path}")
-                    break
-
-            if not synthesis_path.exists():
-                raise RuntimeError(f"Prompter failed to generate synthesis prompt at {synthesis_path}")
+            await run_prompter_with_session(task_id, prompt, layout, synthesis_path)
         finally:
             layout.close()
 
@@ -173,33 +219,12 @@ Save to: `.prompts/peer-review-{task_id}.md`
 
 Include the worktree location and git commands for reviewing."""
 
-        parser = get_parser("cursor-agent")
         layout = SingleAgentLayout
         layout.initialize("Prompter")
         layout.start()
 
         try:
-            stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
-
-            async for line in stream:
-                msg = parser.parse(line)
-                if msg:
-                    formatted = format_stream_message(msg, "Prompter", "cyan")
-                    if formatted:
-                        if formatted.startswith("[thinking]"):
-                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                            layout.add_thinking(thinking_text)
-                        elif msg.type == "assistant" and msg.content:
-                            layout.add_assistant_message(msg.content, "Prompter", "cyan")
-                        else:
-                            layout.add_output(formatted)
-
-                if peer_review_path.exists():
-                    print_success(f"Created: {peer_review_path}")
-                    break
-
-            if not peer_review_path.exists():
-                raise RuntimeError(f"Prompter failed to generate peer review prompt at {peer_review_path}")
+            await run_prompter_with_session(task_id, prompt, layout, peer_review_path)
         finally:
             layout.close()
 
@@ -215,7 +240,7 @@ Include the worktree location and git commands for reviewing."""
     )
 
 
-async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path):
+async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path, fresh_writer: bool = False):
     """Address minor issues from peer review."""
     from ...core.user_config import get_writer_by_key_or_metadata
 
@@ -227,11 +252,14 @@ async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir:
     if minor_fixes_path.exists():
         minor_fixes_path.unlink()
 
+    branch_name = f"writer-{winner_name}/{task_id}"
     prompt = f"""Generate a minor fixes prompt for the winning writer.
 
 ## Context
 
 Winner: Writer {result['winner']} ({winner_cfg.label})
+Branch: `{branch_name}`
+Worktree: `~/.cube/worktrees/{Path(PROJECT_ROOT).name}/writer-{winner_name}-{task_id}/`
 
 ## Minor Issues from Peer Review
 
@@ -245,46 +273,31 @@ Create a brief prompt telling the winner to:
 3. Keep their implementation intact, just fix these specific points
 4. Commit and push when complete
 
+**CRITICAL**: Include these warnings in the prompt:
+- ⚠️ DO NOT create new branches! Stay on `{branch_name}`
+- ⚠️ DO NOT checkout other branches
+- ⚠️ Work only in your worktree directory
+- ⚠️ Commit and push to your existing branch
+
 Save to: `.prompts/minor-fixes-{task_id}.md`"""
 
     from ...core.single_layout import SingleAgentLayout
 
-    parser = get_parser("cursor-agent")
     layout = SingleAgentLayout
     layout.initialize("Prompter")
     layout.start()
 
     try:
-        stream = run_agent(PROJECT_ROOT, get_prompter_model(), prompt, session_id=None, resume=False)
-
-        async for line in stream:
-            msg = parser.parse(line)
-            if msg:
-                formatted = format_stream_message(msg, "Prompter", "cyan")
-                if formatted:
-                    if formatted.startswith("[thinking]"):
-                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking(thinking_text)
-                    elif msg.type == "assistant" and msg.content:
-                        layout.add_assistant_message(msg.content, "Prompter", "cyan")
-                    else:
-                        layout.add_output(formatted)
-
-            if minor_fixes_path.exists():
-                print_success(f"Created: {minor_fixes_path}")
-                break
-
-        if not minor_fixes_path.exists():
-            raise RuntimeError(f"Failed to generate minor fixes prompt for {winner_name} (task: {task_id})")
+        await run_prompter_with_session(task_id, prompt, layout, minor_fixes_path)
     finally:
         layout.close()
 
     from ...core.session import load_session
     from ..feedback import send_feedback_async
 
-    session_id = load_session(winner_cfg.key.upper(), task_id)
-    if not session_id:
-        raise RuntimeError(f"No session found for {winner_cfg.label}. Cannot send minor fixes.")
+    session_id = None if fresh_writer else load_session(winner_cfg.key.upper(), task_id)
+    if not session_id and not fresh_writer:
+        raise RuntimeError(f"No session found for {winner_cfg.label}. Use --fresh-writer to start new.")
 
     project_name = Path(PROJECT_ROOT).name
     worktree = WORKTREE_BASE / project_name / f"writer-{winner_name}-{task_id}"

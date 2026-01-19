@@ -91,11 +91,17 @@ async def phase5_aggregate(ctx: WorkflowContext) -> PhaseResult:
 async def synthesis_run(ctx: WorkflowContext) -> PhaseResult:
     """Phase 6: Run synthesis on winner's code.
 
+    - Single mode: Skip (no synthesis needed with one writer)
     - TIE: Generate feedback and tell user to re-run panel
     - all_approved: Skip synthesis
     - Otherwise: Run synthesis
     """
     winner = ctx.result.get("winner")
+
+    # Single mode - skip synthesis, go straight to peer review
+    if is_single_mode(ctx):
+        print_info("Single mode - skipping synthesis")
+        return PhaseResult(data={"synthesis_complete": True, "skipped": True})
 
     # TIE case - need feedback loop
     if winner == "TIE":
@@ -211,7 +217,9 @@ async def synthesis_minor_fixes(ctx: WorkflowContext) -> PhaseResult:
     elif not final_result["remaining_issues"]:
         print_warning("No specific issues listed - skipping minor fixes")
     else:
-        await run_minor_fixes(ctx.task_id, ctx.result, final_result["remaining_issues"], ctx.prompts_dir)
+        await run_minor_fixes(
+            ctx.task_id, ctx.result, final_result["remaining_issues"], ctx.prompts_dir, ctx.fresh_writer
+        )
 
     return PhaseResult()
 

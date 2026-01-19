@@ -234,13 +234,13 @@ def peer_review(
     branch: Annotated[Optional[str], typer.Option("--branch", "-b", help="Review specific branch directly")] = None,
     pr: Annotated[Optional[int], typer.Option("--pr", help="GitHub PR number to review with full panel")] = None,
     dry_run: Annotated[
-        bool, typer.Option("--dry-run", help="Show review but don't post to GitHub (with --pr)")
+        bool, typer.Option("--dry-run", "--dry", help="Show review but don't post to GitHub (with --pr)")
     ] = False,
     include_cli: Annotated[
         bool, typer.Option("--include-cli", help="Include cli-review judges like CodeRabbit (with --pr)")
     ] = False,
     skip_agents: Annotated[
-        bool, typer.Option("--skip-agents", help="Skip AI, just aggregate existing decisions")
+        bool, typer.Option("--skip-agents", "--skip", help="Skip AI, just aggregate existing decisions")
     ] = False,
 ):
     """Resume judge panel for peer review of winner's implementation."""
@@ -445,6 +445,56 @@ def decide(
         sys.exit(1)
 
 
+@app.command(name="pr")
+def pr(
+    task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None,
+    writer: Annotated[
+        Optional[str], typer.Option("--writer", "-w", help="Writer key (opus, sonnet, codex, gemini)")
+    ] = None,
+):
+    """Create PR for task, ignoring remaining judge issues.
+
+    Examples:
+        cube pr my-task              # Uses winner from state
+        cube pr my-task --writer opus  # Force specific writer
+    """
+    import asyncio
+
+    from .commands.orchestrate.pr import create_pr
+    from .core.config import resolve_task_id, set_current_task_id
+    from .core.output import print_error, print_info
+    from .core.state import load_state
+
+    resolved_task_id = resolve_task_id(task_id)
+    if not resolved_task_id:
+        print_error("No task ID provided and CUBE_TASK_ID not set")
+        raise typer.Exit(1)
+
+    set_current_task_id(resolved_task_id)
+
+    # Determine winner
+    winner = writer
+    if not winner:
+        state = load_state(resolved_task_id)
+        if state and state.winner:
+            winner = state.winner
+        elif state and state.writer_key:
+            winner = state.writer_key
+        else:
+            print_error("No winner found in state. Use --writer to specify.")
+            raise typer.Exit(1)
+
+    print_info(f"Creating PR for {resolved_task_id} (writer: {winner})")
+    print_info("Note: Ignoring any remaining judge issues")
+    console.print()
+
+    try:
+        asyncio.run(create_pr(resolved_task_id, winner))
+    except Exception as e:
+        _print_error(e)
+        sys.exit(1)
+
+
 @app.command(name="logs")
 def logs(
     task_id: Annotated[Optional[str], typer.Argument(help="Task ID to view logs for")] = None,
@@ -467,7 +517,7 @@ def clean(
     old: Annotated[bool, typer.Option("--old", help="Clean sessions older than 7 days")] = False,
     all_tasks: Annotated[bool, typer.Option("--all", help="Clean all completed tasks")] = False,
     full: Annotated[bool, typer.Option("--full", help="Full reset: + worktrees, branches, decisions, logs")] = False,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview without deleting")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", "--dry", help="Preview without deleting")] = False,
 ):
     """Clean up completed or stale sessions."""
     clean_command(task_id, old, all_tasks, full, dry_run)
@@ -485,6 +535,9 @@ def auto(
     writer: Annotated[
         Optional[str], typer.Option("--writer", "-w", help="Specific writer for single mode (opus, codex, a, b)")
     ] = None,
+    fresh_writer: Annotated[
+        bool, typer.Option("--fresh-writer", help="Clear winner's session and start fresh (for dead sessions)")
+    ] = False,
 ):
     """Shortcut for: cube orchestrate auto <task-file>
 
@@ -581,6 +634,7 @@ def auto(
                 resume_alias=resume_alias,
                 single_mode=single_mode,
                 writer_key=writer_key,
+                fresh_writer=fresh_writer,
             )
         )
     except Exception as e:

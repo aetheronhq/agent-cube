@@ -10,6 +10,7 @@ async def orchestrate_auto_command(
     resume_alias: str | None = None,
     single_mode: bool = False,
     writer_key: str | None = None,
+    fresh_writer: bool = False,
 ) -> None:
     """Fully autonomous orchestration - runs entire workflow.
 
@@ -20,6 +21,7 @@ async def orchestrate_auto_command(
         resume_alias: Original alias used (e.g., "peer-review") to handle special cases
         single_mode: Run in single-writer mode
         writer_key: The writer to use in single-writer mode
+        fresh_writer: Clear winner's session and start fresh (for dead sessions)
     """
     from ...core.master_log import master_log_context
 
@@ -36,4 +38,5 @@ async def orchestrate_auto_command(
             resume_alias=resume_alias,
             single_mode=single_mode,
             writer_key=writer_key,
+            fresh_writer=fresh_writer,
         )

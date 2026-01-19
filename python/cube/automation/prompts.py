@@ -172,6 +172,7 @@ def build_peer_review_prompt(
     worktree_base: Path,
     project_name: str,
     is_pr_review: bool = False,
+    head_sha: str = "",
 ) -> str:
     """Build prompt for peer review of worktree implementations."""
     if is_pr_review:
@@ -184,24 +185,45 @@ def build_peer_review_prompt(
         worktree_path = f"{worktree_base}/{project_name}/writer-{{{{winner}}}}-{task_id}"
         branch_ref = f"writer-{{{{winner}}}}/{task_id}"
 
+    sha_verification = ""
+    if head_sha:
+        sha_verification = f"""
+⚠️ **VERIFY COMMIT BEFORE REVIEWING:**
+```bash
+cd {worktree_path}/ && git rev-parse HEAD
+```
+Expected: `{head_sha}`
+
+If the SHA doesn't match, run: `git fetch origin && git reset --hard origin/{{branch}}`
+"""
+
     return f"""# Peer Review Context
 
 **You are reviewing the {'PR' if is_pr_review else 'WINNING implementation'}.**
 
-The code is at:
-**Worktree:** `{worktree_path}/`
+## ⚠️ CRITICAL: Code Location
+
+**ALL files MUST be read from this worktree:**
+```
+{worktree_path}/
+```
+
 **Branch:** `{branch_ref}`
+{sha_verification}
+❌ **DO NOT** read files without the worktree prefix (e.g., `apps/...` is WRONG)
+✅ **ALWAYS** use full path: `{worktree_path}/apps/...`
 
 ## Review Scope
 
 Check what was changed since branching from main:
 ```bash
 cd {worktree_path}/
-git log --oneline main..HEAD
-git diff main...HEAD --stat
+git fetch origin main
+git log --oneline origin/main..HEAD
+git diff origin/main...HEAD --stat
 ```
 
-Use read_file to review the actual code changes.
+Use read_file WITH THE FULL WORKTREE PATH to review code.
 
 ---
 

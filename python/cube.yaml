@@ -19,7 +19,6 @@ cli_tools:
   grok: cursor-agent
   gemini-2.5-pro: gemini
   gemini-3-pro: cursor-agent
-  gemini-3-pro-preview: gemini
 
 # Writer personas
 writers:

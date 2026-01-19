@@ -1,6 +1,5 @@
 """Peer review command."""
 
-import asyncio
 import json
 from pathlib import Path
 from typing import Optional
@@ -8,7 +7,7 @@ from typing import Optional
 import typer
 
 from ..automation.judge_panel import launch_judge_panel
-from ..core.agent import check_cursor_agent
+from ..core.agent import check_cursor_agent, run_async
 from ..core.config import PROJECT_ROOT, resolve_path
 from ..core.output import console, print_error, print_info, print_success, print_warning
 from ..core.state import update_phase
@@ -71,35 +70,29 @@ def _run_pr_review(
         console.print("Auth:    gh auth login")
         raise typer.Exit(1)
 
-    print_info(f"Fetching PR #{pr_number}...")
+    console.print()
+    console.print("[bold cyan]🔍 PR Review[/bold cyan]")
+    console.print(f"[bold]PR:[/bold] #{pr_number}")
+    console.print()
+
+    print_info("Fetching PR...")
     try:
         pr = fetch_pr(pr_number, cwd=str(PROJECT_ROOT))
     except RuntimeError as e:
         print_error(str(e))
         raise typer.Exit(1)
 
-    print_info(f"PR: {pr.title}")
+    console.print(f"[bold]Title:[/bold] {pr.title}")
     print_info(f"Branch: {pr.head_branch} → {pr.base_branch}")
 
-    # Ensure local branch is up to date with remote
+    # Fetch latest from remote (judges will use worktrees, not checkout)
     from ..core.git import get_repo
 
     repo = get_repo()
     try:
         repo.remotes.origin.fetch()
-        # Checkout PR branch and pull latest
-        if pr.head_branch in repo.heads:
-            repo.heads[pr.head_branch].checkout()
-            repo.remotes.origin.pull(pr.head_branch)
-            print_info(f"Checked out and updated {pr.head_branch}")
-        else:
-            # Branch doesn't exist locally, create from origin
-            repo.create_head(pr.head_branch, f"origin/{pr.head_branch}")
-            repo.heads[pr.head_branch].checkout()
-            print_info(f"Checked out origin/{pr.head_branch}")
     except Exception as e:
-        print_warning(f"Could not checkout PR branch: {e}")
-        print_info("Judges will use git commands to view remote changes")
+        print_warning(f"Could not fetch from origin: {e}")
 
     if not pr.diff.strip():
         print_warning("PR has no diff - nothing to review")
@@ -165,7 +158,7 @@ def _run_pr_review(
             print_info(f"Excluding {excluded} cli-review judge(s)")
 
         try:
-            asyncio.run(
+            run_async(
                 launch_judge_panel(
                     task_id,
                     prompt_path,
@@ -258,7 +251,7 @@ def _run_pr_review(
     console.print(f"[dim]Found {len(existing_comments)} existing comments[/dim]")
 
     # Use AI deduper to intelligently combine/dedupe all feedback
-    dedupe_result = asyncio.run(
+    dedupe_result = run_async(
         run_dedupe_agent(
             feedback=all_feedback,
             existing_comments=existing_comments,
@@ -406,7 +399,7 @@ def peer_review_command(
         if judge:
             # Run single judge
             print_info(f"Running single judge: {judge}")
-            asyncio.run(
+            run_async(
                 launch_judge_panel(
                     task_id, prompt_path, "peer-review", resume_mode=not fresh, winner=winner, single_judge=judge
                 )
@@ -414,7 +407,7 @@ def peer_review_command(
         elif fresh:
             print_info("Launching fresh judge panel for peer review")
             # For local branches, run ALL judges (not just peer_review_only)
-            asyncio.run(
+            run_async(
                 launch_judge_panel(
                     task_id, prompt_path, "peer-review", resume_mode=False, winner=winner, run_all_judges=local
                 )
@@ -444,7 +437,7 @@ def peer_review_command(
                 console.print("Or use --fresh to launch new judges instead")
                 raise typer.Exit(1)
 
-            asyncio.run(launch_judge_panel(task_id, prompt_path, "peer-review", resume_mode=True, winner=winner))
+            run_async(launch_judge_panel(task_id, prompt_path, "peer-review", resume_mode=True, winner=winner))
 
         update_phase(task_id, 7, peer_review_complete=True)
     except RuntimeError as e:

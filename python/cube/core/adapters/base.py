@@ -198,13 +198,18 @@ async def run_subprocess_streaming(
             pass
         # Remove from tracking
         _active_processes.discard(process)
-        # Ensure process is terminated
+        # Ensure process is terminated and waited
         if process.returncode is None:
             try:
                 process.terminate()
                 await asyncio.wait_for(process.wait(), timeout=2.0)
             except Exception:
                 process.kill()
+        # Wait for process to fully close to avoid transport warnings
+        try:
+            await process.wait()
+        except Exception:
+            pass
 
     exit_code = await process.wait()
     if exit_code != 0:

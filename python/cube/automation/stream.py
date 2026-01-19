@@ -1,52 +1,52 @@
 """Real-time JSON stream parsing from cursor-agent."""
 
 import json
-from typing import AsyncGenerator, Optional, Dict
 import re
+from typing import AsyncGenerator, Dict, Optional
 
-from ..core.output import format_duration, truncate_path, colorize
-from ..models.types import StreamMessage
 from ..core.config import PROJECT_ROOT
+from ..core.output import format_duration
+from ..models.types import StreamMessage
 
 
 class ThinkingBuffer:
     """Shared buffer for accumulating thinking/assistant tokens until sentence boundaries."""
-    
+
     def __init__(self, max_line_len: int = 94):
         self.buffers: Dict[str, str] = {}
         self.max_line_len = max_line_len
-    
+
     def add(self, box_id: str, content: str) -> Optional[str]:
         """Add content to buffer, return flushed line if ready."""
         if box_id not in self.buffers:
             self.buffers[box_id] = ""
-        
+
         self.buffers[box_id] += content
-        
+
         # Flush on sentence-ending punctuation or force flush on length
         buf = self.buffers[box_id]
-        ends_sentence = content.endswith(('.', '!', '?', '\n', ':'))
+        ends_sentence = content.endswith((".", "!", "?", "\n", ":"))
         force_flush = len(buf) > 150
-        
+
         if (ends_sentence or force_flush) and buf.strip():
             line = buf.strip()
             if len(line) > self.max_line_len:
-                line = line[:self.max_line_len - 3] + "..."
+                line = line[: self.max_line_len - 3] + "..."
             self.buffers[box_id] = ""
             return line
-        
+
         return None
-    
+
     def flush(self, box_id: str) -> Optional[str]:
         """Force flush a buffer, return content if any."""
         if box_id in self.buffers and self.buffers[box_id].strip():
             line = self.buffers[box_id].strip()
             if len(line) > self.max_line_len:
-                line = line[:self.max_line_len - 3] + "..."
+                line = line[: self.max_line_len - 3] + "..."
             self.buffers[box_id] = ""
             return line
         return None
-    
+
     def flush_all(self) -> Dict[str, str]:
         """Flush all buffers, return dict of box_id -> content."""
         results = {}
@@ -62,29 +62,32 @@ def markdown_to_rich(text: str) -> str:
     try:
         # Escape existing brackets first
         text = text.replace("[", "\\[").replace("]", "\\]")
-        
+
         # Bold: **text** or __text__ -> [bold]text[/bold]
-        text = re.sub(r'\*\*(.+?)\*\*', r'[bold]\1[/bold]', text)
-        text = re.sub(r'__(.+?)__', r'[bold]\1[/bold]', text)
-        
+        text = re.sub(r"\*\*(.+?)\*\*", r"[bold]\1[/bold]", text)
+        text = re.sub(r"__(.+?)__", r"[bold]\1[/bold]", text)
+
         # Inline code: `code` -> [cyan]code[/cyan]
-        text = re.sub(r'`([^`]+)`', r'[cyan]\1[/cyan]', text)
-        
+        text = re.sub(r"`([^`]+)`", r"[cyan]\1[/cyan]", text)
+
         # Headers: ### text -> [bold]text[/bold]
-        text = re.sub(r'^#{1,6}\s+(.+)$', r'[bold]\1[/bold]', text, flags=re.MULTILINE)
-        
+        text = re.sub(r"^#{1,6}\s+(.+)$", r"[bold]\1[/bold]", text, flags=re.MULTILINE)
+
         # Checkmarks and X marks (common in thinking)
         text = text.replace("✅", "[green]✅[/green]")
         text = text.replace("❌", "[red]❌[/red]")
-        
+
         # Validate the markup is balanced before returning
         from rich.text import Text
+
         Text.from_markup(text)
         return text
     except Exception:
         # If markup is invalid, return escaped plain text
         from rich.markup import escape
+
         return escape(text.replace("\\[", "[").replace("\\]", "]"))
+
 
 def strip_worktree_path(path: str) -> str:
     """Strip worktree path prefix from file paths, removing writer-sonnet/writer-codex dirs."""
@@ -93,44 +96,45 @@ def strip_worktree_path(path: str) -> str:
         for i, part in enumerate(parts):
             if part == "worktrees" and i + 2 < len(parts):
                 # Skip the writer-sonnet-XX or writer-codex-XX directory entirely
-                remaining_path = "/".join(parts[i+3:]) if i + 3 < len(parts) else ""
+                remaining_path = "/".join(parts[i + 3 :]) if i + 3 < len(parts) else ""
                 if remaining_path:
                     return f"~worktrees/{remaining_path}"
                 else:
                     return "~worktrees/"
         return "~worktrees/" + parts[-1]
-    
+
     project_root_str = str(PROJECT_ROOT)
     if path.startswith(project_root_str):
-        return path[len(project_root_str):].lstrip("/")
-    
+        return path[len(project_root_str) :].lstrip("/")
+
     return path
+
 
 def parse_stream_message(line: str) -> Optional[StreamMessage]:
     """Parse a JSON line from agent stream (cursor-agent or gemini CLI)."""
     try:
         data = json.loads(line)
-        
+
         msg = StreamMessage(
             type=data.get("type"),
             subtype=data.get("subtype"),
             model=data.get("model"),
-            session_id=data.get("session_id")
+            session_id=data.get("session_id"),
         )
-        
+
         if msg.type == "init":
             return msg
-        
+
         if msg.type == "system" and msg.subtype == "init":
             return msg
-        
+
         if msg.type == "message" and data.get("role") == "assistant":
             content = data.get("content", "")
             if content and len(content) > 50:
                 msg.type = "assistant"
                 msg.content = content
                 return msg
-        
+
         if msg.type == "assistant":
             message_data = data.get("message", {})
             content_list = message_data.get("content", [])
@@ -139,14 +143,14 @@ def parse_stream_message(line: str) -> Optional[StreamMessage]:
                 if text and len(text) > 50:
                     msg.content = text
                     return msg
-        
+
         if msg.type == "tool_use":
             tool_name = data.get("tool_name", "")
             params = data.get("parameters", {}) or {}
             if tool_name:
                 msg.type = "tool_call"
                 msg.subtype = "started"
-                
+
                 if tool_name == "run_shell_command":
                     msg.tool_name = "shell"
                     msg.tool_args = {"command": params.get("command", "")}
@@ -166,46 +170,46 @@ def parse_stream_message(line: str) -> Optional[StreamMessage]:
                     msg.tool_name = "edit"
                     msg.tool_args = {"path": path}
                     return msg
-                
+
                 msg.tool_name = tool_name.replace("_", " ")
                 msg.tool_args = params
                 return msg
-        
+
         if msg.type == "tool_call":
             tool_call = data.get("tool_call", {})
-            
+
             if msg.subtype == "started":
                 if "shellToolCall" in tool_call:
                     cmd = tool_call["shellToolCall"].get("args", {}).get("command", "unknown")
                     # Strip cd prefix and replace worktree paths
-                    cmd = re.sub(r'^cd /[^\s]*/\.cube/worktrees/[^/\s]+/[^/\s]+ && ', '', cmd)
-                    cmd = re.sub(r'/[^\s]*\.cube/worktrees/[^/\s]+/[^/\s]+/?', '~worktrees/', cmd)
-                    cmd = re.sub(r'/[^\s]*\.cursor/worktrees/[^/\s]+/[^/\s]+/?', '~worktrees/', cmd)
+                    cmd = re.sub(r"^cd /[^\s]*/\.cube/worktrees/[^/\s]+/[^/\s]+ && ", "", cmd)
+                    cmd = re.sub(r"/[^\s]*\.cube/worktrees/[^/\s]+/[^/\s]+/?", "~worktrees/", cmd)
+                    cmd = re.sub(r"/[^\s]*\.cursor/worktrees/[^/\s]+/[^/\s]+/?", "~worktrees/", cmd)
                     msg.tool_name = "shell"
                     msg.tool_args = {"command": cmd}
                     return msg
-                
+
                 elif "writeToolCall" in tool_call:
                     path = tool_call["writeToolCall"].get("args", {}).get("path", "unknown")
                     path = strip_worktree_path(path)
                     msg.tool_name = "write"
                     msg.tool_args = {"path": path}
                     return msg
-                
+
                 elif "editToolCall" in tool_call:
                     path = tool_call["editToolCall"].get("args", {}).get("path", "unknown")
                     path = strip_worktree_path(path)
                     msg.tool_name = "edit"
                     msg.tool_args = {"path": path}
                     return msg
-                
+
                 elif "readToolCall" in tool_call:
                     path = tool_call["readToolCall"].get("args", {}).get("path", "unknown")
                     path = strip_worktree_path(path)
                     msg.tool_name = "read"
                     msg.tool_args = {"path": path}
                     return msg
-            
+
             elif msg.subtype == "completed":
                 if "shellToolCall" in tool_call:
                     result = tool_call["shellToolCall"].get("result", {})
@@ -213,146 +217,149 @@ def parse_stream_message(line: str) -> Optional[StreamMessage]:
                         msg.exit_code = result["success"].get("exitCode", 0)
                         if msg.exit_code != 0:
                             return msg
-                
+
                 elif "writeToolCall" in tool_call:
                     result = tool_call["writeToolCall"].get("result", {})
                     if "success" in result:
                         msg.tool_name = "write"
                         msg.tool_args = {"lines": result["success"].get("linesCreated", 0)}
                         return msg
-                
+
                 elif "editToolCall" in tool_call:
                     result = tool_call["editToolCall"].get("result", {})
                     if "success" in result:
                         msg.tool_name = "edit"
                         return msg
-                
+
                 elif "readToolCall" in tool_call:
                     result = tool_call["readToolCall"].get("result", {})
                     if "success" in result:
                         msg.tool_name = "read"
                         msg.tool_args = {"lines": result["success"].get("totalLines", 0)}
                         return msg
-        
+
         if msg.type == "result":
             msg.duration_ms = data.get("duration_ms", 0)
             return msg
-        
+
         return None
-        
+
     except json.JSONDecodeError:
         return None
     except Exception:
         return None
 
+
 def get_max_path_width() -> int:
     """Get maximum path width based on terminal width."""
     import os
+
     try:
         term_width = os.get_terminal_size().columns
         return max(40, term_width - 30)
     except OSError:
         return 80
 
+
 def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Optional[str]:
     """Format a stream message for display.
-    
+
     Note: Returns Rich markup. Prefix should NOT contain markup tags.
     """
-    
+
     if msg.type == "system" and msg.subtype == "init":
-        # Escape any square brackets in session_id to prevent Rich markup conflicts
         session_safe = str(msg.session_id).replace("[", "\\[").replace("]", "\\]") if msg.session_id else ""
-        return f"[{color}]{prefix}[/{color}] 🤖 {msg.model} | Session: {session_safe}"
-    
+        status = "↩️ Resumed" if msg.resumed else "✨ New"
+        return f"[{color}]{prefix}[/{color}] 🤖 {msg.model} | {status} | Session: {session_safe}"
+
     if msg.type == "user" and msg.content:
         content = msg.content[:60] + "..." if len(msg.content) > 60 else msg.content
         content = content.replace("\n", " ").strip()
         return f"[{color}]{prefix}[/{color}] 📨 Prompt sent"
-    
+
     if msg.type == "thinking" and msg.content:
         formatted = markdown_to_rich(msg.content)
         return f"[thinking]{formatted}[/thinking]"
-    
+
     if msg.type == "assistant" and msg.content:
         formatted = markdown_to_rich(msg.content)
         return f"[{color}]{prefix}[/{color}] 💭 {formatted}"
-    
+
     max_width = get_max_path_width()
-    
+
     if msg.type == "tool_call" and msg.subtype == "started":
         if msg.tool_name == "shell" and msg.tool_args:
             cmd = msg.tool_args.get("command", "")
             # Strip cd prefix and shorten worktree paths
-            cmd = re.sub(r'^cd /[^\s]*/\.cube/worktrees/[^/\s]+/[^/\s]+ && ', '', cmd)
-            cmd = re.sub(r'/[^\s]*\.cube/worktrees/[^/\s]+/[^/\s]+/?', '~worktrees/', cmd)
-            cmd = re.sub(r'/[^\s]*\.cursor/worktrees/[^/\s]+/[^/\s]+/?', '~worktrees/', cmd)
+            cmd = re.sub(r"^cd /[^\s]*/\.cube/worktrees/[^/\s]+/[^/\s]+ && ", "", cmd)
+            cmd = re.sub(r"/[^\s]*\.cube/worktrees/[^/\s]+/[^/\s]+/?", "~worktrees/", cmd)
+            cmd = re.sub(r"/[^\s]*\.cursor/worktrees/[^/\s]+/[^/\s]+/?", "~worktrees/", cmd)
             if len(cmd) > max_width:
-                cmd = cmd[:max_width - 3] + "..."
+                cmd = cmd[: max_width - 3] + "..."
             return f"[{color}]{prefix}[/{color}] 🔧 {cmd}"
-        
+
         elif msg.tool_name == "write" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", ""))
             if len(path) > max_width:
-                path = path[:max_width - 3] + "..."
+                path = path[: max_width - 3] + "..."
             return f"[{color}]{prefix}[/{color}] 📝 {path}"
-        
+
         elif msg.tool_name == "edit" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", ""))
             if len(path) > max_width:
-                path = path[:max_width - 3] + "..."
+                path = path[: max_width - 3] + "..."
             return f"[{color}]{prefix}[/{color}] ✏️  {path}"
-        
+
         elif msg.tool_name == "read" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", ""))
             prefix_len = len(f"{prefix} 📖 ")
             available = max_width - prefix_len
             if len(path) > available:
-                path = path[:available - 3] + "..."
+                path = path[: available - 3] + "..."
             return f"[{color}]{prefix}[/{color}] 📖 {path}"
-        
+
         elif msg.tool_name == "ls" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", "."))
             if len(path) > max_width:
-                path = path[:max_width - 3] + "..."
+                path = path[: max_width - 3] + "..."
             return f"[{color}]{prefix}[/{color}] 📂 ls {path}"
-        
+
         elif msg.tool_name == "grep" and msg.tool_args:
             pattern = msg.tool_args.get("pattern", "")[:40]
             return f"[{color}]{prefix}[/{color}] 🔍 grep {pattern}"
-        
+
         elif msg.tool_name == "todos" and msg.tool_args:
             count = msg.tool_args.get("count", 0)
             return f"[{color}]{prefix}[/{color}] 📋 {count} todos"
-        
+
         else:
             return f"[{color}]{prefix}[/{color}] 🔧 {msg.tool_name}"
-    
+
     if msg.type == "tool_call" and msg.subtype == "completed":
         if msg.exit_code is not None and msg.exit_code != 0:
             return f"[{color}]{prefix}[/{color}]    ❌ Exit: {msg.exit_code}"
-        
+
         if msg.tool_name == "shell" and msg.exit_code == 0:
             return None
-        
+
         if msg.tool_name == "write" and msg.tool_args:
             lines = msg.tool_args.get("lines", 0)
             return f"[{color}]{prefix}[/{color}]    ✅ {lines} lines"
-        
+
         if msg.tool_name == "edit":
             return f"[{color}]{prefix}[/{color}]    ✅ Applied"
-        
+
         if msg.tool_name == "read" and msg.tool_args:
             lines = msg.tool_args.get("lines", 0)
             return f"[{color}]{prefix}[/{color}]    ✅ {lines} lines"
-        
+
         if msg.tool_name in ["grep", "ls", "todos", "delete"]:
             return None
-    
+
     if msg.type == "result":
         duration = format_duration(msg.duration_ms or 0)
         return f"[{color}]{prefix}[/{color}] 🎯 Completed in {duration}"
-    
+
     if msg.type == "error" and msg.content:
         content = msg.content[:100] if len(msg.content) > 100 else msg.content
         content = markdown_to_rich(content)
@@ -362,27 +369,25 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
         content = msg.content[:80] if len(msg.content) > 80 else msg.content
         content = markdown_to_rich(content)
         return f"[dim]{prefix}[/dim] ⚠️ {content}"
-    
+
     return None
 
+
 async def parse_and_format_stream(
-    stream: AsyncGenerator[str, None],
-    prefix: str,
-    color: str
+    stream: AsyncGenerator[str, None], prefix: str, color: str
 ) -> AsyncGenerator[tuple[Optional[str], Optional[str]], None]:
     """Parse JSON stream and format for display.
-    
+
     Yields tuples of (formatted_output, session_id).
     """
     session_id = None
-    
+
     async for line in stream:
         msg = parse_stream_message(line)
         if msg:
             if msg.session_id and not session_id:
                 session_id = msg.session_id
-            
+
             formatted = format_stream_message(msg, prefix, color)
             if formatted:
                 yield (formatted, session_id)
-

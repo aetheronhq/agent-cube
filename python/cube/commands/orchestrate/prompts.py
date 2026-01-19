@@ -7,6 +7,7 @@ from typing import Any
 from ...core.agent_runner import run_agent_with_layout
 from ...core.config import PROJECT_ROOT
 from ...core.output import console, print_info, print_success
+from ...core.session import get_prompter_session, save_prompter_session
 from ...core.user_config import get_prompter_model
 
 
@@ -45,6 +46,14 @@ Include: context, requirements, steps, constraints, anti-patterns, success crite
     layout = SingleAgentLayout.initialize("Prompter")
     layout.start()
 
+    # Resume prompter session if exists, otherwise capture new session ID
+    session_id, should_resume = get_prompter_session(task_id)
+    captured_session_id: str | None = None
+
+    def capture_session(sid: str) -> None:
+        nonlocal captured_session_id
+        captured_session_id = sid
+
     try:
         await run_agent_with_layout(
             cwd=PROJECT_ROOT,
@@ -54,9 +63,16 @@ Include: context, requirements, steps, constraints, anti-patterns, success crite
             label="Prompter",
             color="cyan",
             stop_when_exists=writer_prompt_path,
+            session_id=session_id,
+            resume=should_resume,
+            capture_session_callback=capture_session if not should_resume else None,
         )
     finally:
         layout.close()
+
+    # Save session ID if we captured a new one
+    if captured_session_id and not should_resume:
+        save_prompter_session(task_id, captured_session_id)
 
     if not writer_prompt_path.exists():
         raise RuntimeError("Failed to generate writer prompt")
@@ -84,6 +100,14 @@ Include evaluation criteria, scoring rubric, and decision JSON format."""
     layout = SingleAgentLayout.initialize("Prompter")
     layout.start()
 
+    # Resume prompter session if exists, otherwise capture new session ID
+    session_id, should_resume = get_prompter_session(task_id)
+    captured_session_id: str | None = None
+
+    def capture_session(sid: str) -> None:
+        nonlocal captured_session_id
+        captured_session_id = sid
+
     try:
         await run_agent_with_layout(
             cwd=PROJECT_ROOT,
@@ -93,9 +117,16 @@ Include evaluation criteria, scoring rubric, and decision JSON format."""
             label="Prompter",
             color="cyan",
             stop_when_exists=panel_prompt_path,
+            session_id=session_id,
+            resume=should_resume,
+            capture_session_callback=capture_session if not should_resume else None,
         )
     finally:
         layout.close()
+
+    # Save session ID if we captured a new one
+    if captured_session_id and not should_resume:
+        save_prompter_session(task_id, captured_session_id)
 
     if not panel_prompt_path.exists():
         raise RuntimeError("Failed to generate panel prompt")
@@ -180,6 +211,15 @@ Task: {task_id}
             raise ValueError(f"winner_key '{winner_key}' not found in configured writers: {config.writer_order}")
         entries = [entry for entry in entries if entry["key"] == winner_key]
 
+    # Resume prompter session if exists, otherwise capture new session ID
+    session_id, should_resume = get_prompter_session(task_id)
+    captured_session_id: str | None = None
+
+    def capture_session(sid: str) -> None:
+        nonlocal captured_session_id
+        if not captured_session_id:  # Only capture first one
+            captured_session_id = sid
+
     if len(entries) == 1:
         entry = entries[0]
         layout = SingleAgentLayout.initialize(entry["label"])
@@ -193,11 +233,18 @@ Task: {task_id}
                 label=entry["label"],
                 color=entry["color"],
                 stop_when_exists=entry["path"],
+                session_id=session_id,
+                resume=should_resume,
+                capture_session_callback=capture_session if not should_resume else None,
             )
             if not entry["path"].exists():  # type: ignore[attr-defined]
                 raise RuntimeError(f"Failed to generate feedback at {entry['path']}")
         finally:
             layout.close()
+
+        # Save session ID if we captured a new one
+        if captured_session_id and not should_resume:
+            save_prompter_session(task_id, captured_session_id)
 
         print_success(f"Created: {entry['path']}")
         from ...core.config import WORKTREE_BASE
@@ -228,11 +275,11 @@ Task: {task_id}
     console.print()
 
     boxes = {entry["box_id"]: entry["label"] for entry in entries}
-    DynamicLayout.initialize(boxes, lines_per_box=2)
+    DynamicLayout.initialize(boxes, lines_per_box=2, task_name=task_id)
     layout = DynamicLayout
     layout.start()
 
-    async def generate_entry(entry):
+    async def generate_entry(entry, is_first: bool):
         await run_agent_with_layout(
             cwd=PROJECT_ROOT,
             model=get_prompter_model(),
@@ -242,11 +289,18 @@ Task: {task_id}
             color=entry["color"],
             box_id=entry["box_id"],
             stop_when_exists=entry["path"],
+            session_id=session_id,
+            resume=should_resume,
+            capture_session_callback=capture_session if (is_first and not should_resume) else None,
         )
 
-    await asyncio.gather(*(generate_entry(entry) for entry in entries))
+    await asyncio.gather(*(generate_entry(entry, i == 0) for i, entry in enumerate(entries)))
 
     layout.close()
+
+    # Save session ID if we captured a new one
+    if captured_session_id and not should_resume:
+        save_prompter_session(task_id, captured_session_id)
 
     for entry in entries:
         if not entry["path"].exists():  # type: ignore[attr-defined]
