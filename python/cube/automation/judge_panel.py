@@ -89,11 +89,21 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
     return writers
 
 
-async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, winner: str = None) -> int:
+RETRYABLE_PATTERNS = ["unavailable", "retriable", "rate limit", "capacity", "network", "timeout", "connection"]
+
+
+def _is_retryable(error_msg: str) -> bool:
+    """Check if error is retryable."""
+    error_lower = error_msg.lower()
+    return any(p in error_lower for p in RETRYABLE_PATTERNS)
+
+
+async def run_judge(
+    judge_info: JudgeInfo, prompt: str, resume: bool, layout, winner: str = None, max_retries: int = 2
+) -> int:
     """Run a single judge agent and return line count."""
     config = load_config()
 
-    # Determine CLI tool based on judge type or model mapping
     is_cli_review = judge_info.adapter_config and judge_info.adapter_config.get("type") == "cli-review"
     cli_name = "cli-review" if is_cli_review else config.cli_tools.get(judge_info.model, "cursor-agent")
 
@@ -107,69 +117,83 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
     from ..core.agent_logger import agent_logging_context
 
     session_id = judge_info.session_id if resume else None
-
-    console.print(f"[dim]{judge_info.label}: Starting with model {judge_info.model} (CLI: {cli_name})...[/dim]")
-
     run_dir = WORKTREE_BASE.parent if cli_name == "gemini" else PROJECT_ROOT
-
     judge_specific_prompt = prompt.replace("{{judge_key}}", judge_info.key).replace("{judge_key}", judge_info.key)
 
-    stream = adapter.run(run_dir, judge_info.model, judge_specific_prompt, session_id=session_id, resume=resume)
+    last_error = None
 
-    # Use generic logging context
-    async with agent_logging_context(
-        agent_type="judge",
-        agent_name=judge_info.key,
-        task_id=judge_info.task_id,
-        suffix=judge_info.review_type,
-        session_key=judge_info.key.upper(),
-        session_task_key=f"{judge_info.task_id}_{judge_info.review_type}",
-        metadata=f"{judge_info.label} ({judge_info.key}) - {judge_info.task_id} - {judge_info.review_type} - {datetime.now()}",
-    ) as logger:
-        async for line in stream:  # type: ignore[attr-defined]
-            logger.write_line(line)
+    for attempt in range(max_retries + 1):
+        if attempt > 0:
+            console.print(f"[yellow]{judge_info.label}: Retry {attempt}/{max_retries}...[/yellow]")
+            await asyncio.sleep(2)
 
-            msg = parser.parse(line)
-            if msg:
-                if msg.type == "system" and msg.subtype == "init":
-                    msg.resumed = resume
-                if msg.session_id and not judge_info.session_id:
-                    judge_info.session_id = msg.session_id
-                    save_session(
-                        judge_info.key.upper(),
-                        f"{judge_info.task_id}_{judge_info.review_type}",
-                        msg.session_id,
-                        f"{judge_info.label} ({judge_info.model})",
+        try:
+            console.print(f"[dim]{judge_info.label}: Starting with model {judge_info.model} (CLI: {cli_name})...[/dim]")
+
+            stream = adapter.run(run_dir, judge_info.model, judge_specific_prompt, session_id=session_id, resume=resume)
+
+            async with agent_logging_context(
+                agent_type="judge",
+                agent_name=judge_info.key,
+                task_id=judge_info.task_id,
+                suffix=judge_info.review_type,
+                session_key=judge_info.key.upper(),
+                session_task_key=f"{judge_info.task_id}_{judge_info.review_type}",
+                metadata=f"{judge_info.label} ({judge_info.key}) - {judge_info.task_id} - {judge_info.review_type} - {datetime.now()}",
+            ) as logger:
+                async for line in stream:  # type: ignore[attr-defined]
+                    logger.write_line(line)
+
+                    msg = parser.parse(line)
+                    if msg:
+                        if msg.type == "system" and msg.subtype == "init":
+                            msg.resumed = resume
+                        if msg.session_id and not judge_info.session_id:
+                            judge_info.session_id = msg.session_id
+                            save_session(
+                                judge_info.key.upper(),
+                                f"{judge_info.task_id}_{judge_info.review_type}",
+                                msg.session_id,
+                                f"{judge_info.label} ({judge_info.model})",
+                            )
+
+                        formatted = format_stream_message(msg, judge_info.label, judge_info.color)
+                        if formatted:
+                            if formatted.startswith("[thinking]"):
+                                thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                                layout.add_thinking(judge_info.key, thinking_text)
+                            elif msg.type == "assistant" and msg.content:
+                                layout.add_assistant_message(
+                                    judge_info.key, msg.content, judge_info.label, judge_info.color
+                                )
+                            else:
+                                layout.add_output(formatted)
+
+                layout.flush_buffers()
+
+                if logger.line_count < 10:
+                    raise RuntimeError(
+                        f"{judge_info.label} completed suspiciously quickly ({logger.line_count} lines). Check {logger.log_file}"
                     )
 
-                formatted = format_stream_message(msg, judge_info.label, judge_info.color)
-                if formatted:
-                    if formatted.startswith("[thinking]"):
-                        # Thinking message -> thinking box (buffered)
-                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.add_thinking(judge_info.key, thinking_text)
-                    elif msg.type == "assistant" and msg.content:
-                        # Assistant message -> buffered per agent, no emoji logic
-                        layout.add_assistant_message(judge_info.key, msg.content, judge_info.label, judge_info.color)
-                    else:
-                        # Tool calls, errors, etc -> immediate
-                        layout.add_output(formatted)
+                final_line_count = logger.line_count
 
-        layout.flush_buffers()
+            status = _parse_decision_status(judge_info)
+            layout.mark_complete(judge_info.key, status)
+            icon = "✅" if "APPROVED" in status or "Ready to merge" in status else ""
+            console.print(f"[{judge_info.color}][{judge_info.label}][/{judge_info.color}] {icon} {status}".strip())
+            return final_line_count
 
-        if logger.line_count < 10:
-            raise RuntimeError(
-                f"{judge_info.label} completed suspiciously quickly ({logger.line_count} lines). Check {logger.log_file}"
-            )
+        except RuntimeError as e:
+            last_error = e
+            if attempt < max_retries and _is_retryable(str(e)):
+                console.print(f"[yellow]{judge_info.label}: Retryable error: {str(e)[:80]}[/yellow]")
+                continue
+            raise
 
-        final_line_count = logger.line_count
-
-    status = _parse_decision_status(judge_info)
-    layout.mark_complete(judge_info.key, status)
-    # Only show ✅ for approved, otherwise just show status
-    icon = "✅" if "APPROVED" in status or "Ready to merge" in status else ""
-    console.print(f"[{judge_info.color}][{judge_info.label}][/{judge_info.color}] {icon} {status}".strip())
-    return final_line_count
+    if last_error:
+        raise last_error
+    raise RuntimeError(f"{judge_info.label} failed after {max_retries} retries")
 
 
 def _parse_decision_status(judge_info: JudgeInfo) -> str:

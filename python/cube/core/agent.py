@@ -16,6 +16,8 @@ RETRYABLE_ERRORS = [
     "capacity exhausted",
     "connection reset",
     "timeout",
+    "unavailable",
+    "retriableerror",
 ]
 
 
