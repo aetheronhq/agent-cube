@@ -36,6 +36,8 @@ async def run_prompter_with_session(task_id: str, prompt: str, layout, output_pa
 
         msg = parser.parse(line)
         if msg:
+            if msg.type == "system" and msg.subtype == "init":
+                msg.resumed = should_resume
             formatted = format_stream_message(msg, label, "cyan")
             if formatted:
                 if formatted.startswith("[thinking]"):

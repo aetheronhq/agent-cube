@@ -50,9 +50,10 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
 
             msg = parser.parse(line)
             if msg:
+                if msg.type == "system" and msg.subtype == "init":
+                    msg.resumed = resume
                 if msg.session_id and not writer_info.session_id:
                     writer_info.session_id = msg.session_id
-                    # Save session immediately when captured
                     save_session(
                         writer_info.key.upper(),
                         writer_info.task_id,

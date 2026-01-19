@@ -63,6 +63,8 @@ async def send_feedback_async(
 
             msg = parser.parse(line)
             if msg:
+                if msg.type == "system" and msg.subtype == "init":
+                    msg.resumed = resume
                 formatted = format_stream_message(msg, writer_label, writer_color)
                 if formatted:
                     if formatted.startswith("[thinking]"):

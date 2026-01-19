@@ -72,6 +72,8 @@ async def send_dual_feedback(task_id: str, feedbacks: List[FeedbackInfo]) -> Non
 
                 msg = parser.parse(line)
                 if msg:
+                    if msg.type == "system" and msg.subtype == "init":
+                        msg.resumed = True
                     formatted = format_stream_message(msg, f"Prompter {wconfig.label}", wconfig.color)
                     if formatted:
                         if formatted.startswith("[thinking]"):

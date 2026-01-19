@@ -131,9 +131,10 @@ async def run_judge(judge_info: JudgeInfo, prompt: str, resume: bool, layout, wi
 
             msg = parser.parse(line)
             if msg:
+                if msg.type == "system" and msg.subtype == "init":
+                    msg.resumed = resume
                 if msg.session_id and not judge_info.session_id:
                     judge_info.session_id = msg.session_id
-                    # Save session immediately when captured
                     save_session(
                         judge_info.key.upper(),
                         f"{judge_info.task_id}_{judge_info.review_type}",

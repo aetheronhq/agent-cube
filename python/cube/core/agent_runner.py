@@ -58,6 +58,8 @@ async def run_agent_with_layout(
 
         msg = parser.parse(line)
         if msg:
+            if msg.type == "system" and msg.subtype == "init":
+                msg.resumed = resume
             formatted = format_stream_message(msg, label, color)
             if formatted:
                 if formatted.startswith("[thinking]"):
