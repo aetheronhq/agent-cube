@@ -12,7 +12,7 @@ from .decisions import clear_peer_review_decisions, run_decide_and_get_result, r
 from .phases import run_minor_fixes, run_peer_review, run_synthesis
 from .phases_registry import Phase, PhaseResult, WorkflowContext
 from .pr import create_pr
-from .prompts import generate_dual_feedback, generate_panel_prompt, generate_writer_prompt
+from .prompts import generate_panel_prompt, generate_writer_prompt
 
 
 def is_single_mode(ctx: WorkflowContext) -> bool:
@@ -103,14 +103,10 @@ async def synthesis_run(ctx: WorkflowContext) -> PhaseResult:
         print_info("Single mode - skipping synthesis")
         return PhaseResult(data={"synthesis_complete": True, "skipped": True})
 
-    # TIE case - need feedback loop
+    # TIE case - need feedback loop, continue to re-run panel
     if winner == "TIE":
-        print_warning("TIE detected - both writers need feedback")
-        await generate_dual_feedback(ctx.task_id, ctx.prompts_dir)
-        console.print()
-        console.print("[cyan]Feedback generated. Re-run panel:[/cyan]")
-        console.print(f"  cube auto {ctx.task_id} --resume-from 4")
-        return PhaseResult(exit=True, data={"needs_feedback": True})
+        print_warning("TIE detected - both writers received feedback, re-running panel")
+        return PhaseResult(data={"needs_feedback": True}, next_phase=4)
 
     # All approved - skip synthesis
     if ctx.result.get("all_approved"):

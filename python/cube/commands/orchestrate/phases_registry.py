@@ -13,6 +13,7 @@ class PhaseResult:
     exit: bool = False
     exit_message: str = ""
     data: dict[str, Any] = field(default_factory=dict)
+    next_phase: int | None = None  # Jump to specific phase (for TIE loops)
 
 
 @dataclass
