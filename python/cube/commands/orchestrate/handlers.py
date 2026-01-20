@@ -106,7 +106,7 @@ async def synthesis_run(ctx: WorkflowContext) -> PhaseResult:
     # TIE case - need feedback loop
     if winner == "TIE":
         print_warning("TIE detected - both writers need feedback")
-        await generate_dual_feedback(ctx.task_id, ctx.result, ctx.prompts_dir)
+        await generate_dual_feedback(ctx.task_id, ctx.prompts_dir)
         console.print()
         console.print("[cyan]Feedback generated. Re-run panel:[/cyan]")
         console.print(f"  cube auto {ctx.task_id} --resume-from 4")
