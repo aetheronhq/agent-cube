@@ -14,8 +14,7 @@ prompter:
 cli_tools:
   sonnet-4.5-thinking: cursor-agent
   opus-4.5-thinking: cursor-agent
-  gpt-5.1-codex-high: cursor-agent
-  gpt-5.1-codex-max: cursor-agent
+  gpt-5.2-codex-xhigh-fast: cursor-agent
   grok: cursor-agent
   gemini-2.5-pro: gemini
   gemini-3-pro: cursor-agent
@@ -30,7 +29,7 @@ writers:
     
   writer_b:
     name: "codex"
-    model: "gpt-5.1-codex-max"
+    model: "gpt-5.2-codex-xhigh-fast"
     label: "Writer Codex"
     color: "blue"
 
@@ -42,7 +41,7 @@ judges:
     color: "green"
     
   judge_2:
-    model: "gpt-5.1-codex-max"
+    model: "gpt-5.2-codex-xhigh-fast"
     label: "Judge Codex"
     color: "yellow"
     
