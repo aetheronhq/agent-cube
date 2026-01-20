@@ -1,0 +1,323 @@
+"""Reply to and resolve PR comment threads via gh CLI."""
+
+import json
+import subprocess
+import time
+from typing import Optional
+
+
+def _get_repo_info(cwd: Optional[str] = None) -> tuple[str, str]:
+    """Get owner and repo name from gh CLI."""
+    result = subprocess.run(
+        ["gh", "repo", "view", "--json", "owner,name"],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Failed to get repo info: {result.stderr.strip()}")
+
+    try:
+        data = json.loads(result.stdout)
+        owner = data.get("owner", {}).get("login", "")
+        repo = data.get("name", "")
+        if not owner or not repo:
+            raise RuntimeError("Could not determine owner/repo")
+        return owner, repo
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Failed to parse repo info: {e}")
+
+
+def reply_to_comment(
+    pr_number: int,
+    comment_id: str,
+    body: str,
+    cwd: Optional[str] = None,
+    rate_limit_delay: float = 0.5,
+) -> bool:
+    """Reply to a review comment.
+
+    Args:
+        pr_number: PR number
+        comment_id: The ID of the comment to reply to
+        body: Reply body text
+        cwd: Working directory
+        rate_limit_delay: Seconds to wait after request
+
+    Returns:
+        True if reply was posted successfully
+    """
+    payload = {"body": body}
+
+    result = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments/{comment_id}/replies",
+            "-X",
+            "POST",
+            "--input",
+            "-",
+        ],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+    )
+
+    time.sleep(rate_limit_delay)
+
+    if result.returncode != 0:
+        return False
+
+    return True
+
+
+def reply_to_thread(
+    pr_number: int,
+    thread_comment_id: str,
+    body: str,
+    cwd: Optional[str] = None,
+    rate_limit_delay: float = 0.5,
+) -> bool:
+    """Reply to a review thread by replying to the first comment.
+
+    Args:
+        pr_number: PR number
+        thread_comment_id: ID of any comment in the thread
+        body: Reply body text
+        cwd: Working directory
+        rate_limit_delay: Seconds to wait after request
+
+    Returns:
+        True if reply was posted successfully
+    """
+    return reply_to_comment(pr_number, thread_comment_id, body, cwd, rate_limit_delay)
+
+
+def resolve_thread(
+    thread_id: str,
+    cwd: Optional[str] = None,
+    rate_limit_delay: float = 0.5,
+) -> bool:
+    """Resolve a review thread via GraphQL.
+
+    Args:
+        thread_id: The GraphQL node ID of the thread
+        cwd: Working directory
+        rate_limit_delay: Seconds to wait after request
+
+    Returns:
+        True if thread was resolved successfully
+    """
+    mutation = """
+    mutation($threadId: ID!) {
+      resolveReviewThread(input: {threadId: $threadId}) {
+        thread { isResolved }
+      }
+    }
+    """
+
+    result = subprocess.run(
+        [
+            "gh",
+            "api",
+            "graphql",
+            "-f",
+            f"query={mutation}",
+            "-f",
+            f"threadId={thread_id}",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+    )
+
+    time.sleep(rate_limit_delay)
+
+    if result.returncode != 0:
+        return False
+
+    try:
+        data = json.loads(result.stdout)
+        thread_data = data.get("data", {}).get("resolveReviewThread", {}).get("thread", {})
+        return thread_data.get("isResolved", False)
+    except (json.JSONDecodeError, KeyError):
+        return False
+
+
+def unresolve_thread(
+    thread_id: str,
+    cwd: Optional[str] = None,
+    rate_limit_delay: float = 0.5,
+) -> bool:
+    """Unresolve a review thread via GraphQL.
+
+    Args:
+        thread_id: The GraphQL node ID of the thread
+        cwd: Working directory
+        rate_limit_delay: Seconds to wait after request
+
+    Returns:
+        True if thread was unresolved successfully
+    """
+    mutation = """
+    mutation($threadId: ID!) {
+      unresolveReviewThread(input: {threadId: $threadId}) {
+        thread { isResolved }
+      }
+    }
+    """
+
+    result = subprocess.run(
+        [
+            "gh",
+            "api",
+            "graphql",
+            "-f",
+            f"query={mutation}",
+            "-f",
+            f"threadId={thread_id}",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+    )
+
+    time.sleep(rate_limit_delay)
+
+    if result.returncode != 0:
+        return False
+
+    try:
+        data = json.loads(result.stdout)
+        thread_data = data.get("data", {}).get("unresolveReviewThread", {}).get("thread", {})
+        return not thread_data.get("isResolved", True)
+    except (json.JSONDecodeError, KeyError):
+        return False
+
+
+def add_reaction(
+    comment_id: str,
+    reaction: str,
+    cwd: Optional[str] = None,
+    rate_limit_delay: float = 0.5,
+) -> bool:
+    """Add reaction to a PR comment.
+
+    Args:
+        comment_id: The comment ID
+        reaction: Reaction type (+1, -1, laugh, confused, heart, hooray, rocket, eyes)
+        cwd: Working directory
+        rate_limit_delay: Seconds to wait after request
+
+    Returns:
+        True if reaction was added successfully
+    """
+    payload = {"content": reaction}
+
+    result = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"repos/{{owner}}/{{repo}}/pulls/comments/{comment_id}/reactions",
+            "-X",
+            "POST",
+            "--input",
+            "-",
+        ],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+    )
+
+    time.sleep(rate_limit_delay)
+
+    return result.returncode == 0
+
+
+def add_issue_comment(
+    pr_number: int,
+    body: str,
+    cwd: Optional[str] = None,
+    rate_limit_delay: float = 0.5,
+) -> bool:
+    """Add a top-level comment to a PR.
+
+    Args:
+        pr_number: PR number
+        body: Comment body
+        cwd: Working directory
+        rate_limit_delay: Seconds to wait after request
+
+    Returns:
+        True if comment was posted successfully
+    """
+    result = subprocess.run(
+        ["gh", "pr", "comment", str(pr_number), "--body", body],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+    )
+
+    time.sleep(rate_limit_delay)
+
+    return result.returncode == 0
+
+
+def format_fix_reply(
+    fix_description: str,
+    include_signature: bool = True,
+) -> str:
+    """Format a reply indicating a fix was made.
+
+    Args:
+        fix_description: Description of the fix
+        include_signature: Whether to add Agent Cube signature
+
+    Returns:
+        Formatted reply body
+    """
+    reply = f"Fixed: {fix_description}"
+
+    if include_signature:
+        reply += "\n\n---\n*Agent Cube*"
+
+    return reply
+
+
+def format_acknowledgment_reply(
+    message: str = "Thanks for the feedback!",
+    include_signature: bool = True,
+) -> str:
+    """Format an acknowledgment reply.
+
+    Args:
+        message: Acknowledgment message
+        include_signature: Whether to add Agent Cube signature
+
+    Returns:
+        Formatted reply body
+    """
+    if include_signature:
+        return f"{message}\n\n---\n*Agent Cube*"
+    return message
+
+
+def format_question_reply(
+    answer: str,
+    include_signature: bool = True,
+) -> str:
+    """Format a reply to a question.
+
+    Args:
+        answer: The answer to the question
+        include_signature: Whether to add Agent Cube signature
+
+    Returns:
+        Formatted reply body
+    """
+    if include_signature:
+        return f"{answer}\n\n---\n*Agent Cube*"
+    return answer

@@ -167,6 +167,161 @@ Do a **full code review** of this PR:
 """
 
 
+def _get_focus_checklist(focus_area: str) -> str:
+    """Get focused review checklist for a specific area."""
+    focus_checklists = {
+        "security": """## Security-Focused Review Checklist
+
+### Authentication & Authorization
+- Are all endpoints properly authenticated?
+- Are authorization checks in place for sensitive operations?
+- Are tokens/credentials handled securely (not logged, not in URLs)?
+
+### Input Validation
+- Is user input properly validated and sanitized?
+- Are SQL queries parameterized (no string concatenation)?
+- Are file paths validated to prevent path traversal?
+
+### Secrets & Credentials
+- Are secrets loaded from environment variables or secret managers?
+- Are .env files properly gitignored?
+- Are API keys or tokens exposed in logs or error messages?
+
+### Dependencies
+- Are there known vulnerabilities in dependencies?
+- Are dependencies pinned to specific versions?
+
+### Data Handling
+- Is sensitive data encrypted at rest and in transit?
+- Are PII fields properly handled (no logging, proper access controls)?
+""",
+        "tests": """## Test Coverage Review Checklist
+
+### Unit Tests
+- Are new functions/methods covered by unit tests?
+- Are edge cases and error conditions tested?
+- Are mock objects used appropriately?
+
+### Integration Tests
+- Do integration tests cover new API endpoints?
+- Are database operations tested with proper setup/teardown?
+- Are external service calls properly mocked?
+
+### Test Quality
+- Do tests assert the right things (not just "no errors")?
+- Are tests independent and not relying on execution order?
+- Are test descriptions clear about what they're testing?
+
+### Coverage Gaps
+- What code paths are NOT covered by tests?
+- Are critical business logic functions fully tested?
+""",
+        "performance": """## Performance Review Checklist
+
+### Database Queries
+- Are there N+1 query patterns?
+- Are indexes used for frequently queried fields?
+- Are large result sets paginated?
+
+### Memory & Resources
+- Are large objects properly disposed/closed?
+- Are there memory leaks from event listeners or subscriptions?
+- Are file handles and connections properly closed?
+
+### Algorithmic Efficiency
+- Are there O(n²) or worse algorithms that could be optimized?
+- Are expensive operations cached where appropriate?
+- Are loops performing unnecessary work?
+
+### Async & Concurrency
+- Are blocking operations properly async?
+- Are there race conditions or deadlock risks?
+- Is parallelism used where appropriate?
+""",
+        "bugs": """## Bug Detection Review Checklist
+
+### Logic Errors
+- Are conditional statements correct (boundary conditions, negation)?
+- Are loop termination conditions correct?
+- Are null/undefined values handled?
+
+### Error Handling
+- Are exceptions caught and handled appropriately?
+- Are error messages informative without leaking sensitive info?
+- Are resources cleaned up in error paths?
+
+### State Management
+- Is mutable state handled correctly?
+- Are there race conditions in shared state?
+- Are default values appropriate?
+
+### Edge Cases
+- What happens with empty input?
+- What happens with very large input?
+- What happens with invalid or malformed input?
+""",
+    }
+
+    return focus_checklists.get(focus_area.lower(), build_review_checklist())
+
+
+def build_focused_review_prompt(
+    pr_number: int,
+    title: str,
+    body: str,
+    head_branch: str,
+    head_sha: str,
+    base_branch: str,
+    task_id: str,
+    focus_area: str,
+    repo_context: str = "",
+) -> str:
+    """Build prompt for focused PR review.
+
+    Args:
+        pr_number: PR number
+        title: PR title
+        body: PR description
+        head_branch: Source branch
+        head_sha: Head commit SHA
+        base_branch: Target branch
+        task_id: Task/PR ID
+        focus_area: Area to focus on (security, tests, performance, bugs)
+        repo_context: Additional repo context
+    """
+    context_section = f"\n## Repository Context\n{repo_context}\n" if repo_context else ""
+    focus_checklist = _get_focus_checklist(focus_area)
+
+    return f"""# Focused PR Review: {focus_area.upper()}
+
+## PR #{pr_number}: {title}
+
+{body or "(No description)"}
+
+## Branch
+- Head: `{head_branch}` ({head_sha[:8]})
+- Base: `{base_branch}`
+{context_section}
+## View Changes
+
+```bash
+# See what files changed
+git diff origin/{base_branch}...origin/{head_branch} --stat
+
+# View full diff
+git diff origin/{base_branch}...origin/{head_branch}
+```
+
+## Focus Area: {focus_area.upper()}
+
+This is a **focused review** specifically looking for **{focus_area}** issues.
+
+{focus_checklist}
+
+{build_decision_file_instructions(task_id, include_inline_comments=True)}
+"""
+
+
 def build_peer_review_prompt(
     task_id: str,
     worktree_base: Path,
