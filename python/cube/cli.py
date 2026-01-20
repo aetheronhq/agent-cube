@@ -682,6 +682,27 @@ def auto(
         sys.exit(1)
 
 
+@app.command(name="pr-review")
+def pr_review_cmd(
+    pr_number: Annotated[int, typer.Argument(help="PR number to review")],
+    focus: Annotated[
+        Optional[str], typer.Option("--focus", "-f", help="Focus area: security, performance, tests, bugs")
+    ] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run", "--dry", help="Show review without posting")] = False,
+    model: Annotated[Optional[str], typer.Option("--model", "-m", help="Specific judge model to use")] = None,
+    fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False,
+    include_cli: Annotated[bool, typer.Option("--include-cli", help="Include cli-review judges")] = False,
+):
+    """Review a GitHub PR with Agent Cube judges.
+
+    Examples:
+        cube pr-review 123                      # Full review of PR #123
+        cube pr-review 123 --focus security     # Security-focused review
+        cube pr-review 123 --dry-run            # Preview without posting
+    """
+    peer_review_command("", "", pr=pr_number, dry_run=dry_run, include_cli=include_cli, fresh=fresh, focus=focus)
+
+
 @app.command(name="continue")
 def continue_task(
     task_id: Annotated[Optional[str], typer.Argument(help="Task ID (optional if CUBE_TASK_ID set)")] = None,

@@ -3,7 +3,10 @@
 import json
 import subprocess
 import time
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from .comments import PRComment
 
 
 def _get_repo_info(cwd: Optional[str] = None) -> tuple[str, str]:
@@ -266,20 +269,52 @@ def add_issue_comment(
     return result.returncode == 0
 
 
+def reply_and_resolve(
+    pr_number: int,
+    comment: "PRComment",
+    commit_sha: str,
+    cwd: Optional[str] = None,
+) -> bool:
+    """Reply to a comment with fix confirmation and resolve the thread.
+
+    Args:
+        pr_number: PR number
+        comment: The PRComment object to reply to
+        commit_sha: The commit SHA where the fix was made
+        cwd: Working directory
+
+    Returns:
+        True if reply was posted (thread resolution is best-effort)
+    """
+    reply_body = f"✅ Fixed in {commit_sha}\n\n---\n*Agent Cube*"
+
+    reply_success = reply_to_comment(pr_number, comment.id, reply_body, cwd)
+
+    if reply_success and comment.thread_id:
+        resolve_thread(comment.thread_id, cwd)
+
+    return reply_success
+
+
 def format_fix_reply(
     fix_description: str,
+    commit_sha: Optional[str] = None,
     include_signature: bool = True,
 ) -> str:
     """Format a reply indicating a fix was made.
 
     Args:
         fix_description: Description of the fix
+        commit_sha: Optional commit SHA to reference
         include_signature: Whether to add Agent Cube signature
 
     Returns:
         Formatted reply body
     """
-    reply = f"Fixed: {fix_description}"
+    if commit_sha:
+        reply = f"✅ Fixed in {commit_sha}: {fix_description}"
+    else:
+        reply = f"Fixed: {fix_description}"
 
     if include_signature:
         reply += "\n\n---\n*Agent Cube*"

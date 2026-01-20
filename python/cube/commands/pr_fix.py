@@ -1,16 +1,173 @@
 """Fix PR review comments command."""
 
+import subprocess
+from pathlib import Path
 from typing import Optional
 
-from ..core.config import PROJECT_ROOT
+from ..core.config import PROJECT_ROOT, get_worktree_path
 from ..core.output import console, print_error, print_info, print_success, print_warning
 from ..github.categorizer import CategorizedComment, categorize_comments, filter_actionable
 from ..github.comments import CommentThread, fetch_all_comments, fetch_comment_threads
+from ..github.pulls import fetch_pr
 from ..github.responder import (
-    format_fix_reply,
-    reply_to_comment,
-    resolve_thread,
+    reply_and_resolve,
 )
+
+
+def _sync_pr_worktree(pr_number: int, branch: str, cwd: Optional[str] = None) -> Optional[Path]:
+    """Create or sync a worktree for fixing PR comments."""
+    project_name = Path(PROJECT_ROOT).name
+    worktree_path = get_worktree_path(project_name, "pr-fix", str(pr_number))
+
+    try:
+        subprocess.run(
+            ["git", "fetch", "origin", branch],
+            cwd=cwd or PROJECT_ROOT,
+            capture_output=True,
+            timeout=30,
+        )
+
+        if not worktree_path.exists():
+            worktree_path.parent.mkdir(parents=True, exist_ok=True)
+            result = subprocess.run(
+                ["git", "worktree", "add", str(worktree_path), f"origin/{branch}"],
+                cwd=cwd or PROJECT_ROOT,
+                capture_output=True,
+                timeout=60,
+            )
+            if result.returncode != 0:
+                return None
+        else:
+            subprocess.run(
+                ["git", "checkout", branch],
+                cwd=worktree_path,
+                capture_output=True,
+                timeout=30,
+            )
+            subprocess.run(
+                ["git", "reset", "--hard", f"origin/{branch}"],
+                cwd=worktree_path,
+                capture_output=True,
+                timeout=30,
+            )
+
+        return worktree_path
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError):
+        return None
+
+
+def _build_fix_prompt(comments: list[CategorizedComment], pr_number: int, pr_title: str) -> str:
+    """Build a prompt for the writer agent to fix the comments."""
+    prompt = f"""# Fix PR Review Comments
+
+You are fixing review comments on PR #{pr_number}: {pr_title}
+
+## Comments to Address
+
+"""
+    for i, cat in enumerate(comments, 1):
+        comment = cat.comment
+        path_info = f"{comment.path}:{comment.line}" if comment.path else "(general)"
+        prompt += f"""### Comment {i}: {path_info}
+**Author:** {comment.author}
+**Category:** {cat.category}
+**Comment:**
+{comment.body}
+
+**Fix Plan:** {cat.fix_plan or "Address the feedback appropriately"}
+
+"""
+
+    prompt += """## Instructions
+
+1. Read each comment carefully
+2. Make the requested changes in the appropriate files
+3. If a comment contains a `suggestion` block, apply that exact change
+4. For questions, add code comments or make clarifying changes as appropriate
+5. Run any relevant tests to ensure your fixes don't break anything
+6. Commit your changes with a message referencing the PR
+
+**Important:** Focus only on the changes requested in the comments above. Do not refactor or change unrelated code.
+"""
+    return prompt
+
+
+def _run_fix_agent(worktree: Path, prompt: str, pr_number: int) -> Optional[str]:
+    """Run a writer agent to fix the comments and return the commit SHA."""
+    from ..core.agent import run_agent, run_async
+    from ..core.output import console
+    from ..core.parsers.registry import get_parser
+    from ..core.user_config import get_default_writer, get_writer_config, load_config
+
+    writer_key = get_default_writer()
+    wconfig = get_writer_config(writer_key)
+    config = load_config()
+    cli_name = config.cli_tools.get(wconfig.model, "cursor-agent")
+    parser = get_parser(cli_name)
+
+    console.print(f"[dim]Running {wconfig.label} to fix comments...[/dim]")
+
+    async def run_fix():
+        stream = run_agent(worktree, wconfig.model, prompt, session_id=None, resume=False)
+        line_count = 0
+        async for line in stream:
+            line_count += 1
+            msg = parser.parse(line)
+            if msg and msg.type == "assistant" and msg.content:
+                preview = msg.content[:100].replace("\n", " ")
+                if len(msg.content) > 100:
+                    preview += "..."
+                console.print(f"[dim]{wconfig.label}: {preview}[/dim]")
+        return line_count
+
+    try:
+        line_count = run_async(run_fix())
+        if line_count < 5:
+            print_warning("Agent completed very quickly - may not have made changes")
+    except Exception as e:
+        print_error(f"Agent failed: {e}")
+        return None
+
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+    )
+    if not result.stdout.strip():
+        print_warning("No changes detected after agent run")
+        return None
+
+    subprocess.run(["git", "add", "-A"], cwd=worktree, capture_output=True)
+    commit_msg = f"fix: address PR #{pr_number} review comments\n\nAutomated fixes via cube auto --fix-comments"
+    result = subprocess.run(
+        ["git", "commit", "-m", commit_msg],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print_warning(f"Commit failed: {result.stderr}")
+        return None
+
+    result = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+    )
+    commit_sha = result.stdout.strip() if result.returncode == 0 else None
+
+    result = subprocess.run(
+        ["git", "push", "origin", "HEAD"],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print_warning(f"Push failed: {result.stderr}")
+
+    return commit_sha
 
 
 def _get_current_pr_number(cwd: Optional[str] = None) -> Optional[int]:
@@ -199,7 +356,7 @@ def fix_pr_comments(
         print_warning("Dry run - no changes made")
         if actionable:
             console.print()
-            console.print("[bold]Would process:[/bold]")
+            console.print("[bold]Would fix these comments:[/bold]")
             for cat in actionable:
                 path_info = f"{cat.comment.path}:{cat.comment.line}" if cat.comment.path else "(top-level)"
                 console.print(f"  - [{cat.category}] {path_info}: {cat.fix_plan or 'Review needed'}")
@@ -209,47 +366,57 @@ def fix_pr_comments(
         print_success("No actionable comments - nothing to fix!")
         return
 
+    print_info(f"Fetching PR #{pr_number} details...")
+    try:
+        pr = fetch_pr(pr_number, cwd=cwd)
+    except RuntimeError as e:
+        print_error(f"Failed to fetch PR: {e}")
+        return
+
+    print_info(f"Setting up worktree for branch: {pr.head_branch}")
+    worktree = _sync_pr_worktree(pr_number, pr.head_branch, cwd=cwd)
+    if not worktree:
+        print_error("Failed to create/sync worktree for fixes")
+        return
+
+    console.print(f"[dim]Worktree ready at: {worktree}[/dim]")
+
     console.print()
-    print_info(f"Processing {len(actionable)} actionable comments...")
+    print_info(f"Running writer agent to fix {len(actionable)} comments...")
+
+    fix_prompt = _build_fix_prompt(actionable, pr_number, pr.title)
+    commit_sha = _run_fix_agent(worktree, fix_prompt, pr_number)
+
+    if not commit_sha:
+        print_warning("No fixes were committed - agent may not have made changes")
+        return
+
+    print_success(f"Fixes committed: {commit_sha}")
+
+    console.print()
+    print_info("Replying to comments and resolving threads...")
 
     success_count = 0
     for cat in actionable:
         comment = cat.comment
         path_info = f"{comment.path}:{comment.line}" if comment.path else "(top-level)"
 
-        if cat.fix_plan:
-            console.print(f"[dim]Processing {path_info}...[/dim]")
-
-            reply_body = format_fix_reply(
-                f"Acknowledged. {cat.fix_plan}",
-                include_signature=True,
+        if comment.id:
+            success = reply_and_resolve(
+                pr_number=pr_number,
+                comment=comment,
+                commit_sha=commit_sha,
+                cwd=cwd,
             )
 
-            if comment.id:
-                success = reply_to_comment(
-                    pr_number,
-                    comment.id,
-                    reply_body,
-                    cwd=cwd,
-                )
-
-                if success:
-                    success_count += 1
-                    console.print(f"  [green]Replied to {path_info}[/green]")
-
-                    if auto_resolve and comment.thread_id:
-                        if resolve_thread(comment.thread_id, cwd=cwd):
-                            console.print("  [green]Resolved thread[/green]")
-                else:
-                    console.print(f"  [red]Failed to reply to {path_info}[/red]")
-        else:
-            console.print(f"[dim]Skipping {path_info} - no fix plan generated[/dim]")
+            if success:
+                success_count += 1
+                console.print(f"  [green]Replied and resolved: {path_info}[/green]")
+            else:
+                console.print(f"  [yellow]Replied but could not resolve: {path_info}[/yellow]")
 
     console.print()
-    if success_count > 0:
-        print_success(f"Processed {success_count}/{len(actionable)} comments")
-    else:
-        print_warning("No comments were processed")
+    print_success(f"Fixed {success_count}/{len(actionable)} comments (commit: {commit_sha})")
 
 
 def list_pr_comments(
