@@ -286,7 +286,7 @@ def reply_and_resolve(
     Returns:
         True if reply was posted (thread resolution is best-effort)
     """
-    reply_body = f"✅ Fixed in {commit_sha}\n\n---\n*Agent Cube*"
+    reply_body = f"✅ Addressed in {commit_sha} - please verify\n\n---\n*Agent Cube*"
 
     reply_success = reply_to_comment(pr_number, comment.id, reply_body, cwd)
 

@@ -8,7 +8,7 @@ from ..core.config import PROJECT_ROOT, get_worktree_path
 from ..core.output import console, print_error, print_info, print_success, print_warning
 from ..github.categorizer import CategorizedComment, categorize_comments, filter_actionable
 from ..github.comments import CommentThread, fetch_all_comments, fetch_comment_threads
-from ..github.pulls import fetch_pr
+from ..github.pulls import check_gh_installed, fetch_pr
 from ..github.responder import (
     reply_and_resolve,
 )
@@ -20,12 +20,15 @@ def _sync_pr_worktree(pr_number: int, branch: str, cwd: Optional[str] = None) ->
     worktree_path = get_worktree_path(project_name, "pr-fix", str(pr_number))
 
     try:
-        subprocess.run(
+        result = subprocess.run(
             ["git", "fetch", "origin", branch],
             cwd=cwd or PROJECT_ROOT,
             capture_output=True,
+            text=True,
             timeout=30,
         )
+        if result.returncode != 0:
+            print_warning(f"Failed to fetch branch: {result.stderr}")
 
         if not worktree_path.exists():
             worktree_path.parent.mkdir(parents=True, exist_ok=True)
@@ -33,26 +36,37 @@ def _sync_pr_worktree(pr_number: int, branch: str, cwd: Optional[str] = None) ->
                 ["git", "worktree", "add", str(worktree_path), f"origin/{branch}"],
                 cwd=cwd or PROJECT_ROOT,
                 capture_output=True,
+                text=True,
                 timeout=60,
             )
             if result.returncode != 0:
+                print_error(f"Failed to create worktree: {result.stderr}")
                 return None
         else:
-            subprocess.run(
+            result = subprocess.run(
                 ["git", "checkout", branch],
                 cwd=worktree_path,
                 capture_output=True,
+                text=True,
                 timeout=30,
             )
-            subprocess.run(
+            if result.returncode != 0:
+                print_warning(f"Checkout failed: {result.stderr}")
+
+            result = subprocess.run(
                 ["git", "reset", "--hard", f"origin/{branch}"],
                 cwd=worktree_path,
                 capture_output=True,
+                text=True,
                 timeout=30,
             )
+            if result.returncode != 0:
+                print_error(f"Reset failed: {result.stderr}")
+                return None
 
         return worktree_path
-    except (subprocess.TimeoutExpired, subprocess.SubprocessError):
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
+        print_error(f"Git operation failed: {e}")
         return None
 
 
@@ -165,7 +179,8 @@ def _run_fix_agent(worktree: Path, prompt: str, pr_number: int) -> Optional[str]
         text=True,
     )
     if result.returncode != 0:
-        print_warning(f"Push failed: {result.stderr}")
+        print_error(f"Push failed: {result.stderr}")
+        return None
 
     return commit_sha
 
@@ -289,6 +304,12 @@ def fix_pr_comments(
         include_suggestions: Include suggestions in actionable items
         verbose: Show all comments including skipped ones
     """
+    if not check_gh_installed():
+        print_error("gh CLI not installed or not authenticated")
+        console.print("Install: https://cli.github.com/")
+        console.print("Auth: gh auth login")
+        return
+
     cwd = str(PROJECT_ROOT)
 
     if pr_number is None:

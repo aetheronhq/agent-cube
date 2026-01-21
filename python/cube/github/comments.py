@@ -71,8 +71,8 @@ def _parse_datetime(dt_str: str) -> datetime:
     """Parse ISO datetime string from GitHub."""
     try:
         return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
-    except (ValueError, TypeError):
-        return datetime.now()
+    except (ValueError, TypeError, AttributeError):
+        return datetime.min
 
 
 def fetch_pr_comments(pr_number: int, cwd: Optional[str] = None) -> list[PRComment]:
