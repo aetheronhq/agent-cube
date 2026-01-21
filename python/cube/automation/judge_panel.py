@@ -89,7 +89,16 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
     return writers
 
 
-RETRYABLE_PATTERNS = ["unavailable", "retriable", "rate limit", "capacity", "network", "timeout", "connection"]
+RETRYABLE_PATTERNS = [
+    "unavailable",
+    "retriable",
+    "transient",
+    "rate limit",
+    "capacity",
+    "network",
+    "timeout",
+    "connection",
+]
 
 
 def _is_retryable(error_msg: str) -> bool:

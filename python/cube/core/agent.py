@@ -13,11 +13,12 @@ RETRYABLE_ERRORS = [
     "network error",
     "exited with code 1",
     "rate limit",
-    "capacity exhausted",
-    "connection reset",
+    "capacity",
+    "connection",
     "timeout",
     "unavailable",
-    "retriableerror",
+    "retriable",
+    "transient",
 ]
 
 
