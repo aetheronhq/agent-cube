@@ -274,7 +274,6 @@ def fix_pr_comments(
     dry_run: bool = False,
     from_author: Optional[str] = None,
     skip_bots: Optional[list[str]] = None,
-    auto_resolve: bool = False,
     include_questions: bool = True,
     include_suggestions: bool = False,
     verbose: bool = False,
@@ -286,7 +285,6 @@ def fix_pr_comments(
         dry_run: Show plan without making changes
         from_author: Only process comments from this author
         skip_bots: List of bot usernames to skip
-        auto_resolve: Automatically resolve threads after fixing
         include_questions: Include questions in actionable items
         include_suggestions: Include suggestions in actionable items
         verbose: Show all comments including skipped ones

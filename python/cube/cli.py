@@ -689,7 +689,6 @@ def pr_review_cmd(
         Optional[str], typer.Option("--focus", "-f", help="Focus area: security, performance, tests, bugs")
     ] = None,
     dry_run: Annotated[bool, typer.Option("--dry-run", "--dry", help="Show review without posting")] = False,
-    model: Annotated[Optional[str], typer.Option("--model", "-m", help="Specific judge model to use")] = None,
     fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False,
     include_cli: Annotated[bool, typer.Option("--include-cli", help="Include cli-review judges")] = False,
 ):
