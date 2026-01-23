@@ -120,9 +120,11 @@ def _run_fix_agent(
     worktree: Path, prompt: str, pr_number: int, comments: Optional[list[CategorizedComment]] = None
 ) -> Optional[str]:
     """Run a writer agent to fix the comments and return the commit SHA."""
+    from ..automation.stream import format_stream_message
     from ..core.agent import run_agent, run_async
     from ..core.output import console
     from ..core.parsers.registry import get_parser
+    from ..core.single_layout import SingleAgentLayout
     from ..core.user_config import get_default_writer, get_writer_config, load_config
 
     writer_key = get_default_writer()
@@ -133,24 +135,38 @@ def _run_fix_agent(
 
     console.print(f"[dim]Running {wconfig.label} to fix comments...[/dim]")
 
+    layout = SingleAgentLayout
+    layout.start()
+
     async def run_fix():
         stream = run_agent(worktree, wconfig.model, prompt, session_id=None, resume=False)
         line_count = 0
         async for line in stream:
             line_count += 1
             msg = parser.parse(line)
-            if msg and msg.type == "assistant" and msg.content:
-                preview = msg.content[:100].replace("\n", " ")
-                if len(msg.content) > 100:
-                    preview += "..."
-                console.print(f"[dim]{wconfig.label}: {preview}[/dim]")
+            if msg:
+                formatted = format_stream_message(msg, wconfig.label, wconfig.color)
+                if formatted:
+                    if formatted.startswith("[thinking]"):
+                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                        layout.update_thinking(thinking_text)
+                    elif msg.type == "assistant" and msg.content:
+                        layout.add_assistant_message(msg.content, wconfig.label, wconfig.color)
+                    else:
+                        layout.add_output(formatted)
         return line_count
 
     try:
         line_count = run_async(run_fix())
+        layout.close()
         if line_count < 5:
             print_warning("Agent completed very quickly - may not have made changes")
+    except KeyboardInterrupt:
+        layout.close()
+        print_warning("Agent interrupted by user")
+        return None
     except Exception as e:
+        layout.close()
         print_error(f"Agent failed: {e}")
         return None
 
