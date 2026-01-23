@@ -565,6 +565,9 @@ def auto(
     dry_run: Annotated[
         bool, typer.Option("--dry-run", "--dry", help="Show plan without making changes (for --fix-comments)")
     ] = False,
+    verbose_replies: Annotated[
+        bool, typer.Option("--verbose-replies", help="Reply to skipped/non-actionable comments (for --fix-comments)")
+    ] = False,
 ):
     """Shortcut for: cube orchestrate auto <task-file>
 
@@ -582,6 +585,7 @@ def auto(
             pr_number=pr,
             dry_run=dry_run,
             from_author=from_author,
+            verbose_replies=verbose_replies,
         )
         return
 

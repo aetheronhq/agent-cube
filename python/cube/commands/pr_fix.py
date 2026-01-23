@@ -45,24 +45,14 @@ def _sync_pr_worktree(pr_number: int, branch: str, cwd: Optional[str] = None) ->
                 return None
         else:
             result = subprocess.run(
-                ["git", "checkout", branch],
+                ["git", "checkout", "-B", branch, f"origin/{branch}"],
                 cwd=worktree_path,
                 capture_output=True,
                 text=True,
                 timeout=30,
             )
             if result.returncode != 0:
-                print_warning(f"Checkout failed: {result.stderr}")
-
-            result = subprocess.run(
-                ["git", "reset", "--hard", f"origin/{branch}"],
-                cwd=worktree_path,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if result.returncode != 0:
-                print_error(f"Reset failed: {result.stderr}")
+                print_error(f"Checkout failed: {result.stderr}")
                 return None
 
         return worktree_path
@@ -323,6 +313,7 @@ def fix_pr_comments(
     include_questions: bool = False,
     include_suggestions: bool = False,
     verbose: bool = False,
+    verbose_replies: bool = False,
 ) -> None:
     """Fix review comments on a PR.
 
@@ -334,6 +325,7 @@ def fix_pr_comments(
         include_questions: Include questions in actionable items (default: flag for human)
         include_suggestions: Include suggestions in actionable items
         verbose: Show all comments including skipped ones
+        verbose_replies: Reply to skipped/non-actionable comments (can be noisy)
     """
     if not check_gh_installed():
         print_error("gh CLI not installed or not authenticated")
@@ -491,9 +483,9 @@ def fix_pr_comments(
     console.print()
     print_success(f"Addressed {success_count}/{len(actionable)} comments (commit: {commit_sha})")
 
-    if questions or suggestions:
+    if verbose_replies and (questions or suggestions or skipped):
         console.print()
-        print_info("Replying to non-actionable comments...")
+        print_info("Replying to non-actionable comments (--verbose-replies)...")
 
         for q in questions:
             if q.comment.id:
@@ -528,6 +520,11 @@ def fix_pr_comments(
                 )
                 path_info = f"{skip.comment.path}:{skip.comment.line}" if skip.comment.path else "(top-level)"
                 console.print(f"  [dim]Skipped: {path_info} ({reason_msg})[/dim]")
+    elif questions or suggestions:
+        console.print()
+        console.print(
+            f"[dim]Tip: Use --verbose-replies to reply to {len(questions)} questions and {len(suggestions)} suggestions[/dim]"
+        )
 
 
 def list_pr_comments(
