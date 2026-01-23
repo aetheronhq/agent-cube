@@ -482,11 +482,15 @@ async def send_feedback(
 
     background_tasks.add_task(
         send_feedback_async,
-        writer_cfg.name,
-        task_id,
-        feedback_path,
-        session_id,
-        worktree,
+        task_id=task_id,
+        feedback_file=feedback_path,
+        session_id=session_id,
+        worktree=worktree,
+        writer_name=writer_cfg.name,
+        writer_model=writer_cfg.model,
+        writer_label=writer_cfg.label,
+        writer_key=writer_cfg.key,
+        writer_color=writer_cfg.color,
     )
 
     return {

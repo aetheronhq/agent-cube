@@ -6,7 +6,7 @@ from pathlib import Path
 from ..automation.stream import format_stream_message
 from ..core.agent import run_agent
 from ..core.agent_logger import agent_logging_context
-from ..core.git import commit_and_push, create_worktree, has_uncommitted_changes, has_unpushed_commits
+from ..core.git import commit_and_push, create_worktree, has_uncommitted_changes, has_unpushed_commits, push_only
 from ..core.output import console, print_error, print_info, print_success, print_warning
 from ..core.parsers.registry import get_parser
 from ..core.session import load_session, save_session
@@ -253,7 +253,10 @@ async def launch_single_writer(
 
         if has_unpushed_commits(writer_info.worktree, writer_info.branch):
             print_info(f"{writer_info.label}: Pushing unpushed commits...")
-            commit_and_push(writer_info.worktree, writer_info.branch, "")
+            if push_only(writer_info.worktree, writer_info.branch):
+                print_success(f"{writer_info.label}: Pushed to origin")
+            else:
+                print_warning(f"{writer_info.label}: Failed to push")
 
     console.print()
     print_success("All changes committed and pushed!")

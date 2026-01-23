@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import List, Optional
 
 from ..core.agent import run_agent
-from ..core.git import commit_and_push, create_worktree, has_uncommitted_changes, has_unpushed_commits
-from ..core.output import console, print_error, print_success, print_warning
+from ..core.git import commit_and_push, create_worktree, has_uncommitted_changes, has_unpushed_commits, push_only
+from ..core.output import console, print_error, print_info, print_success, print_warning
 from ..core.session import load_session, save_session
 from ..core.user_config import get_writer_config
 from ..models.types import WriterInfo
@@ -142,8 +142,6 @@ async def launch_dual_writers(
     # Use resume_prompt if provided when resuming, otherwise read from file
     if resume_mode and resume_prompt:
         prompt = resume_prompt
-        from ..core.output import print_info
-
         print_info(f"Resuming with additional context: {resume_prompt[:50]}...")
     else:
         prompt = prompt_file.read_text()
@@ -315,7 +313,10 @@ async def launch_dual_writers(
 
             if has_unpushed_commits(writer.worktree, writer.branch):
                 print_info(f"{writer.label}: Pushing unpushed commits...")
-                commit_and_push(writer.worktree, writer.branch, "")
+                if push_only(writer.worktree, writer.branch):
+                    print_success(f"{writer.label}: Pushed to origin")
+                else:
+                    print_warning(f"{writer.label}: Failed to push")
 
     console.print()
     print_success("All changes committed and pushed!")
