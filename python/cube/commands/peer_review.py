@@ -57,7 +57,12 @@ def _get_winner_from_aggregated(task_id: str) -> Optional[str]:
 
 
 def _run_pr_review(
-    pr_number: int, dry_run: bool = False, include_cli: bool = False, skip_agents: bool = False, fresh: bool = False
+    pr_number: int,
+    dry_run: bool = False,
+    include_cli: bool = False,
+    skip_agents: bool = False,
+    fresh: bool = False,
+    focus: Optional[str] = None,
 ) -> None:
     """Run peer review on a GitHub PR with full judge panel."""
     from ..core.session import load_session
@@ -105,11 +110,24 @@ def _run_pr_review(
     # Load repo context (planning docs, README, etc.)
     repo_context = _load_repo_context()
 
-    from ..automation.prompts import build_pr_review_prompt
+    from ..automation.prompts import build_focused_review_prompt, build_pr_review_prompt
 
     prompt_path = prompts_dir / f"peer-review-{task_id}.md"
-    prompt_path.write_text(
-        build_pr_review_prompt(
+
+    if focus:
+        prompt_content = build_focused_review_prompt(
+            pr_number=pr_number,
+            title=pr.title,
+            body=pr.body or "",
+            head_branch=pr.head_branch,
+            head_sha=pr.head_sha,
+            base_branch=pr.base_branch,
+            task_id=task_id,
+            focus_area=focus,
+            repo_context=repo_context,
+        )
+    else:
+        prompt_content = build_pr_review_prompt(
             pr_number=pr_number,
             title=pr.title,
             body=pr.body or "",
@@ -119,7 +137,8 @@ def _run_pr_review(
             task_id=task_id,
             repo_context=repo_context,
         )
-    )
+
+    prompt_path.write_text(prompt_content)
 
     if skip_agents:
         print_info(f"Skipping agents, using existing decisions for PR #{pr_number}...")
@@ -346,6 +365,7 @@ def peer_review_command(
     dry_run: bool = False,
     include_cli: bool = False,
     skip_agents: bool = False,
+    focus: Optional[str] = None,
 ) -> None:
     """Resume original judges from initial panel for peer review.
 
@@ -363,7 +383,7 @@ def peer_review_command(
 
     # Handle --pr mode separately
     if pr is not None:
-        _run_pr_review(pr, dry_run=dry_run, include_cli=include_cli, skip_agents=skip_agents, fresh=fresh)
+        _run_pr_review(pr, dry_run=dry_run, include_cli=include_cli, skip_agents=skip_agents, fresh=fresh, focus=focus)
         return
 
     if not check_cursor_agent():
@@ -443,3 +463,87 @@ def peer_review_command(
     except RuntimeError as e:
         print_error(str(e))
         raise typer.Exit(1)
+
+
+def _fetch_open_prs(cwd: Optional[str] = None) -> list[int]:
+    """Fetch all open PR numbers from the repository."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "list", "--json", "number", "--state", "open"],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        return []
+
+    if result.returncode != 0:
+        return []
+
+    try:
+        data = json.loads(result.stdout)
+        return [pr.get("number") for pr in data if pr.get("number")]
+    except json.JSONDecodeError:
+        return []
+
+
+def review_all_open_prs(
+    dry_run: bool = False,
+    include_cli: bool = False,
+    focus: Optional[str] = None,
+    fresh: bool = False,
+) -> None:
+    """Review all open PRs in the repository.
+
+    Args:
+        dry_run: Show review but don't post to GitHub
+        include_cli: Include cli-review judges
+        focus: Focus area for reviews
+        fresh: Launch fresh judges
+    """
+    from ..github.pulls import check_gh_installed
+
+    if not check_gh_installed():
+        print_error("gh CLI not installed or not authenticated")
+        console.print("Install: https://cli.github.com/")
+        console.print("Auth:    gh auth login")
+        raise typer.Exit(1)
+
+    console.print()
+    console.print("[bold cyan]🔍 Reviewing All Open PRs[/bold cyan]")
+    console.print()
+
+    pr_numbers = _fetch_open_prs(str(PROJECT_ROOT))
+
+    if not pr_numbers:
+        print_info("No open PRs found in this repository")
+        return
+
+    print_info(f"Found {len(pr_numbers)} open PR(s): {pr_numbers}")
+    console.print()
+
+    for i, pr_number in enumerate(pr_numbers, 1):
+        console.print(f"[bold]({i}/{len(pr_numbers)}) Reviewing PR #{pr_number}[/bold]")
+        console.print()
+
+        try:
+            _run_pr_review(
+                pr_number,
+                dry_run=dry_run,
+                include_cli=include_cli,
+                skip_agents=False,
+                fresh=fresh,
+                focus=focus,
+            )
+        except Exception as e:
+            print_warning(f"Failed to review PR #{pr_number}: {e}")
+
+        if i < len(pr_numbers):
+            console.print()
+            console.print("[dim]---[/dim]")
+            console.print()
+
+    print_success(f"Completed review of {len(pr_numbers)} PR(s)")

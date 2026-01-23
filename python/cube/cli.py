@@ -242,16 +242,27 @@ def peer_review(
     skip_agents: Annotated[
         bool, typer.Option("--skip-agents", "--skip", help="Skip AI, just aggregate existing decisions")
     ] = False,
+    focus: Annotated[
+        Optional[str], typer.Option("--focus", "-f", help="Focus area: security, tests, performance, bugs")
+    ] = None,
+    all_prs: Annotated[bool, typer.Option("--all", help="Review all open PRs (with --pr mode)")] = False,
 ):
     """Resume judge panel for peer review of winner's implementation."""
     from pathlib import Path
 
     from .core.config import resolve_task_id, set_current_task_id
 
+    # Handle --all mode: review all open PRs
+    if all_prs:
+        from .commands.peer_review import review_all_open_prs
+
+        review_all_open_prs(dry_run=dry_run, include_cli=include_cli, focus=focus, fresh=fresh)
+        return
+
     # Handle --pr mode: run full panel on GitHub PR
     if pr is not None:
         peer_review_command(
-            "", "", pr=pr, dry_run=dry_run, include_cli=include_cli, skip_agents=skip_agents, fresh=fresh
+            "", "", pr=pr, dry_run=dry_run, include_cli=include_cli, skip_agents=skip_agents, fresh=fresh, focus=focus
         )
         return
 
@@ -542,14 +553,41 @@ def auto(
     prompt: Annotated[
         Optional[str], typer.Option("--prompt", "-p", help="Additional context/instructions for resumed agent(s)")
     ] = None,
+    fix_comments: Annotated[
+        bool, typer.Option("--fix-comments", help="Fix PR review comments instead of running workflow")
+    ] = False,
+    pr: Annotated[
+        Optional[int], typer.Option("--pr", help="PR number (for --fix-comments, auto-detected if not provided)")
+    ] = None,
+    from_author: Annotated[
+        Optional[str], typer.Option("--from", help="Only fix comments from this author (for --fix-comments)")
+    ] = None,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", "--dry", help="Show plan without making changes (for --fix-comments)")
+    ] = False,
+    verbose_replies: Annotated[
+        bool, typer.Option("--verbose-replies", help="Reply to skipped/non-actionable comments (for --fix-comments)")
+    ] = False,
 ):
     """Shortcut for: cube orchestrate auto <task-file>
 
     If --resume is passed without a task file, resumes the last task from this terminal.
+    Use --fix-comments to process PR review comments instead of running the workflow.
     """
     from .core.config import get_current_task_id, set_current_task_id
     from .core.output import print_error, print_info
     from .core.user_config import get_default_writer, is_single_mode_default, resolve_writer_alias
+
+    if fix_comments:
+        from .commands.pr_fix import fix_pr_comments
+
+        fix_pr_comments(
+            pr_number=pr,
+            dry_run=dry_run,
+            from_author=from_author,
+            verbose_replies=verbose_replies,
+        )
+        return
 
     # Determine mode (single or dual) - but don't print yet if resuming (saved state may override)
     single_mode = single or writer is not None or is_single_mode_default()
@@ -646,6 +684,40 @@ def auto(
     except Exception as e:
         _print_error(e)
         sys.exit(1)
+
+
+@app.command(name="pr-review")
+def pr_review_cmd(
+    pr_number: Annotated[Optional[int], typer.Argument(help="PR number to review")] = None,
+    focus: Annotated[
+        Optional[str], typer.Option("--focus", "-f", help="Focus area: security, performance, tests, bugs")
+    ] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run", "--dry", help="Show review without posting")] = False,
+    fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False,
+    include_cli: Annotated[bool, typer.Option("--include-cli", help="Include cli-review judges")] = False,
+    all_prs: Annotated[bool, typer.Option("--all", help="Review all open PRs")] = False,
+):
+    """Review a GitHub PR with Agent Cube judges.
+
+    Examples:
+        cube pr-review 123                      # Full review of PR #123
+        cube pr-review 123 --focus security     # Security-focused review
+        cube pr-review 123 --dry-run            # Preview without posting
+        cube pr-review --all                    # Review all open PRs
+    """
+    from .core.output import print_error
+
+    if all_prs:
+        from .commands.peer_review import review_all_open_prs
+
+        review_all_open_prs(dry_run=dry_run, include_cli=include_cli, fresh=fresh, focus=focus)
+        return
+
+    if pr_number is None:
+        print_error("PR number is required unless using --all")
+        raise typer.Exit(1)
+
+    peer_review_command("", "", pr=pr_number, dry_run=dry_run, include_cli=include_cli, fresh=fresh, focus=focus)
 
 
 @app.command(name="continue")
