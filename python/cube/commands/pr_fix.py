@@ -170,6 +170,7 @@ def _run_fix_agent(
     head_before = result.stdout.strip() if result.returncode == 0 else None
 
     layout = SingleAgentLayout
+    layout.initialize(wconfig.label)
     layout.start()
 
     async def run_fix():
