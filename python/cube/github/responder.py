@@ -1,4 +1,8 @@
-"""Reply to and resolve PR comment threads via gh CLI."""
+"""Reply to and resolve PR comment threads via gh CLI.
+
+Note: The gh CLI auto-expands {owner} and {repo} placeholders in API paths
+when called from within a git repository. This module relies on that behavior.
+"""
 
 import json
 import subprocess
@@ -7,28 +11,6 @@ from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from .comments import PRComment
-
-
-def _get_repo_info(cwd: Optional[str] = None) -> tuple[str, str]:
-    """Get owner and repo name from gh CLI."""
-    result = subprocess.run(
-        ["gh", "repo", "view", "--json", "owner,name"],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"Failed to get repo info: {result.stderr.strip()}")
-
-    try:
-        data = json.loads(result.stdout)
-        owner = data.get("owner", {}).get("login", "")
-        repo = data.get("name", "")
-        if not owner or not repo:
-            raise RuntimeError("Could not determine owner/repo")
-        return owner, repo
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Failed to parse repo info: {e}")
 
 
 def reply_to_comment(

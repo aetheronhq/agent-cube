@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
+from ..core.output import print_warning
+from .utils import get_repo_info
+
 
 @dataclass
 class PRComment:
@@ -34,28 +37,6 @@ class CommentThread:
     comments: list[PRComment]
     is_resolved: bool
     is_outdated: bool
-
-
-def _get_repo_info(cwd: Optional[str] = None) -> tuple[str, str]:
-    """Get owner and repo name from gh CLI."""
-    result = subprocess.run(
-        ["gh", "repo", "view", "--json", "owner,name"],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"Failed to get repo info: {result.stderr.strip()}")
-
-    try:
-        data = json.loads(result.stdout)
-        owner = data.get("owner", {}).get("login", "")
-        repo = data.get("name", "")
-        if not owner or not repo:
-            raise RuntimeError("Could not determine owner/repo")
-        return owner, repo
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Failed to parse repo info: {e}")
 
 
 def _is_bot_author(author: str, skip_bots: Optional[list[str]] = None) -> bool:
@@ -178,7 +159,7 @@ def fetch_comment_threads(pr_number: int, cwd: Optional[str] = None) -> list[Com
         List of CommentThread objects
     """
     try:
-        owner, repo = _get_repo_info(cwd)
+        owner, repo = get_repo_info(cwd)
     except RuntimeError:
         return []
 
@@ -281,6 +262,9 @@ def fetch_comment_threads(pr_number: int, cwd: Optional[str] = None) -> list[Com
             )
     except (json.JSONDecodeError, KeyError):
         pass
+
+    if len(threads) >= 100:
+        print_warning("PR has 100+ review threads - some may be truncated due to pagination limits")
 
     return threads
 
