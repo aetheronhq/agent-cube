@@ -1,4 +1,4 @@
-"Parallel dual writer execution."
+"""Parallel dual writer execution."""
 
 import asyncio
 from datetime import datetime
@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from ..core.agent import run_agent
 from ..core.git import commit_and_push, create_worktree, has_uncommitted_changes, has_unpushed_commits
-from ..core.output import console, print_error, print_info, print_success, print_warning
+from ..core.output import console, print_error, print_success, print_warning
 from ..core.session import load_session, save_session
 from ..core.user_config import get_writer_config
 from ..models.types import WriterInfo
@@ -100,11 +100,19 @@ async def run_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None
 
 
 async def launch_dual_writers(
-    task_id: str, prompt_file: Path, resume_mode: bool = False, writer_keys: Optional[List[str]] = None
+    task_id: str,
+    prompt_file: Path,
+    resume_mode: bool = False,
+    writer_keys: Optional[List[str]] = None,
+    resume_prompt: str | None = None,
 ) -> None:
-    """Launch N writers in parallel (default: all from config)."""
+    """Launch N writers in parallel (default: all from config).
 
-    if not prompt_file.exists():
+    Args:
+        resume_prompt: If provided when resume_mode=True, use this as the prompt instead of the file.
+    """
+
+    if not prompt_file.exists() and not resume_mode:
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
 
     # Create fresh layout for this run (closes previous if exists)
@@ -131,7 +139,14 @@ async def launch_dual_writers(
         )
         save_state(state)
 
-    prompt = prompt_file.read_text()
+    # Use resume_prompt if provided when resuming, otherwise read from file
+    if resume_mode and resume_prompt:
+        prompt = resume_prompt
+        from ..core.output import print_info
+
+        print_info(f"Resuming with additional context: {resume_prompt[:50]}...")
+    else:
+        prompt = prompt_file.read_text()
 
     from ..core.writer_metadata import WriterMetadata, save_writer_metadata
 
@@ -181,46 +196,95 @@ async def launch_dual_writers(
     print_info(f"Prompt: {prompt_file}")
     console.print()
 
-    console.print()
-    console.print("🚀 Launching writers in parallel...")
-    console.print()
+    current_prompt = prompt
+    is_resuming = resume_mode
 
-    # Show which models/CLIs are being used
-    from ..core.user_config import load_config
+    while True:
+        console.print()
+        console.print("🚀 Launching writers in parallel...")
+        console.print()
 
-    config = load_config()
-    for w in writers:
-        cli_name = config.cli_tools.get(w.model, "cursor-agent")
-        console.print(f"[dim]{w.label}: Starting with model {w.model} (CLI: {cli_name})...")
-    console.print()
+        # Show which models/CLIs are being used
+        from ..core.user_config import load_config
 
-    results = await asyncio.gather(*[run_writer(w, prompt, resume_mode) for w in writers], return_exceptions=True)
+        config = load_config()
+        for w in writers:
+            cli_name = config.cli_tools.get(w.model, "cursor-agent")
+            status = "↩️ Resuming" if is_resuming and w.session_id else "✨ New"
+            console.print(f"[dim]{status} {w.label}: {w.model} (CLI: {cli_name})...")
+        console.print()
 
-    from ..core.dynamic_layout import DynamicLayout
+        try:
+            results = await asyncio.gather(
+                *[run_writer(w, current_prompt, is_resuming) for w in writers], return_exceptions=True
+            )
+        except KeyboardInterrupt:
+            from ..core.dynamic_layout import DynamicLayout
 
-    DynamicLayout.close()
-
-    errors = []
-    for i, result in enumerate(results):
-        if isinstance(result, Exception):
-            errors.append((writers[i], result))
-
-    console.print()
-
-    if errors:
-        print_error("Some writers failed:")
-        for writer, error in errors:
-            console.print(f"  [{writer.color}]{writer.label}[/{writer.color}]: {error}")
-
-        if len(errors) == len(writers):
-            raise RuntimeError("All writers failed")
-        else:
-            failed_count = len(errors)
-            success_count = len(writers) - failed_count
-            print_warning(f"{failed_count} writer(s) failed but {success_count} completed successfully")
+            DynamicLayout.close()
             console.print()
-    else:
-        console.print(f"✅ {len(writers)} writers completed successfully")
+            console.print("[yellow]⏸️  Writers interrupted[/yellow]")
+
+            # Show which sessions were saved
+            saved_any = False
+            for w in writers:
+                if w.session_id:
+                    console.print(f"  [{w.color}]{w.label}[/{w.color}]: {w.session_id}")
+                    saved_any = True
+
+            if saved_any:
+                console.print("[dim]Sessions saved[/dim]")
+
+            console.print()
+            console.print("[cyan]Enter follow-up message for all writers (or press Enter to exit):[/cyan]")
+
+            try:
+                follow_up = input("> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                follow_up = ""
+
+            if follow_up:
+                # Resume with the follow-up
+                console.print()
+                console.print("[cyan]↩️  Resuming writers with follow-up...[/cyan]")
+                current_prompt = follow_up
+                is_resuming = True
+                # Re-initialize layout for the resume
+                DynamicLayout.initialize(boxes, lines_per_box=3, task_name=task_id)
+                continue
+            else:
+                console.print("[yellow]Exiting. Resume later with:[/yellow]")
+                console.print("  cube auto <task> --resume-from 2")
+                return
+
+        from ..core.dynamic_layout import DynamicLayout
+
+        DynamicLayout.close()
+
+        errors = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                errors.append((writers[i], result))
+
+        console.print()
+
+        if errors:
+            print_error("Some writers failed:")
+            for writer, error in errors:
+                console.print(f"  [{writer.color}]{writer.label}[/{writer.color}]: {error}")
+
+            if len(errors) == len(writers):
+                raise RuntimeError("All writers failed")
+            else:
+                failed_count = len(errors)
+                success_count = len(writers) - failed_count
+                print_warning(f"{failed_count} writer(s) failed but {success_count} completed successfully")
+                console.print()
+        else:
+            console.print(f"✅ {len(writers)} writers completed successfully")
+
+        # Writers completed, exit loop
+        break
 
     console.print()
 

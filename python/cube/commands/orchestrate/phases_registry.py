@@ -13,6 +13,7 @@ class PhaseResult:
     exit: bool = False
     exit_message: str = ""
     data: dict[str, Any] = field(default_factory=dict)
+    next_phase: int | None = None  # Jump to specific phase (for TIE loops)
 
 
 @dataclass
@@ -28,6 +29,8 @@ class WorkflowContext:
     result: dict[str, Any] = field(default_factory=dict)
     final_result: dict[str, Any] = field(default_factory=dict)
     fresh_writer: bool = False  # Clear winner's session and start fresh
+    fresh_judges: bool = False  # Start fresh judge sessions instead of resuming
+    resume_prompt: Optional[str] = None  # Additional context for resumed agents
 
     @property
     def writer_prompt_path(self) -> Path:

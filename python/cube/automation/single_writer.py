@@ -15,8 +15,21 @@ from ..core.user_config import get_writer_config
 from ..models.types import WriterInfo
 
 
-async def run_single_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> None:
-    """Run a single writer agent."""
+class InterruptFollowUp(Exception):
+    """Raised when user provides follow-up after Ctrl+C interrupt."""
+
+    def __init__(self, message: str, writer_info: WriterInfo):
+        self.message = message
+        self.writer_info = writer_info
+        super().__init__(message)
+
+
+async def run_single_writer(writer_info: WriterInfo, prompt: str, resume: bool) -> bool:
+    """Run a single writer agent.
+
+    Returns True if completed normally, False if interrupted and user wants to exit.
+    Raises InterruptFollowUp if user provided follow-up text.
+    """
     from ..core.user_config import load_config as load_user_config
 
     config = load_user_config()
@@ -30,47 +43,75 @@ async def run_single_writer(writer_info: WriterInfo, prompt: str, resume: bool) 
 
     stream = run_agent(writer_info.worktree, writer_info.model, prompt, session_id=session_id, resume=resume)
 
-    async with agent_logging_context(
-        agent_type="writer",
-        agent_name=writer_info.name,
-        task_id=writer_info.task_id,
-        session_key=writer_info.key.upper(),
-        session_task_key=writer_info.task_id,
-        metadata=f"{writer_info.label} ({writer_info.model}) - {writer_info.task_id} - {datetime.now()}",
-    ) as logger:
-        async for line in stream:
-            logger.write_line(line)
+    final_line_count = 0
 
-            msg = parser.parse(line)
-            if msg:
-                if msg.type == "system" and msg.subtype == "init":
-                    msg.resumed = resume
-                if msg.session_id and not writer_info.session_id:
-                    writer_info.session_id = msg.session_id
-                    save_session(
-                        writer_info.key.upper(),
-                        writer_info.task_id,
-                        msg.session_id,
-                        f"Writer {writer_info.name} ({writer_info.model})",
-                    )
+    try:
+        async with agent_logging_context(
+            agent_type="writer",
+            agent_name=writer_info.name,
+            task_id=writer_info.task_id,
+            session_key=writer_info.key.upper(),
+            session_task_key=writer_info.task_id,
+            metadata=f"{writer_info.label} ({writer_info.model}) - {writer_info.task_id} - {datetime.now()}",
+        ) as logger:
+            async for line in stream:
+                logger.write_line(line)
 
-                formatted = format_stream_message(msg, writer_info.label, writer_info.color)
-                if formatted:
-                    if formatted.startswith("[thinking]"):
-                        thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
-                        layout.update_thinking(thinking_text)
-                    elif msg.type == "assistant" and msg.content:
-                        layout.add_assistant_message(msg.content, writer_info.label, writer_info.color)
-                    else:
-                        layout.add_output(formatted)
+                msg = parser.parse(line)
+                if msg:
+                    if msg.type == "system" and msg.subtype == "init":
+                        msg.resumed = resume
+                    if msg.session_id and not writer_info.session_id:
+                        writer_info.session_id = msg.session_id
+                        save_session(
+                            writer_info.key.upper(),
+                            writer_info.task_id,
+                            msg.session_id,
+                            f"Writer {writer_info.name} ({writer_info.model})",
+                        )
 
-        if logger.line_count < 10:
-            raise RuntimeError(
-                f"{writer_info.label} completed suspiciously quickly ({logger.line_count} lines). Check {logger.log_file} for errors."
-            )
+                    formatted = format_stream_message(msg, writer_info.label, writer_info.color)
+                    if formatted:
+                        if formatted.startswith("[thinking]"):
+                            thinking_text = formatted.replace("[thinking]", "").replace("[/thinking]", "")
+                            layout.update_thinking(thinking_text)
+                        elif msg.type == "assistant" and msg.content:
+                            layout.add_assistant_message(msg.content, writer_info.label, writer_info.color)
+                        else:
+                            layout.add_output(formatted)
 
-        final_line_count = logger.line_count
+            if logger.line_count < 10:
+                raise RuntimeError(
+                    f"{writer_info.label} completed suspiciously quickly ({logger.line_count} lines). Check {logger.log_file} for errors."
+                )
 
+            final_line_count = logger.line_count
+
+    except KeyboardInterrupt:
+        layout.close()
+        console.print()
+        console.print(f"[yellow]⏸️  {writer_info.label} interrupted[/yellow]")
+
+        # Session should already be saved from the stream
+        if writer_info.session_id:
+            console.print(f"[dim]Session saved: {writer_info.session_id}[/dim]")
+
+        console.print()
+        console.print("[cyan]Enter follow-up message (or press Enter to exit):[/cyan]")
+
+        try:
+            follow_up = input("> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            follow_up = ""
+
+        if follow_up:
+            raise InterruptFollowUp(follow_up, writer_info)
+        else:
+            console.print("[yellow]Exiting. Resume later with:[/yellow]")
+            console.print("  cube auto <task> --resume-from 2")
+            return False
+
+    # Calculate status and mark complete
     status = f"{final_line_count} events"
 
     try:
@@ -89,14 +130,23 @@ async def run_single_writer(writer_info: WriterInfo, prompt: str, resume: bool) 
         pass
 
     layout.mark_complete(status)
+    return True
 
 
 async def launch_single_writer(
-    task_id: str, prompt_file: Path, writer_key: str | None = None, resume_mode: bool = False
+    task_id: str,
+    prompt_file: Path,
+    writer_key: str | None = None,
+    resume_mode: bool = False,
+    resume_prompt: str | None = None,
 ) -> None:
-    """Launch a single writer for a task."""
+    """Launch a single writer for a task.
 
-    if not prompt_file.exists():
+    Args:
+        resume_prompt: If provided when resume_mode=True, use this as the prompt instead of the file.
+    """
+
+    if not prompt_file.exists() and not resume_mode:
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
 
     if not writer_key:
@@ -111,7 +161,12 @@ async def launch_single_writer(
 
     from ..core.writer_metadata import WriterMetadata, save_writer_metadata
 
-    prompt = prompt_file.read_text()
+    # Use resume_prompt if provided when resuming, otherwise read from file
+    if resume_mode and resume_prompt:
+        prompt = resume_prompt
+        print_info(f"Resuming with additional context: {resume_prompt[:50]}...")
+    else:
+        prompt = prompt_file.read_text()
 
     worktree = create_worktree(task_id, wconfig.name)
     branch = f"writer-{wconfig.name}/{task_id}"
@@ -154,16 +209,33 @@ async def launch_single_writer(
 
     config = load_config()
     cli_name = config.cli_tools.get(writer_info.model, "cursor-agent")
-    console.print(f"[dim]{writer_info.label}: Starting with model {writer_info.model} (CLI: {cli_name})...")
+    status = "↩️ Resuming" if resume_mode else "✨ New"
+    console.print(f"[dim]{status} {writer_info.label}: {writer_info.model} (CLI: {cli_name})...")
 
-    try:
-        await run_single_writer(writer_info, prompt, resume_mode)
-        print_success("Writer completed successfully")
-    except Exception as e:
-        print_error(f"Writer {writer_info.label} failed: {e}")
-        raise
-    finally:
-        layout.close()
+    current_prompt = prompt
+    is_resuming = resume_mode
+
+    while True:
+        try:
+            completed = await run_single_writer(writer_info, current_prompt, is_resuming)
+            if completed:
+                print_success("Writer completed successfully")
+            break
+        except InterruptFollowUp as interrupt:
+            # User provided follow-up, resume with it
+            console.print()
+            console.print(f"[cyan]↩️  Resuming {writer_info.label} with follow-up...[/cyan]")
+            console.print()
+            current_prompt = interrupt.message
+            is_resuming = True
+            # Re-initialize layout for the resume
+            layout.initialize(f"Writer: {wconfig.label}")
+            continue
+        except Exception as e:
+            print_error(f"Writer {writer_info.label} failed: {e}")
+            raise
+
+    layout.close()
 
     console.print()
 

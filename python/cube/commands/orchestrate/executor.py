@@ -19,9 +19,14 @@ async def execute_workflow(ctx: WorkflowContext) -> PhaseResult:
         console.print(f"Task: {ctx.task_id}")
 
     master_log = get_master_log()
+    current_phase_idx = 0
+    phases = get_phases()
 
-    for phase in get_phases():
+    while current_phase_idx < len(phases):
+        phase = phases[current_phase_idx]
+
         if phase.num < ctx.resume_from:
+            current_phase_idx += 1
             continue
 
         console.print()
@@ -42,6 +47,14 @@ async def execute_workflow(ctx: WorkflowContext) -> PhaseResult:
             if result.exit_message:
                 console.print(result.exit_message)
             return result
+
+        # Handle phase jump (e.g., TIE -> back to panel)
+        if result.next_phase is not None:
+            ctx.resume_from = result.next_phase
+            current_phase_idx = 0  # Reset to find the target phase
+            continue
+
+        current_phase_idx += 1
 
     print_success("🎉 Workflow complete!")
     return PhaseResult(success=True)

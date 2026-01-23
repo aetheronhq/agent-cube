@@ -5,6 +5,7 @@ import json
 from ...core.config import PROJECT_ROOT
 from ...core.output import console, print_info, print_warning
 from ..decide import decide_command
+from .phases import _normalize_issue
 
 
 def run_decide_and_get_result(task_id: str) -> dict:
@@ -73,7 +74,8 @@ def run_decide_peer_review(task_id: str, require_decisions: bool = True) -> dict
             if issues:
                 console.print(f"  Issues: {len(issues)}")
                 for issue in issues[:3]:
-                    truncated = issue[:100] + "..." if len(issue) > 100 else issue
+                    issue_str = _normalize_issue(issue)
+                    truncated = issue_str[:100] + "..." if len(issue_str) > 100 else issue_str
                     console.print(f"    • {truncated}")
                 if len(issues) > 3:
                     console.print(f"    [dim]... and {len(issues) - 3} more[/dim]")

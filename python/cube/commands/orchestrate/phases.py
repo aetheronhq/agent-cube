@@ -13,6 +13,20 @@ from ...core.session import get_prompter_session, save_prompter_session
 from ...core.user_config import get_prompter_model
 
 
+def _normalize_issue(issue) -> str:
+    """Convert issue to string. Issues can be strings or dicts with file/line/issue keys."""
+    if isinstance(issue, str):
+        return issue
+    if isinstance(issue, dict):
+        # Handle inline comment format: {'file': '...', 'line': N, 'issue': '...'}
+        if "issue" in issue:
+            file_info = f"{issue.get('file', '')}:{issue.get('line', '')}" if issue.get("file") else ""
+            return f"{file_info} {issue['issue']}" if file_info else issue["issue"]
+        # Fallback: convert dict to string
+        return str(issue)
+    return str(issue)
+
+
 async def run_prompter_with_session(task_id: str, prompt: str, layout, output_path, label: str = "Prompter"):
     """Run prompter with session management.
 
@@ -96,7 +110,7 @@ async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
                         pass
 
         blocker_section = (
-            chr(10).join("- " + issue for issue in blocker_issues)
+            chr(10).join("- " + _normalize_issue(issue) for issue in blocker_issues)
             if blocker_issues
             else "(Read judge decision files for issues)"
         )
@@ -186,7 +200,12 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
 
 
 async def run_peer_review(
-    task_id: str, result: dict, prompts_dir: Path, run_all_judges: bool = False, judges_to_run: list = None
+    task_id: str,
+    result: dict,
+    prompts_dir: Path,
+    run_all_judges: bool = False,
+    judges_to_run: list = None,
+    resume_mode: bool = False,
 ):
     """Phase 7: Run peer review. Set run_all_judges=True for single writer mode, or pass specific judges_to_run."""
     from ...core.single_layout import SingleAgentLayout
@@ -233,7 +252,7 @@ Include the worktree location and git commands for reviewing."""
         task_id,
         peer_review_path,
         "peer-review",
-        resume_mode=False,
+        resume_mode=resume_mode,
         winner=result["winner"],
         run_all_judges=run_all_judges,
         judges_to_run=judges_to_run,
@@ -263,7 +282,7 @@ Worktree: `~/.cube/worktrees/{Path(PROJECT_ROOT).name}/writer-{winner_name}-{tas
 
 ## Minor Issues from Peer Review
 
-{chr(10).join('- ' + issue for issue in issues)}
+{chr(10).join('- ' + _normalize_issue(issue) for issue in issues)}
 
 ## Your Task
 

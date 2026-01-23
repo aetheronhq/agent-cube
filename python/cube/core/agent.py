@@ -8,23 +8,23 @@ from .adapters.registry import get_adapter
 from .output import console
 from .user_config import load_config
 
-# Errors that should trigger auto-retry (transient failures)
-RETRYABLE_ERRORS = [
-    "network error",
-    "exited with code 1",
-    "rate limit",
-    "capacity exhausted",
-    "connection reset",
-    "timeout",
-    "unavailable",
-    "retriableerror",
+# Errors that should NOT trigger auto-retry (permanent failures)
+NON_RETRYABLE_ERRORS = [
+    "not logged in",
+    "login required",
+    "authentication",
+    "unauthorized",
+    "invalid api key",
+    "permission denied",
+    "file not found",
+    "prompt file not found",
 ]
 
 
 def _is_retryable_error(error_msg: str) -> bool:
-    """Check if an error message indicates a retryable transient failure."""
+    """Check if error is retryable. Default to True, blacklist known non-retryable errors."""
     error_lower = error_msg.lower()
-    return any(pattern in error_lower for pattern in RETRYABLE_ERRORS)
+    return not any(pattern in error_lower for pattern in NON_RETRYABLE_ERRORS)
 
 
 async def run_agent(

@@ -11,6 +11,8 @@ async def orchestrate_auto_command(
     single_mode: bool = False,
     writer_key: str | None = None,
     fresh_writer: bool = False,
+    fresh_judges: bool = False,
+    resume_prompt: str | None = None,
 ) -> None:
     """Fully autonomous orchestration - runs entire workflow.
 
@@ -22,6 +24,8 @@ async def orchestrate_auto_command(
         single_mode: Run in single-writer mode
         writer_key: The writer to use in single-writer mode
         fresh_writer: Clear winner's session and start fresh (for dead sessions)
+        fresh_judges: Start fresh judge sessions instead of resuming
+        resume_prompt: Additional context/instructions to prepend when resuming
     """
     from ...core.master_log import master_log_context
 
@@ -39,4 +43,6 @@ async def orchestrate_auto_command(
             single_mode=single_mode,
             writer_key=writer_key,
             fresh_writer=fresh_writer,
+            fresh_judges=fresh_judges,
+            resume_prompt=resume_prompt,
         )
