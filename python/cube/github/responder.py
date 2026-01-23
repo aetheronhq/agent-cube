@@ -346,8 +346,9 @@ def reply_and_resolve(
     comment: "PRComment",
     commit_sha: str,
     cwd: Optional[str] = None,
+    auto_resolve: bool = False,
 ) -> bool:
-    """Reply to a comment with fix confirmation and resolve the thread.
+    """Reply to a comment with fix confirmation, optionally resolving the thread.
 
     Uses GraphQL for replies when thread_id is available (works with GraphQL node IDs).
     Falls back to REST API for numeric IDs.
@@ -357,15 +358,16 @@ def reply_and_resolve(
         comment: The PRComment object to reply to
         commit_sha: The commit SHA where the fix was made
         cwd: Working directory
+        auto_resolve: If True, automatically resolve the thread (default: False, let reviewer verify)
 
     Returns:
         True if reply was posted (thread resolution is best-effort)
     """
-    reply_body = f"✅ Fixed in {commit_sha} - please verify\n\n---\n*Agent Cube*"
+    reply_body = f"Addressed in {commit_sha}\n\n---\n*Agent Cube*"
 
     if comment.thread_id:
         reply_success = reply_to_thread_graphql(comment.thread_id, reply_body, cwd)
-        if reply_success:
+        if reply_success and auto_resolve:
             resolve_thread(comment.thread_id, cwd)
     else:
         reply_success = reply_to_comment(pr_number, comment.id, reply_body, cwd)
