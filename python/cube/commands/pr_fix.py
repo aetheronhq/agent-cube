@@ -107,7 +107,28 @@ You are fixing review comments on PR #{pr_number}: {pr_title}
     return prompt
 
 
-def _run_fix_agent(worktree: Path, prompt: str, pr_number: int) -> Optional[str]:
+def _build_commit_message(comments: list[CategorizedComment], pr_number: int) -> str:
+    """Build a detailed commit message for the fix."""
+    summaries = []
+    for cat in comments[:5]:
+        body_preview = cat.comment.body[:40].replace("\n", " ").strip()
+        if len(cat.comment.body) > 40:
+            body_preview += "..."
+        path_info = cat.comment.path or "general"
+        summaries.append(f"- {path_info}: {body_preview}")
+
+    msg = f"fix: address PR #{pr_number} review comments\n\n"
+    msg += "Addressed feedback:\n"
+    msg += "\n".join(summaries)
+    if len(comments) > 5:
+        msg += f"\n... and {len(comments) - 5} more"
+    msg += "\n\nAutomated fixes via cube auto --fix-comments"
+    return msg
+
+
+def _run_fix_agent(
+    worktree: Path, prompt: str, pr_number: int, comments: Optional[list[CategorizedComment]] = None
+) -> Optional[str]:
     """Run a writer agent to fix the comments and return the commit SHA."""
     from ..core.agent import run_agent, run_async
     from ..core.output import console
@@ -154,7 +175,11 @@ def _run_fix_agent(worktree: Path, prompt: str, pr_number: int) -> Optional[str]
         return None
 
     subprocess.run(["git", "add", "-A"], cwd=worktree, capture_output=True)
-    commit_msg = f"fix: address PR #{pr_number} review comments\n\nAutomated fixes via cube auto --fix-comments"
+    commit_msg = (
+        _build_commit_message(comments or [], pr_number)
+        if comments
+        else f"fix: address PR #{pr_number} review comments"
+    )
     result = subprocess.run(
         ["git", "commit", "-m", commit_msg],
         cwd=worktree,
@@ -339,17 +364,28 @@ def fix_pr_comments(
         active_threads = _filter_threads_skip_bots(active_threads, bots_to_skip)
         console.print(f"[dim]After filtering bots: {len(active_threads)} threads[/dim]")
 
-    if not active_threads:
-        print_success("No active comments to address!")
-        return
-
     thread_comments = []
     for thread in active_threads:
         if thread.comments:
             thread_comments.append(thread.comments[0])
 
+    issue_comments = [c for c in all_comments if c.path is None and not c.is_bot]
+    if from_author:
+        issue_comments = [c for c in issue_comments if c.author.lower() == from_author.lower()]
+    if bots_to_skip:
+        issue_comments = [c for c in issue_comments if c.author.lower() not in [b.lower() for b in bots_to_skip]]
+
+    all_to_process = thread_comments + issue_comments
+    console.print(
+        f"[dim]Processing: {len(thread_comments)} thread comments + {len(issue_comments)} issue comments[/dim]"
+    )
+
+    if not all_to_process:
+        print_success("No active comments to address!")
+        return
+
     print_info("Categorizing comments...")
-    categorized = categorize_comments(thread_comments)
+    categorized = categorize_comments(all_to_process)
 
     actionable = filter_actionable(
         categorized,
@@ -417,7 +453,7 @@ def fix_pr_comments(
     print_info(f"Running writer agent to fix {len(actionable)} comments...")
 
     fix_prompt = _build_fix_prompt(actionable, pr_number, pr.title)
-    commit_sha = _run_fix_agent(worktree, fix_prompt, pr_number)
+    commit_sha = _run_fix_agent(worktree, fix_prompt, pr_number, comments=actionable)
 
     if not commit_sha:
         print_warning("No fixes were committed - agent may not have made changes")
@@ -475,6 +511,18 @@ def fix_pr_comments(
                 )
                 path_info = f"{s.comment.path}:{s.comment.line}" if s.comment.path else "(top-level)"
                 console.print(f"  [cyan]Noted suggestion: {path_info}[/cyan]")
+
+        for skip in skipped:
+            if skip.comment.id and "Positive feedback" not in skip.reason:
+                reason_msg = skip.reason or "No actionable request detected"
+                reply_to_comment(
+                    pr_number,
+                    skip.comment.id,
+                    f"⏭️ Skipped: {reason_msg}\n\n---\n*Agent Cube*",
+                    cwd=cwd,
+                )
+                path_info = f"{skip.comment.path}:{skip.comment.line}" if skip.comment.path else "(top-level)"
+                console.print(f"  [dim]Skipped: {path_info} ({reason_msg})[/dim]")
 
 
 def list_pr_comments(

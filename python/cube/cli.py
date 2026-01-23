@@ -684,13 +684,14 @@ def auto(
 
 @app.command(name="pr-review")
 def pr_review_cmd(
-    pr_number: Annotated[int, typer.Argument(help="PR number to review")],
+    pr_number: Annotated[Optional[int], typer.Argument(help="PR number to review")] = None,
     focus: Annotated[
         Optional[str], typer.Option("--focus", "-f", help="Focus area: security, performance, tests, bugs")
     ] = None,
     dry_run: Annotated[bool, typer.Option("--dry-run", "--dry", help="Show review without posting")] = False,
     fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False,
     include_cli: Annotated[bool, typer.Option("--include-cli", help="Include cli-review judges")] = False,
+    all_prs: Annotated[bool, typer.Option("--all", help="Review all open PRs")] = False,
 ):
     """Review a GitHub PR with Agent Cube judges.
 
@@ -698,7 +699,20 @@ def pr_review_cmd(
         cube pr-review 123                      # Full review of PR #123
         cube pr-review 123 --focus security     # Security-focused review
         cube pr-review 123 --dry-run            # Preview without posting
+        cube pr-review --all                    # Review all open PRs
     """
+    from .core.output import print_error
+
+    if all_prs:
+        from .commands.peer_review import review_all_open_prs
+
+        review_all_open_prs(dry_run=dry_run, include_cli=include_cli, fresh=fresh, focus=focus)
+        return
+
+    if pr_number is None:
+        print_error("PR number is required unless using --all")
+        raise typer.Exit(1)
+
     peer_review_command("", "", pr=pr_number, dry_run=dry_run, include_cli=include_cli, fresh=fresh, focus=focus)
 
 
