@@ -554,7 +554,7 @@ def auto(
         Optional[str], typer.Option("--prompt", "-p", help="Additional context/instructions for resumed agent(s)")
     ] = None,
     fix_comments: Annotated[
-        bool, typer.Option("--fix-comments", help="Fix PR review comments instead of running workflow")
+        bool, typer.Option("--fix-comments", "--fix", help="Fix PR review comments instead of running workflow")
     ] = False,
     pr: Annotated[
         Optional[int], typer.Option("--pr", help="PR number (for --fix-comments, auto-detected if not provided)")
