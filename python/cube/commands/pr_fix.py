@@ -169,12 +169,13 @@ def _run_fix_agent(
         cwd=worktree,
         capture_output=True,
         text=True,
+        timeout=30,
     )
     if not result.stdout.strip():
         print_warning("No changes detected after agent run")
         return None
 
-    subprocess.run(["git", "add", "-A"], cwd=worktree, capture_output=True)
+    subprocess.run(["git", "add", "-A"], cwd=worktree, capture_output=True, timeout=30)
     commit_msg = (
         _build_commit_message(comments or [], pr_number)
         if comments
@@ -185,6 +186,7 @@ def _run_fix_agent(
         cwd=worktree,
         capture_output=True,
         text=True,
+        timeout=30,
     )
     if result.returncode != 0:
         print_warning(f"Commit failed: {result.stderr}")
@@ -195,6 +197,7 @@ def _run_fix_agent(
         cwd=worktree,
         capture_output=True,
         text=True,
+        timeout=10,
     )
     commit_sha = result.stdout.strip() if result.returncode == 0 else None
 
@@ -203,6 +206,7 @@ def _run_fix_agent(
         cwd=worktree,
         capture_output=True,
         text=True,
+        timeout=60,
     )
     if result.returncode != 0:
         print_error(f"Push failed: {result.stderr}")
@@ -220,6 +224,7 @@ def _get_current_pr_number(cwd: Optional[str] = None) -> Optional[int]:
         capture_output=True,
         text=True,
         cwd=cwd,
+        timeout=30,
     )
 
     if result.returncode != 0:
