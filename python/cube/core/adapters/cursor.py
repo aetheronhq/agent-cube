@@ -52,16 +52,18 @@ class CursorAdapter(CLIAdapter):
                 if master_log:
                     master_log.write_raw_line(f"cursor-{model}", line)
 
-                # Detect specific error types (order matters - check transient first)
-                if "RetriableError" in line or "unavailable" in line.lower():
+                # Detect specific error types - only in error lines, not regular content
+                is_error_line = line.startswith('{"type":"error"') or line.startswith("Error:")
+
+                if "RetriableError" in line or (is_error_line and "unavailable" in line.lower()):
                     last_error = f"Transient error: {line[:150]}"
-                elif "rate limit" in line.lower() or "capacity" in line.lower():
+                elif is_error_line and ("rate limit" in line.lower() or "capacity" in line.lower()):
                     last_error = f"Rate limit: {line[:150]}"
                 elif "ConnectError" in line or "ECONNRESET" in line:
                     last_error = "Network connection error"
-                elif "not logged in" in line.lower() or "authentication" in line.lower():
+                elif is_error_line and ("not logged in" in line.lower() or "authentication" in line.lower()):
                     last_error = "Authentication required"
-                elif line.startswith('{"type":"error"') or line.startswith("Error:"):
+                elif is_error_line:
                     last_error = line[:200]
 
                 yield line
