@@ -597,13 +597,29 @@ def _serialize_judge_decision(decision: JudgeDecision) -> dict[str, Any]:
 
     scores = decision.scores
 
+    # Convert blocker objects to strings if needed
+    blockers = []
+    for b in decision.blocker_issues or []:
+        if isinstance(b, dict):
+            # Object blocker - extract description
+            desc = b.get("description", "")
+            file_info = b.get("file", "")
+            if file_info and b.get("line"):
+                blockers.append(f"{file_info}:{b['line']}: {desc}")
+            elif desc:
+                blockers.append(desc)
+            else:
+                blockers.append(str(b))
+        else:
+            blockers.append(str(b))
+
     return {
         "judge": decision.judge,
         "label": label,
         "model": model_name,
         "vote": vote_value,
         "rationale": decision.recommendation,
-        "blockers": decision.blocker_issues or [],
+        "blockers": blockers,
         "scores": scores,
     }
 
