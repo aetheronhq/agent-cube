@@ -236,19 +236,27 @@ async def synthesis_minor_fixes(ctx: WorkflowContext) -> PhaseResult:
         return PhaseResult(exit=True)
 
     if final_result["approved"] and not final_result["remaining_issues"]:
-        print_success("All judges approved with no issues - skipping minor fixes")
+        print_success("All judges approved with no issues - skipping to PR")
+        return PhaseResult(data={"fixes_skipped": True, "all_approved": True})
     elif not final_result["remaining_issues"]:
-        print_warning("No specific issues listed - skipping minor fixes")
+        print_warning("No specific issues listed - skipping to PR")
+        return PhaseResult(data={"fixes_skipped": True, "all_approved": False})
     else:
         await run_minor_fixes(
             ctx.task_id, ctx.result, final_result["remaining_issues"], ctx.prompts_dir, ctx.fresh_writer
         )
-
-    return PhaseResult()
+        return PhaseResult(data={"fixes_skipped": False})
 
 
 async def synthesis_final_peer_review(ctx: WorkflowContext) -> PhaseResult:
     """Phase 10: Final peer review and PR creation."""
+    # Check if Phase 9 skipped fixes - if so, skip re-review and create PR directly
+    phase9_data = ctx.result.get("phase_9_data", {})
+    if phase9_data.get("fixes_skipped"):
+        print_info("No fixes were made - skipping re-review")
+        await create_pr(ctx.task_id, ctx.result["winner"])
+        return PhaseResult(exit=True)
+
     # Resume judges by default (they have context), use --fresh-judges for fresh start
     resume_judges = not ctx.fresh_judges
     if ctx.fresh_judges:

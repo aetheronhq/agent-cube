@@ -36,6 +36,9 @@ async def execute_workflow(ctx: WorkflowContext) -> PhaseResult:
 
         result = await phase.handler(ctx)
 
+        # Store phase result data in ctx for subsequent phases to access
+        ctx.result[f"phase_{phase.num}_data"] = result.data
+
         state_updates = phase.state_updates.copy() if phase.state_updates else {}
         state_updates.update(result.data)
         if state_updates:
