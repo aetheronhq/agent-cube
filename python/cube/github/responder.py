@@ -2,12 +2,17 @@
 
 Note: The gh CLI auto-expands {owner} and {repo} placeholders in API paths
 when called from within a git repository. This module relies on that behavior.
+
+For GraphQL node IDs (from fetch_comment_threads), use reply_to_thread_graphql.
+For REST numeric IDs (from fetch_pr_comments), use reply_to_comment.
 """
 
 import json
 import subprocess
 import time
 from typing import TYPE_CHECKING, Optional
+
+from ..core.output import print_warning
 
 if TYPE_CHECKING:
     from .comments import PRComment
@@ -20,11 +25,11 @@ def reply_to_comment(
     cwd: Optional[str] = None,
     rate_limit_delay: float = 0.5,
 ) -> bool:
-    """Reply to a review comment.
+    """Reply to a review comment using REST API (requires numeric ID).
 
     Args:
         pr_number: PR number
-        comment_id: The ID of the comment to reply to
+        comment_id: The numeric REST ID of the comment to reply to
         body: Reply body text
         cwd: Working directory
         rate_limit_delay: Seconds to wait after request
@@ -32,23 +37,31 @@ def reply_to_comment(
     Returns:
         True if reply was posted successfully
     """
+    if comment_id.startswith("PRC_") or comment_id.startswith("PRRC_"):
+        print_warning(f"GraphQL node ID detected ({comment_id[:10]}...), REST reply may fail")
+
     payload = {"body": body}
 
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments/{comment_id}/replies",
-            "-X",
-            "POST",
-            "--input",
-            "-",
-        ],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "api",
+                f"repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments/{comment_id}/replies",
+                "-X",
+                "POST",
+                "--input",
+                "-",
+            ],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        print_warning("Reply request timed out")
+        return False
 
     time.sleep(rate_limit_delay)
 
@@ -56,6 +69,65 @@ def reply_to_comment(
         return False
 
     return True
+
+
+def reply_to_thread_graphql(
+    thread_id: str,
+    body: str,
+    cwd: Optional[str] = None,
+    rate_limit_delay: float = 0.5,
+) -> bool:
+    """Reply to a review thread using GraphQL (works with node IDs).
+
+    Args:
+        thread_id: The GraphQL node ID of the thread
+        body: Reply body text
+        cwd: Working directory
+        rate_limit_delay: Seconds to wait after request
+
+    Returns:
+        True if reply was posted successfully
+    """
+    mutation = """
+    mutation($threadId: ID!, $body: String!) {
+      addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) {
+        comment { id }
+      }
+    }
+    """
+
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "api",
+                "graphql",
+                "-f",
+                f"query={mutation}",
+                "-f",
+                f"threadId={thread_id}",
+                "-f",
+                f"body={body}",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        print_warning("GraphQL reply request timed out")
+        return False
+
+    time.sleep(rate_limit_delay)
+
+    if result.returncode != 0:
+        return False
+
+    try:
+        data = json.loads(result.stdout)
+        return data.get("data", {}).get("addPullRequestReviewThreadReply", {}).get("comment") is not None
+    except json.JSONDecodeError:
+        return False
 
 
 def reply_to_thread(
@@ -103,20 +175,25 @@ def resolve_thread(
     }
     """
 
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            "graphql",
-            "-f",
-            f"query={mutation}",
-            "-f",
-            f"threadId={thread_id}",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "api",
+                "graphql",
+                "-f",
+                f"query={mutation}",
+                "-f",
+                f"threadId={thread_id}",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        print_warning("Resolve thread request timed out")
+        return False
 
     time.sleep(rate_limit_delay)
 
@@ -154,20 +231,25 @@ def unresolve_thread(
     }
     """
 
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            "graphql",
-            "-f",
-            f"query={mutation}",
-            "-f",
-            f"threadId={thread_id}",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "api",
+                "graphql",
+                "-f",
+                f"query={mutation}",
+                "-f",
+                f"threadId={thread_id}",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        print_warning("Unresolve thread request timed out")
+        return False
 
     time.sleep(rate_limit_delay)
 
@@ -201,21 +283,25 @@ def add_reaction(
     """
     payload = {"content": reaction}
 
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"repos/{{owner}}/{{repo}}/pulls/comments/{comment_id}/reactions",
-            "-X",
-            "POST",
-            "--input",
-            "-",
-        ],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "api",
+                f"repos/{{owner}}/{{repo}}/pulls/comments/{comment_id}/reactions",
+                "-X",
+                "POST",
+                "--input",
+                "-",
+            ],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return False
 
     time.sleep(rate_limit_delay)
 
@@ -239,12 +325,16 @@ def add_issue_comment(
     Returns:
         True if comment was posted successfully
     """
-    result = subprocess.run(
-        ["gh", "pr", "comment", str(pr_number), "--body", body],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "comment", str(pr_number), "--body", body],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return False
 
     time.sleep(rate_limit_delay)
 
@@ -259,6 +349,9 @@ def reply_and_resolve(
 ) -> bool:
     """Reply to a comment with fix confirmation and resolve the thread.
 
+    Uses GraphQL for replies when thread_id is available (works with GraphQL node IDs).
+    Falls back to REST API for numeric IDs.
+
     Args:
         pr_number: PR number
         comment: The PRComment object to reply to
@@ -270,10 +363,12 @@ def reply_and_resolve(
     """
     reply_body = f"✅ Fixed in {commit_sha} - please verify\n\n---\n*Agent Cube*"
 
-    reply_success = reply_to_comment(pr_number, comment.id, reply_body, cwd)
-
-    if reply_success and comment.thread_id:
-        resolve_thread(comment.thread_id, cwd)
+    if comment.thread_id:
+        reply_success = reply_to_thread_graphql(comment.thread_id, reply_body, cwd)
+        if reply_success:
+            resolve_thread(comment.thread_id, cwd)
+    else:
+        reply_success = reply_to_comment(pr_number, comment.id, reply_body, cwd)
 
     return reply_success
 

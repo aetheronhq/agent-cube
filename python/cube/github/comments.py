@@ -64,17 +64,23 @@ def fetch_pr_comments(pr_number: int, cwd: Optional[str] = None) -> list[PRComme
         cwd: Working directory
 
     Returns:
-        List of PRComment objects
+        List of PRComment objects (empty list on error with warning)
     """
-    result = subprocess.run(
-        ["gh", "api", f"repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments", "--paginate"],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments", "--paginate"],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        print_warning("Timed out fetching PR comments")
+        return []
 
     if result.returncode != 0:
-        raise RuntimeError(f"Failed to fetch PR comments: {result.stderr.strip()}")
+        print_warning(f"Failed to fetch PR comments: {result.stderr.strip()}")
+        return []
 
     comments: list[PRComment] = []
     try:
@@ -97,7 +103,7 @@ def fetch_pr_comments(pr_number: int, cwd: Optional[str] = None) -> list[PRComme
                 )
             )
     except json.JSONDecodeError:
-        pass
+        print_warning("Failed to parse PR comments response")
 
     return comments
 
@@ -110,16 +116,22 @@ def fetch_issue_comments(pr_number: int, cwd: Optional[str] = None) -> list[PRCo
         cwd: Working directory
 
     Returns:
-        List of PRComment objects
+        List of PRComment objects (empty list on error with warning)
     """
-    result = subprocess.run(
-        ["gh", "api", f"repos/{{owner}}/{{repo}}/issues/{pr_number}/comments", "--paginate"],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{{owner}}/{{repo}}/issues/{pr_number}/comments", "--paginate"],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        print_warning("Timed out fetching issue comments")
+        return []
 
     if result.returncode != 0:
+        print_warning(f"Failed to fetch issue comments: {result.stderr.strip()}")
         return []
 
     comments: list[PRComment] = []
@@ -143,7 +155,7 @@ def fetch_issue_comments(pr_number: int, cwd: Optional[str] = None) -> list[PRCo
                 )
             )
     except json.JSONDecodeError:
-        pass
+        print_warning("Failed to parse issue comments response")
 
     return comments
 
@@ -190,26 +202,32 @@ def fetch_comment_threads(pr_number: int, cwd: Optional[str] = None) -> list[Com
     }
     """
 
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            "graphql",
-            "-f",
-            f"query={query}",
-            "-f",
-            f"owner={owner}",
-            "-f",
-            f"repo={repo}",
-            "-F",
-            f"pr={pr_number}",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "api",
+                "graphql",
+                "-f",
+                f"query={query}",
+                "-f",
+                f"owner={owner}",
+                "-f",
+                f"repo={repo}",
+                "-F",
+                f"pr={pr_number}",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        print_warning("Timed out fetching comment threads")
+        return []
 
     if result.returncode != 0:
+        print_warning(f"Failed to fetch comment threads: {result.stderr.strip()}")
         return []
 
     threads: list[CommentThread] = []

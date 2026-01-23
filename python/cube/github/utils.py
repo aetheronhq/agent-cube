@@ -18,15 +18,19 @@ def get_repo_info(cwd: Optional[str] = None) -> tuple[str, str]:
         Tuple of (owner, repo_name)
 
     Raises:
-        RuntimeError: If repo info cannot be determined
+        RuntimeError: If repo info cannot be determined or request times out
     """
-    result = subprocess.run(
-        ["gh", "repo", "view", "--json", "owner,name"],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-        timeout=30,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "repo", "view", "--json", "owner,name"],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=15,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Timed out fetching repository info") from None
+
     if result.returncode != 0:
         raise RuntimeError(f"Failed to get repo info: {result.stderr.strip()}") from None
 
