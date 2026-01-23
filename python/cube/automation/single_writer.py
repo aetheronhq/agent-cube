@@ -37,6 +37,7 @@ async def run_single_writer(writer_info: WriterInfo, prompt: str, resume: bool) 
     parser = get_parser(cli_name)
 
     layout = SingleAgentLayout
+    layout.initialize(writer_info.label)
     layout.start()
 
     session_id = writer_info.session_id if resume else None
