@@ -148,6 +148,7 @@ def _run_fix_agent(
     from ..core.agent import run_agent, run_async
     from ..core.output import console
     from ..core.parsers.registry import get_parser
+    from ..core.session import load_session, save_session
     from ..core.single_layout import SingleAgentLayout
     from ..core.user_config import get_default_writer, get_writer_config, load_config
 
@@ -157,7 +158,15 @@ def _run_fix_agent(
     cli_name = config.cli_tools.get(wconfig.model, "cursor-agent")
     parser = get_parser(cli_name)
 
-    console.print(f"[dim]Running {wconfig.label} to fix comments...[/dim]")
+    # Check for existing session to resume
+    session_key = f"PR_FIX_{pr_number}"
+    existing_session = load_session("FIXER", session_key)
+    resume = existing_session is not None
+
+    if resume and existing_session:
+        console.print(f"[dim]Resuming {wconfig.label} (session: {existing_session[:8]}...)[/dim]")
+    else:
+        console.print(f"[dim]Running {wconfig.label} to fix comments...[/dim]")
 
     # Record HEAD before agent runs (to detect if agent committed)
     result = subprocess.run(
@@ -173,13 +182,22 @@ def _run_fix_agent(
     layout.initialize(wconfig.label)
     layout.start()
 
+    # Track session ID from stream
+    captured_session_id: Optional[str] = None
+
     async def run_fix():
-        stream = run_agent(worktree, wconfig.model, prompt, session_id=None, resume=False)
+        nonlocal captured_session_id
+        stream = run_agent(worktree, wconfig.model, prompt, session_id=existing_session, resume=resume)
         line_count = 0
         async for line in stream:
             line_count += 1
             msg = parser.parse(line)
             if msg:
+                # Capture session ID if present
+                if msg.session_id and not captured_session_id:
+                    captured_session_id = msg.session_id
+                    save_session("FIXER", session_key, msg.session_id, f"PR #{pr_number} fixer")
+
                 formatted = format_stream_message(msg, wconfig.label, wconfig.color)
                 if formatted:
                     if formatted.startswith("[thinking]"):
