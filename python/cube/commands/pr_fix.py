@@ -11,6 +11,7 @@ from ..github.comments import CommentThread, fetch_all_comments, fetch_comment_t
 from ..github.pulls import check_gh_installed, fetch_pr
 from ..github.responder import (
     reply_and_resolve,
+    reply_to_comment,
 )
 
 
@@ -289,7 +290,7 @@ def fix_pr_comments(
     dry_run: bool = False,
     from_author: Optional[str] = None,
     skip_bots: Optional[list[str]] = None,
-    include_questions: bool = True,
+    include_questions: bool = False,
     include_suggestions: bool = False,
     verbose: bool = False,
 ) -> None:
@@ -300,7 +301,7 @@ def fix_pr_comments(
         dry_run: Show plan without making changes
         from_author: Only process comments from this author
         skip_bots: List of bot usernames to skip
-        include_questions: Include questions in actionable items
+        include_questions: Include questions in actionable items (default: flag for human)
         include_suggestions: Include suggestions in actionable items
         verbose: Show all comments including skipped ones
     """
@@ -356,14 +357,26 @@ def fix_pr_comments(
         include_suggestions=include_suggestions,
     )
 
+    questions = [c for c in categorized if c.category == "QUESTION"]
+    suggestions = [c for c in categorized if c.category == "SUGGESTION"]
+    skipped = [c for c in categorized if c.category == "SKIP"]
+
     console.print()
     console.print("[bold]Summary:[/bold]")
     console.print(f"  Total threads: {len(threads)}")
     console.print(f"  Active threads: {len(active_threads)}")
     console.print(f"  Actionable: {len(actionable)}")
-
-    skipped = [c for c in categorized if c.category == "SKIP"]
+    console.print(f"  Questions (for human): {len(questions)}")
+    console.print(f"  Suggestions (noted): {len(suggestions)}")
     console.print(f"  Skipped: {len(skipped)}")
+
+    if questions:
+        console.print()
+        print_warning("Questions flagged for human response:")
+        for q in questions:
+            path_info = f"{q.comment.path}:{q.comment.line}" if q.comment.path else "(top-level)"
+            body_preview = q.comment.body[:80].replace("\n", " ")
+            console.print(f"  ⚠️ [{path_info}] {body_preview}...")
 
     if verbose:
         _display_categorized_comments(categorized, show_all=True)
@@ -435,7 +448,33 @@ def fix_pr_comments(
                 console.print(f"  [yellow]Replied but could not resolve: {path_info}[/yellow]")
 
     console.print()
-    print_success(f"Fixed {success_count}/{len(actionable)} comments (commit: {commit_sha})")
+    print_success(f"Addressed {success_count}/{len(actionable)} comments (commit: {commit_sha})")
+
+    if questions or suggestions:
+        console.print()
+        print_info("Replying to non-actionable comments...")
+
+        for q in questions:
+            if q.comment.id:
+                reply_to_comment(
+                    pr_number,
+                    q.comment.id,
+                    "🤔 This appears to be a question - flagging for human response.\n\n---\n*Agent Cube*",
+                    cwd=cwd,
+                )
+                path_info = f"{q.comment.path}:{q.comment.line}" if q.comment.path else "(top-level)"
+                console.print(f"  [yellow]Flagged for human: {path_info}[/yellow]")
+
+        for s in suggestions:
+            if s.comment.id:
+                reply_to_comment(
+                    pr_number,
+                    s.comment.id,
+                    "📝 Noted as suggestion - will consider for future improvements.\n\n---\n*Agent Cube*",
+                    cwd=cwd,
+                )
+                path_info = f"{s.comment.path}:{s.comment.line}" if s.comment.path else "(top-level)"
+                console.print(f"  [cyan]Noted suggestion: {path_info}[/cyan]")
 
 
 def list_pr_comments(
