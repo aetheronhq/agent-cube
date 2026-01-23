@@ -132,6 +132,16 @@ def _run_fix_agent(
 
     console.print(f"[dim]Running {wconfig.label} to fix comments...[/dim]")
 
+    # Record HEAD before agent runs (to detect if agent committed)
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    head_before = result.stdout.strip() if result.returncode == 0 else None
+
     layout = SingleAgentLayout
     layout.start()
 
@@ -167,43 +177,69 @@ def _run_fix_agent(
         print_error(f"Agent failed: {e}")
         return None
 
+    # Check if agent already committed (HEAD changed)
     result = subprocess.run(
-        ["git", "status", "--porcelain"],
-        cwd=worktree,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if not result.stdout.strip():
-        print_warning("No changes detected after agent run")
-        return None
-
-    subprocess.run(["git", "add", "-A"], cwd=worktree, capture_output=True, timeout=30)
-    commit_msg = (
-        _build_commit_message(comments or [], pr_number)
-        if comments
-        else f"fix: address PR #{pr_number} review comments"
-    )
-    result = subprocess.run(
-        ["git", "commit", "-m", commit_msg],
-        cwd=worktree,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if result.returncode != 0:
-        print_warning(f"Commit failed: {result.stderr}")
-        return None
-
-    result = subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"],
+        ["git", "rev-parse", "HEAD"],
         cwd=worktree,
         capture_output=True,
         text=True,
         timeout=10,
     )
-    commit_sha = result.stdout.strip() if result.returncode == 0 else None
+    head_after = result.stdout.strip() if result.returncode == 0 else None
+    agent_committed = head_before and head_after and head_before != head_after
 
+    if agent_committed:
+        # Agent already committed - just get the SHA and push
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=worktree,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        commit_sha = result.stdout.strip() if result.returncode == 0 else None
+        print_info(f"Agent committed changes: {commit_sha}")
+    else:
+        # Check for uncommitted changes
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=worktree,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if not result.stdout.strip():
+            print_warning("No changes detected after agent run")
+            return None
+
+        # Commit the changes ourselves
+        subprocess.run(["git", "add", "-A"], cwd=worktree, capture_output=True, timeout=30)
+        commit_msg = (
+            _build_commit_message(comments or [], pr_number)
+            if comments
+            else f"fix: address PR #{pr_number} review comments"
+        )
+        result = subprocess.run(
+            ["git", "commit", "-m", commit_msg],
+            cwd=worktree,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            print_warning(f"Commit failed: {result.stderr}")
+            return None
+
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=worktree,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        commit_sha = result.stdout.strip() if result.returncode == 0 else None
+
+    # Push the changes
     result = subprocess.run(
         ["git", "push", "origin", "HEAD"],
         cwd=worktree,
