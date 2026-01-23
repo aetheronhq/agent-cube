@@ -9,7 +9,7 @@ from ...core.config import PROJECT_ROOT, resolve_path
 from ...core.output import console, print_error, print_info, print_success, print_warning
 from ...core.user_config import get_judge_configs
 from .decisions import clear_peer_review_decisions, run_decide_and_get_result, run_decide_peer_review
-from .phases import run_minor_fixes, run_peer_review, run_synthesis
+from .phases import _normalize_issue, run_minor_fixes, run_peer_review, run_synthesis
 from .phases_registry import Phase, PhaseResult, WorkflowContext
 from .pr import create_pr
 from .prompts import generate_panel_prompt, generate_writer_prompt
@@ -40,12 +40,22 @@ async def phase1_generate_prompt(ctx: WorkflowContext) -> PhaseResult:
 
 async def phase2_run_writers(ctx: WorkflowContext) -> PhaseResult:
     """Phase 2: Run writer(s). Single or dual based on mode."""
+    resume_mode = ctx.resume_from == 2
     if is_single_mode(ctx):
         await launch_single_writer(
-            ctx.task_id, ctx.writer_prompt_path, ctx.writer_key or "", resume_mode=(ctx.resume_from == 2)
+            ctx.task_id,
+            ctx.writer_prompt_path,
+            ctx.writer_key or "",
+            resume_mode=resume_mode,
+            resume_prompt=ctx.resume_prompt if resume_mode else None,
         )
     else:
-        await launch_dual_writers(ctx.task_id, ctx.writer_prompt_path, resume_mode=False)
+        await launch_dual_writers(
+            ctx.task_id,
+            ctx.writer_prompt_path,
+            resume_mode=resume_mode,
+            resume_prompt=ctx.resume_prompt if resume_mode else None,
+        )
     return PhaseResult(data={"writers_complete": True})
 
 
@@ -65,8 +75,9 @@ async def phase4_judge_panel(ctx: WorkflowContext) -> PhaseResult:
         print_info("Single mode - skipping comparison panel")
         return PhaseResult(data={"skipped": True})
 
-    should_resume = ctx.resume_from == 4
-    await launch_judge_panel(ctx.task_id, ctx.panel_prompt_path, "panel", resume_mode=should_resume)
+    # Resume judges by default, use --fresh-judges for fresh start
+    resume_judges = not ctx.fresh_judges
+    await launch_judge_panel(ctx.task_id, ctx.panel_prompt_path, "panel", resume_mode=resume_judges)
     return PhaseResult(data={"panel_complete": True})
 
 
@@ -153,8 +164,13 @@ async def synthesis_peer_review(ctx: WorkflowContext) -> PhaseResult:
 
     print_info(f"Running {len(judges_to_run)} judge(s) for peer review: {', '.join(j.label for j in judges_to_run)}")
 
-    clear_peer_review_decisions(ctx.task_id)
-    await run_peer_review(ctx.task_id, ctx.result, ctx.prompts_dir, judges_to_run=judges_to_run)
+    # Resume judges by default (they have context), use --fresh-judges for fresh start
+    resume_judges = not ctx.fresh_judges
+    if ctx.fresh_judges:
+        clear_peer_review_decisions(ctx.task_id)
+    await run_peer_review(
+        ctx.task_id, ctx.result, ctx.prompts_dir, judges_to_run=judges_to_run, resume_mode=resume_judges
+    )
     return PhaseResult(data={"peer_review_complete": True})
 
 
@@ -185,7 +201,7 @@ async def synthesis_final_decision(ctx: WorkflowContext) -> PhaseResult:
         console.print()
         console.print("Issues to address:")
         for issue in final_result["remaining_issues"]:
-            console.print(f"  • {issue}")
+            console.print(f"  • {_normalize_issue(issue)}")
 
     return PhaseResult()
 
@@ -222,8 +238,11 @@ async def synthesis_minor_fixes(ctx: WorkflowContext) -> PhaseResult:
 
 async def synthesis_final_peer_review(ctx: WorkflowContext) -> PhaseResult:
     """Phase 10: Final peer review and PR creation."""
-    clear_peer_review_decisions(ctx.task_id)
-    await run_peer_review(ctx.task_id, ctx.result, ctx.prompts_dir, run_all_judges=True)
+    # Resume judges by default (they have context), use --fresh-judges for fresh start
+    resume_judges = not ctx.fresh_judges
+    if ctx.fresh_judges:
+        clear_peer_review_decisions(ctx.task_id)
+    await run_peer_review(ctx.task_id, ctx.result, ctx.prompts_dir, run_all_judges=True, resume_mode=resume_judges)
 
     final_check = run_decide_peer_review(ctx.task_id)
     if final_check["approved"] and not final_check["remaining_issues"]:
@@ -233,7 +252,7 @@ async def synthesis_final_peer_review(ctx: WorkflowContext) -> PhaseResult:
         console.print()
         console.print("Issues remaining:")
         for issue in final_check["remaining_issues"]:
-            console.print(f"  • {issue}")
+            console.print(f"  • {_normalize_issue(issue)}")
         console.print()
         console.print("Creating PR anyway (all judges approved)...")
         await create_pr(ctx.task_id, ctx.result["winner"])

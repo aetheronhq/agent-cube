@@ -89,22 +89,22 @@ def _get_cli_review_worktrees(task_id: str, winner: str = None) -> dict:
     return writers
 
 
-RETRYABLE_PATTERNS = [
-    "unavailable",
-    "retriable",
-    "transient",
-    "rate limit",
-    "capacity",
-    "network",
-    "timeout",
-    "connection",
+NON_RETRYABLE_PATTERNS = [
+    "not logged in",
+    "login required",
+    "authentication",
+    "unauthorized",
+    "invalid api key",
+    "permission denied",
+    "file not found",
+    "prompt file not found",
 ]
 
 
 def _is_retryable(error_msg: str) -> bool:
-    """Check if error is retryable."""
+    """Check if error is retryable. Default to True, blacklist known non-retryable errors."""
     error_lower = error_msg.lower()
-    return any(p in error_lower for p in RETRYABLE_PATTERNS)
+    return not any(p in error_lower for p in NON_RETRYABLE_PATTERNS)
 
 
 async def run_judge(
@@ -572,7 +572,8 @@ git diff origin/main...HEAD --stat
             raise RuntimeError(f"{cli_name} not installed")
 
     for judge in judges:
-        console.print(f"🚀 Starting {judge.label} with {judge.model}...")
+        status = "↩️ Resuming" if judge.session_id else "✨ New"
+        console.print(f"🚀 {status} {judge.label} with {judge.model}...")
     console.print()
     console.print(f"⏳ Waiting for all {len(judges)} judges to complete...")
     console.print()

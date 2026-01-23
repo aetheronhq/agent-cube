@@ -43,6 +43,8 @@ async def _orchestrate_auto_impl(
     single_mode: bool = False,
     writer_key: str | None = None,
     fresh_writer: bool = False,
+    fresh_judges: bool = False,
+    resume_prompt: str | None = None,
 ) -> None:
     """Internal implementation of orchestrate_auto_command."""
     from ...core.state_backfill import backfill_state_from_artifacts
@@ -89,6 +91,8 @@ async def _orchestrate_auto_impl(
         writer_key=writer_key,  # None = dual mode, set = single mode
         resume_alias=resume_alias,
         fresh_writer=fresh_writer,
+        fresh_judges=fresh_judges,
+        resume_prompt=resume_prompt,
     )
 
     # If resuming from phase 6+, load the aggregated result

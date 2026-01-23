@@ -287,6 +287,9 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
 
     max_width = get_max_path_width()
 
+    # Import escape for Rich markup safety
+    from rich.markup import escape as rich_escape
+
     if msg.type == "tool_call" and msg.subtype == "started":
         if msg.tool_name == "shell" and msg.tool_args:
             cmd = msg.tool_args.get("command", "")
@@ -294,21 +297,23 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
             cmd = re.sub(r"^cd /[^\s]*/\.cube/worktrees/[^/\s]+/[^/\s]+ && ", "", cmd)
             cmd = re.sub(r"/[^\s]*\.cube/worktrees/[^/\s]+/[^/\s]+/?", "~worktrees/", cmd)
             cmd = re.sub(r"/[^\s]*\.cursor/worktrees/[^/\s]+/[^/\s]+/?", "~worktrees/", cmd)
+            # Truncate BEFORE escaping to avoid splitting escape sequences
             if len(cmd) > max_width:
                 cmd = cmd[: max_width - 3] + "..."
+            cmd = rich_escape(cmd)
             return f"[{color}]{prefix}[/{color}] 🔧 {cmd}"
 
         elif msg.tool_name == "write" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", ""))
             if len(path) > max_width:
                 path = path[: max_width - 3] + "..."
-            return f"[{color}]{prefix}[/{color}] 📝 {path}"
+            return f"[{color}]{prefix}[/{color}] 📝 {rich_escape(path)}"
 
         elif msg.tool_name == "edit" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", ""))
             if len(path) > max_width:
                 path = path[: max_width - 3] + "..."
-            return f"[{color}]{prefix}[/{color}] ✏️  {path}"
+            return f"[{color}]{prefix}[/{color}] ✏️  {rich_escape(path)}"
 
         elif msg.tool_name == "read" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", ""))
@@ -316,24 +321,30 @@ def format_stream_message(msg: StreamMessage, prefix: str, color: str) -> Option
             available = max_width - prefix_len
             if len(path) > available:
                 path = path[: available - 3] + "..."
-            return f"[{color}]{prefix}[/{color}] 📖 {path}"
+            return f"[{color}]{prefix}[/{color}] 📖 {rich_escape(path)}"
 
         elif msg.tool_name == "ls" and msg.tool_args:
             path = strip_worktree_path(msg.tool_args.get("path", "."))
             if len(path) > max_width:
                 path = path[: max_width - 3] + "..."
-            return f"[{color}]{prefix}[/{color}] 📂 ls {path}"
+            return f"[{color}]{prefix}[/{color}] 📂 ls {rich_escape(path)}"
 
         elif msg.tool_name == "grep" and msg.tool_args:
             pattern = msg.tool_args.get("pattern", "")[:40]
-            return f"[{color}]{prefix}[/{color}] 🔍 grep {pattern}"
+            return f"[{color}]{prefix}[/{color}] 🔍 grep {rich_escape(pattern)}"
 
         elif msg.tool_name == "todos" and msg.tool_args:
             count = msg.tool_args.get("count", 0)
             return f"[{color}]{prefix}[/{color}] 📋 {count} todos"
 
+        elif msg.tool_name == "web_fetch" and msg.tool_args:
+            url = msg.tool_args.get("url", "")
+            if len(url) > max_width:
+                url = url[: max_width - 3] + "..."
+            return f"[{color}]{prefix}[/{color}] 🌐 {rich_escape(url)}"
+
         else:
-            return f"[{color}]{prefix}[/{color}] 🔧 {msg.tool_name}"
+            return f"[{color}]{prefix}[/{color}] 🔧 {rich_escape(msg.tool_name)}"
 
     if msg.type == "tool_call" and msg.subtype == "completed":
         if msg.exit_code is not None and msg.exit_code != 0:

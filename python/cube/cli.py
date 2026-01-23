@@ -538,6 +538,10 @@ def auto(
     fresh_writer: Annotated[
         bool, typer.Option("--fresh-writer", help="Clear winner's session and start fresh (for dead sessions)")
     ] = False,
+    fresh: Annotated[bool, typer.Option("--fresh", help="Start fresh judge sessions instead of resuming")] = False,
+    prompt: Annotated[
+        Optional[str], typer.Option("--prompt", "-p", help="Additional context/instructions for resumed agent(s)")
+    ] = None,
 ):
     """Shortcut for: cube orchestrate auto <task-file>
 
@@ -635,6 +639,8 @@ def auto(
                 single_mode=single_mode,
                 writer_key=writer_key,
                 fresh_writer=fresh_writer,
+                fresh_judges=fresh,
+                resume_prompt=prompt,
             )
         )
     except Exception as e:

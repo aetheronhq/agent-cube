@@ -35,7 +35,8 @@ class CursorAdapter(CLIAdapter):
         if resume and session_id:
             cmd.extend(["--resume", session_id])
 
-        cmd.append(prompt)
+        # Use -- to signal end of options, so prompts starting with - aren't parsed as flags
+        cmd.extend(["--", prompt])
 
         last_error = None
         line_count = 0
