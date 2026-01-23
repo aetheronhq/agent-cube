@@ -344,11 +344,13 @@ def add_issue_comment(
 def reply_and_resolve(
     pr_number: int,
     comment: "PRComment",
-    commit_sha: str,
+    commit_sha: Optional[str] = None,
     cwd: Optional[str] = None,
-    auto_resolve: bool = False,
 ) -> bool:
-    """Reply to a comment with fix confirmation, optionally resolving the thread.
+    """Reply to a comment, resolving if changes were committed.
+
+    If commit_sha is provided (changes were made), resolves the thread.
+    If no commit_sha (just acknowledging), replies but leaves open.
 
     Uses GraphQL for replies when thread_id is available (works with GraphQL node IDs).
     Falls back to REST API for numeric IDs.
@@ -356,18 +358,21 @@ def reply_and_resolve(
     Args:
         pr_number: PR number
         comment: The PRComment object to reply to
-        commit_sha: The commit SHA where the fix was made
+        commit_sha: The commit SHA where the fix was made (None = no fix, just reply)
         cwd: Working directory
-        auto_resolve: If True, automatically resolve the thread (default: False, let reviewer verify)
 
     Returns:
         True if reply was posted (thread resolution is best-effort)
     """
-    reply_body = f"Addressed in {commit_sha}\n\n---\n*Agent Cube*"
+    if commit_sha:
+        reply_body = f"Fixed in {commit_sha}\n\n---\n*Agent Cube*"
+    else:
+        reply_body = "Acknowledged\n\n---\n*Agent Cube*"
 
     if comment.thread_id:
         reply_success = reply_to_thread_graphql(comment.thread_id, reply_body, cwd)
-        if reply_success and auto_resolve:
+        # Only resolve if we actually made changes
+        if reply_success and commit_sha:
             resolve_thread(comment.thread_id, cwd)
     else:
         reply_success = reply_to_comment(pr_number, comment.id, reply_body, cwd)
