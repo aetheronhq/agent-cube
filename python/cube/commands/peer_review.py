@@ -421,7 +421,7 @@ def peer_review_command(
             missing_sessions = []
 
             for jconfig in judge_configs:
-                if not session_exists(f"JUDGE_{jconfig.key}", f"{task_id}_panel"):
+                if not session_exists(jconfig.key.upper(), f"{task_id}_panel"):
                     missing_sessions.append(jconfig.key)
 
             if missing_sessions:
@@ -431,8 +431,8 @@ def peer_review_command(
                 console.print(f"  cube panel {task_id} <panel-prompt.md>")
                 console.print()
                 console.print("Session files expected:")
-                for num in missing_sessions:
-                    console.print(f"  .agent-sessions/JUDGE_{num}_{task_id}_panel_SESSION_ID.txt")
+                for key in missing_sessions:
+                    console.print(f"  .agent-sessions/{key.upper()}_{task_id}_panel_SESSION_ID.txt")
                 console.print()
                 console.print("Or use --fresh to launch new judges instead")
                 raise typer.Exit(1)

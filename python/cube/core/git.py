@@ -110,6 +110,16 @@ def commit_and_push(worktree_path: Path, branch: str, message: str) -> bool:
         return False
 
 
+def push_only(worktree_path: Path, branch: str) -> bool:
+    """Push existing commits to origin (no commit step)."""
+    try:
+        subprocess.run(["git", "push", "origin", branch], cwd=worktree_path, check=True, capture_output=True)
+        return True
+    except subprocess.CalledProcessError as e:
+        print_warning(f"Git push failed: {e}")
+        return False
+
+
 def branch_exists(branch: str) -> bool:
     """Check if a branch exists locally or remotely."""
     repo = get_repo()

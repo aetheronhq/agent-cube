@@ -85,7 +85,6 @@ def feedback_command(writer: str, task_id: str, feedback_file: str) -> None:
 
     # Try to resolve from config first
     wconfig = None
-    wconfig = None
     try:
         wconfig = resolve_writer_alias(writer)
         writer_name = wconfig.name
