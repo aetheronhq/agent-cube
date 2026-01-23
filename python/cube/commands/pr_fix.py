@@ -6,18 +6,15 @@ from typing import Optional
 
 from ..core.config import PROJECT_ROOT, get_worktree_path
 from ..core.output import console, print_error, print_info, print_success, print_warning
-from ..github.categorizer import CategorizedComment, categorize_comments
-from ..github.comments import CommentThread, fetch_all_comments, fetch_comment_threads
+from ..github.comments import CommentThread, PRComment, fetch_all_comments, fetch_comment_threads
 from ..github.pulls import check_gh_installed, fetch_pr
 from ..github.responder import reply_and_resolve
 
 
 def _sync_pr_worktree(pr_number: int, branch: str, cwd: Optional[str] = None) -> Optional[Path]:
     """Create or sync a worktree for fixing PR comments."""
-    project_name = Path(PROJECT_ROOT).name
-    worktree_path = get_worktree_path(project_name, "pr-fix", str(pr_number))
-
     try:
+        # Fetch the branch first
         result = subprocess.run(
             ["git", "fetch", "origin", branch],
             cwd=cwd or PROJECT_ROOT,
@@ -27,6 +24,39 @@ def _sync_pr_worktree(pr_number: int, branch: str, cwd: Optional[str] = None) ->
         )
         if result.returncode != 0:
             print_warning(f"Failed to fetch branch: {result.stderr}")
+
+        # Check if there's already a worktree for this branch
+        result = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            cwd=cwd or PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            lines = result.stdout.split("\n")
+            current_worktree = None
+            for line in lines:
+                if line.startswith("worktree "):
+                    current_worktree = line.replace("worktree ", "")
+                elif line.startswith("branch ") and current_worktree:
+                    worktree_branch = line.replace("branch refs/heads/", "")
+                    if worktree_branch == branch:
+                        # Found existing worktree for this branch - use it
+                        worktree_path = Path(current_worktree)
+                        print_info(f"Using existing worktree: {worktree_path}")
+                        # Pull latest changes
+                        subprocess.run(
+                            ["git", "pull", "--ff-only"],
+                            cwd=worktree_path,
+                            capture_output=True,
+                            timeout=30,
+                        )
+                        return worktree_path
+
+        # No existing worktree - create a new one
+        project_name = Path(PROJECT_ROOT).name
+        worktree_path = get_worktree_path(project_name, "pr-fix", str(pr_number))
 
         if not worktree_path.exists():
             worktree_path.parent.mkdir(parents=True, exist_ok=True)
@@ -41,15 +71,16 @@ def _sync_pr_worktree(pr_number: int, branch: str, cwd: Optional[str] = None) ->
                 print_error(f"Failed to create worktree: {result.stderr}")
                 return None
         else:
+            # Worktree exists but on different branch - reset it
             result = subprocess.run(
-                ["git", "checkout", "-B", branch, f"origin/{branch}"],
+                ["git", "reset", "--hard", f"origin/{branch}"],
                 cwd=worktree_path,
                 capture_output=True,
                 text=True,
                 timeout=30,
             )
             if result.returncode != 0:
-                print_error(f"Checkout failed: {result.stderr}")
+                print_error(f"Reset failed: {result.stderr}")
                 return None
 
         return worktree_path
@@ -58,7 +89,7 @@ def _sync_pr_worktree(pr_number: int, branch: str, cwd: Optional[str] = None) ->
         return None
 
 
-def _build_fix_prompt(comments: list[CategorizedComment], pr_number: int, pr_title: str) -> str:
+def _build_fix_prompt(comments: list[PRComment], pr_number: int, pr_title: str) -> str:
     """Build a prompt for the writer agent to fix the comments."""
     prompt = f"""# Fix PR Review Comments
 
@@ -67,16 +98,12 @@ You are fixing review comments on PR #{pr_number}: {pr_title}
 ## Comments to Address
 
 """
-    for i, cat in enumerate(comments, 1):
-        comment = cat.comment
+    for i, comment in enumerate(comments, 1):
         path_info = f"{comment.path}:{comment.line}" if comment.path else "(general)"
         prompt += f"""### Comment {i}: {path_info}
 **Author:** {comment.author}
-**Category:** {cat.category}
 **Comment:**
 {comment.body}
-
-**Fix Plan:** {cat.fix_plan or "Address the feedback appropriately"}
 
 """
 
@@ -94,14 +121,14 @@ You are fixing review comments on PR #{pr_number}: {pr_title}
     return prompt
 
 
-def _build_commit_message(comments: list[CategorizedComment], pr_number: int) -> str:
+def _build_commit_message(comments: list[PRComment], pr_number: int) -> str:
     """Build a detailed commit message for the fix."""
     summaries = []
-    for cat in comments[:5]:
-        body_preview = cat.comment.body[:40].replace("\n", " ").strip()
-        if len(cat.comment.body) > 40:
+    for comment in comments[:5]:
+        body_preview = comment.body[:40].replace("\n", " ").strip()
+        if len(comment.body) > 40:
             body_preview += "..."
-        path_info = cat.comment.path or "general"
+        path_info = comment.path or "general"
         summaries.append(f"- {path_info}: {body_preview}")
 
     msg = f"fix: address PR #{pr_number} review comments\n\n"
@@ -114,7 +141,7 @@ def _build_commit_message(comments: list[CategorizedComment], pr_number: int) ->
 
 
 def _run_fix_agent(
-    worktree: Path, prompt: str, pr_number: int, comments: Optional[list[CategorizedComment]] = None
+    worktree: Path, prompt: str, pr_number: int, comments: Optional[list[PRComment]] = None
 ) -> Optional[str]:
     """Run a writer agent to fix the comments and return the commit SHA."""
     from ..automation.stream import format_stream_message
@@ -317,49 +344,11 @@ def _filter_threads_skip_bots(
     return filtered
 
 
-def _display_categorized_comments(
-    categorized: list[CategorizedComment],
-    show_all: bool = False,
-) -> None:
-    """Display categorized comments in a formatted way."""
-    if not categorized:
-        console.print("[dim]No comments to display[/dim]")
-        return
-
-    category_colors = {
-        "ACTIONABLE": "red",
-        "QUESTION": "yellow",
-        "SUGGESTION": "cyan",
-        "RESOLVED": "green",
-        "SKIP": "dim",
-    }
-
-    for cat in categorized:
-        if not show_all and cat.category == "SKIP":
-            continue
-
-        color = category_colors.get(cat.category, "white")
-        path_info = f"{cat.comment.path}:{cat.comment.line}" if cat.comment.path else "(top-level)"
-
-        console.print(f"\n[{color}][{cat.category}][/{color}] {path_info}")
-        console.print(f"  [dim]Author:[/dim] {cat.comment.author}")
-        console.print(f"  [dim]Confidence:[/dim] {cat.confidence:.0%}")
-
-        body_preview = cat.comment.body[:200].replace("\n", " ")
-        if len(cat.comment.body) > 200:
-            body_preview += "..."
-        console.print(f"  [dim]Comment:[/dim] {body_preview}")
-
-        if cat.fix_plan:
-            console.print(f"  [bold]Fix plan:[/bold] {cat.fix_plan}")
-
-
 def fix_pr_comments(
     pr_number: Optional[int] = None,
     dry_run: bool = False,
     from_author: Optional[str] = None,
     skip_bots: Optional[list[str]] = None,
-    verbose: bool = False,
 ) -> None:
     """Fix review comments on a PR.
 
@@ -368,7 +357,6 @@ def fix_pr_comments(
         dry_run: Show plan without making changes
         from_author: Only process comments from this author
         skip_bots: List of bot usernames to skip
-        verbose: Show all comments including skipped ones
     """
     if not check_gh_installed():
         print_error("gh CLI not installed or not authenticated")
@@ -424,22 +412,16 @@ def fix_pr_comments(
         print_success("No active comments to address!")
         return
 
-    # Categorize for display purposes but process ALL comments
-    categorized = categorize_comments(all_to_process)
-
     console.print()
     console.print(f"[bold]Processing {len(all_to_process)} comments from {len(active_threads)} active threads[/bold]")
 
-    if verbose:
-        _display_categorized_comments(categorized, show_all=True)
-    else:
-        # Show brief summary of each comment
-        for cat in categorized:
-            path_info = f"{cat.comment.path}:{cat.comment.line}" if cat.comment.path else "(top-level)"
-            body_preview = cat.comment.body[:80].replace("\n", " ")
-            if len(cat.comment.body) > 80:
-                body_preview += "..."
-            console.print(f"  [{cat.category}] {path_info}: {body_preview}")
+    # Show brief summary of each comment
+    for comment in all_to_process:
+        path_info = f"{comment.path}:{comment.line}" if comment.path else "(top-level)"
+        body_preview = comment.body[:80].replace("\n", " ")
+        if len(comment.body) > 80:
+            body_preview += "..."
+        console.print(f"  {path_info}: {body_preview}")
 
     if dry_run:
         console.print()
@@ -462,10 +444,10 @@ def fix_pr_comments(
     console.print(f"[dim]Worktree ready at: {worktree}[/dim]")
 
     console.print()
-    print_info(f"Running writer agent to fix {len(categorized)} comments...")
+    print_info(f"Running writer agent to fix {len(all_to_process)} comments...")
 
-    fix_prompt = _build_fix_prompt(categorized, pr_number, pr.title)
-    commit_sha = _run_fix_agent(worktree, fix_prompt, pr_number, comments=categorized)
+    fix_prompt = _build_fix_prompt(all_to_process, pr_number, pr.title)
+    commit_sha = _run_fix_agent(worktree, fix_prompt, pr_number, comments=all_to_process)
 
     if not commit_sha:
         print_warning("No fixes were committed - agent may not have made changes")
@@ -477,8 +459,7 @@ def fix_pr_comments(
     print_info("Replying to comments and resolving threads...")
 
     success_count = 0
-    for cat in categorized:
-        comment = cat.comment
+    for comment in all_to_process:
         path_info = f"{comment.path}:{comment.line}" if comment.path else "(top-level)"
 
         if comment.id:
@@ -496,7 +477,7 @@ def fix_pr_comments(
                 console.print(f"  [yellow]Replied but could not resolve: {path_info}[/yellow]")
 
     console.print()
-    print_success(f"Addressed {success_count}/{len(categorized)} comments (commit: {commit_sha})")
+    print_success(f"Addressed {success_count}/{len(all_to_process)} comments (commit: {commit_sha})")
 
 
 def list_pr_comments(
@@ -504,7 +485,7 @@ def list_pr_comments(
     from_author: Optional[str] = None,
     show_resolved: bool = False,
 ) -> None:
-    """List comments on a PR with their categories.
+    """List comments on a PR.
 
     Args:
         pr_number: PR number (auto-detected if not provided)
@@ -533,15 +514,16 @@ def list_pr_comments(
         print_info("No comments found matching criteria")
         return
 
-    thread_comments = []
+    console.print()
+    console.print(f"[bold]PR #{pr_number} Comments ({len(threads)} threads)[/bold]")
+    console.print()
+
     for thread in threads:
         if thread.comments:
-            thread_comments.append(thread.comments[0])
-
-    categorized = categorize_comments(thread_comments)
-
-    console.print()
-    console.print(f"[bold]PR #{pr_number} Comments ({len(categorized)} threads)[/bold]")
-    console.print()
-
-    _display_categorized_comments(categorized, show_all=True)
+            comment = thread.comments[0]
+            path_info = f"{comment.path}:{comment.line}" if comment.path else "(top-level)"
+            body_preview = comment.body[:100].replace("\n", " ")
+            if len(comment.body) > 100:
+                body_preview += "..."
+            console.print(f"  {path_info}")
+            console.print(f"    [dim]{comment.author}:[/dim] {body_preview}")
