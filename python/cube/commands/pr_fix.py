@@ -6,13 +6,10 @@ from typing import Optional
 
 from ..core.config import PROJECT_ROOT, get_worktree_path
 from ..core.output import console, print_error, print_info, print_success, print_warning
-from ..github.categorizer import CategorizedComment, categorize_comments, filter_actionable
+from ..github.categorizer import CategorizedComment, categorize_comments
 from ..github.comments import CommentThread, fetch_all_comments, fetch_comment_threads
 from ..github.pulls import check_gh_installed, fetch_pr
-from ..github.responder import (
-    reply_and_resolve,
-    reply_to_comment,
-)
+from ..github.responder import reply_and_resolve
 
 
 def _sync_pr_worktree(pr_number: int, branch: str, cwd: Optional[str] = None) -> Optional[Path]:
@@ -326,10 +323,7 @@ def fix_pr_comments(
     dry_run: bool = False,
     from_author: Optional[str] = None,
     skip_bots: Optional[list[str]] = None,
-    include_questions: bool = False,
-    include_suggestions: bool = False,
     verbose: bool = False,
-    verbose_replies: bool = False,
 ) -> None:
     """Fix review comments on a PR.
 
@@ -338,10 +332,7 @@ def fix_pr_comments(
         dry_run: Show plan without making changes
         from_author: Only process comments from this author
         skip_bots: List of bot usernames to skip
-        include_questions: Include questions in actionable items (default: flag for human)
-        include_suggestions: Include suggestions in actionable items
         verbose: Show all comments including skipped ones
-        verbose_replies: Reply to skipped/non-actionable comments (can be noisy)
     """
     if not check_gh_installed():
         print_error("gh CLI not installed or not authenticated")
@@ -397,54 +388,26 @@ def fix_pr_comments(
         print_success("No active comments to address!")
         return
 
-    print_info("Categorizing comments...")
+    # Categorize for display purposes but process ALL comments
     categorized = categorize_comments(all_to_process)
 
-    actionable = filter_actionable(
-        categorized,
-        include_questions=include_questions,
-        include_suggestions=include_suggestions,
-    )
-
-    questions = [c for c in categorized if c.category == "QUESTION"]
-    suggestions = [c for c in categorized if c.category == "SUGGESTION"]
-    skipped = [c for c in categorized if c.category == "SKIP"]
-
     console.print()
-    console.print("[bold]Summary:[/bold]")
-    console.print(f"  Total threads: {len(threads)}")
-    console.print(f"  Active threads: {len(active_threads)}")
-    console.print(f"  Actionable: {len(actionable)}")
-    console.print(f"  Questions (for human): {len(questions)}")
-    console.print(f"  Suggestions (noted): {len(suggestions)}")
-    console.print(f"  Skipped: {len(skipped)}")
-
-    if questions:
-        console.print()
-        print_warning("Questions flagged for human response:")
-        for q in questions:
-            path_info = f"{q.comment.path}:{q.comment.line}" if q.comment.path else "(top-level)"
-            body_preview = q.comment.body[:80].replace("\n", " ")
-            console.print(f"  ⚠️ [{path_info}] {body_preview}...")
+    console.print(f"[bold]Processing {len(all_to_process)} comments from {len(active_threads)} active threads[/bold]")
 
     if verbose:
         _display_categorized_comments(categorized, show_all=True)
     else:
-        _display_categorized_comments(actionable, show_all=False)
+        # Show brief summary of each comment
+        for cat in categorized:
+            path_info = f"{cat.comment.path}:{cat.comment.line}" if cat.comment.path else "(top-level)"
+            body_preview = cat.comment.body[:80].replace("\n", " ")
+            if len(cat.comment.body) > 80:
+                body_preview += "..."
+            console.print(f"  [{cat.category}] {path_info}: {body_preview}")
 
     if dry_run:
         console.print()
         print_warning("Dry run - no changes made")
-        if actionable:
-            console.print()
-            console.print("[bold]Would fix these comments:[/bold]")
-            for cat in actionable:
-                path_info = f"{cat.comment.path}:{cat.comment.line}" if cat.comment.path else "(top-level)"
-                console.print(f"  - [{cat.category}] {path_info}: {cat.fix_plan or 'Review needed'}")
-        return
-
-    if not actionable:
-        print_success("No actionable comments - nothing to fix!")
         return
 
     print_info(f"Fetching PR #{pr_number} details...")
@@ -463,10 +426,10 @@ def fix_pr_comments(
     console.print(f"[dim]Worktree ready at: {worktree}[/dim]")
 
     console.print()
-    print_info(f"Running writer agent to fix {len(actionable)} comments...")
+    print_info(f"Running writer agent to fix {len(categorized)} comments...")
 
-    fix_prompt = _build_fix_prompt(actionable, pr_number, pr.title)
-    commit_sha = _run_fix_agent(worktree, fix_prompt, pr_number, comments=actionable)
+    fix_prompt = _build_fix_prompt(categorized, pr_number, pr.title)
+    commit_sha = _run_fix_agent(worktree, fix_prompt, pr_number, comments=categorized)
 
     if not commit_sha:
         print_warning("No fixes were committed - agent may not have made changes")
@@ -478,7 +441,7 @@ def fix_pr_comments(
     print_info("Replying to comments and resolving threads...")
 
     success_count = 0
-    for cat in actionable:
+    for cat in categorized:
         comment = cat.comment
         path_info = f"{comment.path}:{comment.line}" if comment.path else "(top-level)"
 
@@ -497,50 +460,7 @@ def fix_pr_comments(
                 console.print(f"  [yellow]Replied but could not resolve: {path_info}[/yellow]")
 
     console.print()
-    print_success(f"Addressed {success_count}/{len(actionable)} comments (commit: {commit_sha})")
-
-    if verbose_replies and (questions or suggestions or skipped):
-        console.print()
-        print_info("Replying to non-actionable comments (--verbose-replies)...")
-
-        for q in questions:
-            if q.comment.id:
-                reply_to_comment(
-                    pr_number,
-                    q.comment.id,
-                    "🤔 This appears to be a question - flagging for human response.\n\n---\n*Agent Cube*",
-                    cwd=cwd,
-                )
-                path_info = f"{q.comment.path}:{q.comment.line}" if q.comment.path else "(top-level)"
-                console.print(f"  [yellow]Flagged for human: {path_info}[/yellow]")
-
-        for s in suggestions:
-            if s.comment.id:
-                reply_to_comment(
-                    pr_number,
-                    s.comment.id,
-                    "📝 Noted as suggestion - will consider for future improvements.\n\n---\n*Agent Cube*",
-                    cwd=cwd,
-                )
-                path_info = f"{s.comment.path}:{s.comment.line}" if s.comment.path else "(top-level)"
-                console.print(f"  [cyan]Noted suggestion: {path_info}[/cyan]")
-
-        for skip in skipped:
-            if skip.comment.id and "Positive feedback" not in skip.reason:
-                reason_msg = skip.reason or "No actionable request detected"
-                reply_to_comment(
-                    pr_number,
-                    skip.comment.id,
-                    f"⏭️ Skipped: {reason_msg}\n\n---\n*Agent Cube*",
-                    cwd=cwd,
-                )
-                path_info = f"{skip.comment.path}:{skip.comment.line}" if skip.comment.path else "(top-level)"
-                console.print(f"  [dim]Skipped: {path_info} ({reason_msg})[/dim]")
-    elif questions or suggestions:
-        console.print()
-        console.print(
-            f"[dim]Tip: Use --verbose-replies to reply to {len(questions)} questions and {len(suggestions)} suggestions[/dim]"
-        )
+    print_success(f"Addressed {success_count}/{len(categorized)} comments (commit: {commit_sha})")
 
 
 def list_pr_comments(
