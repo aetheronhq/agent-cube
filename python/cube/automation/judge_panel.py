@@ -478,8 +478,8 @@ git diff origin/main...HEAD --stat
     for jconfig in judge_configs:
         session_id = None
 
-        # CLI review tools and peer_review_only judges don't have resumable sessions
-        needs_resume = resume_mode and jconfig.type != "cli-review" and not jconfig.peer_review_only
+        # CLI review tools don't have resumable sessions (peer_review_only judges CAN resume)
+        needs_resume = resume_mode and jconfig.type != "cli-review"
 
         if needs_resume:
             # Session suffix must match what's used in save_session (line 118)

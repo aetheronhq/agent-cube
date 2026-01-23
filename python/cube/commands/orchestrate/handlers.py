@@ -195,7 +195,18 @@ async def synthesis_final_decision(ctx: WorkflowContext) -> PhaseResult:
         await create_pr(ctx.task_id, ctx.result["winner"])
         return PhaseResult(exit=True)
 
-    if not final_result["approved"] or final_result["remaining_issues"]:
+    # If no issues to fix, proceed even if not fully approved (UNKNOWN judges etc)
+    if not final_result["remaining_issues"]:
+        approvals = final_result.get("approvals", 0)
+        decisions = final_result.get("decisions_found", 0)
+        if approvals > decisions // 2:  # Majority approved
+            print_warning(f"Majority approved ({approvals}/{decisions}) with no issues - proceeding")
+            return PhaseResult()  # Skip to minor fixes (which will skip) then PR
+        else:
+            print_warning(f"Not enough approvals ({approvals}/{decisions}) but no issues listed")
+            console.print("Some judges may have returned UNKNOWN/malformed decisions")
+
+    if final_result["remaining_issues"]:
         console.print()
         print_warning(f"Peer review has {len(final_result['remaining_issues'])} issue(s) to address")
         console.print()
