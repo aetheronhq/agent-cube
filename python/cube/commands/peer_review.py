@@ -469,12 +469,16 @@ def _fetch_open_prs(cwd: Optional[str] = None) -> list[int]:
     """Fetch all open PR numbers from the repository."""
     import subprocess
 
-    result = subprocess.run(
-        ["gh", "pr", "list", "--json", "number", "--state", "open"],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "list", "--json", "number", "--state", "open"],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        return []
 
     if result.returncode != 0:
         return []
