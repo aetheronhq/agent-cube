@@ -55,6 +55,17 @@ Example: "Run `task verify` (or `npm run verify`, etc.) and fix any errors befor
 
 If no verification command is found, instruct writers to at least run the linter and type checker.
 
+### Challenge Mechanism (for feedback rounds):
+If writers receive judge feedback they disagree with, they can create:
+`.prompts/responses/writer-{{writer_slug}}-{task_id}.md`
+
+This file should explain:
+- Which judge feedback they're challenging
+- Why the assessment is incorrect or lacks context
+- Supporting evidence from code, docs, or requirements
+
+Judges will read this file in subsequent reviews and reconsider their feedback.
+
 ### Last Step:
 Commit and push when verification passes!"""
 
@@ -172,6 +183,11 @@ async def generate_dual_feedback(
 
 Read these to see what issues judges found for Writer {writer_label}.
 
+**Writer {writer_label}'s Previous Response (if exists):**
+- `.prompts/responses/writer-{writer_slug}-{task_id}.md`
+
+If this file exists, read it to see the writer's previous explanations/challenges to judge feedback. Consider whether the writer's explanations are valid when interpreting judge feedback.
+
 **Writer {writer_label}'s Work:**
 Branch: `writer-{writer_slug}/{task_id}`
 Location: `~/.cube/worktrees/PROJECT/writer-{writer_slug}-{task_id}/`
@@ -184,8 +200,12 @@ Create a targeted feedback prompt for Writer {writer_label} that tells them to:
 3. Provides concrete fix suggestions
 4. References specific files/lines
 5. Keeps their good work, fixes problems
-6. **Before committing**: Run the repo's verification command (check Taskfile.yml, package.json, Makefile for `verify`/`check`/`ci` task) and fix any errors
-7. Commit and push when verification passes!
+6. **Challenge Mechanism**: If the writer disagrees with judge feedback or believes judges lack context, they should create/update `.prompts/responses/writer-{writer_slug}-{task_id}.md` explaining their reasoning. Include:
+   - Which specific judge feedback they're challenging
+   - Why the judge's assessment is incorrect or lacks context
+   - Supporting evidence from the code, docs, or requirements
+7. **Before committing**: Run the repo's verification command (check Taskfile.yml, package.json, Makefile for `verify`/`check`/`ci` task) and fix any errors
+8. Commit and push when verification passes!
 
 Save to: `.prompts/feedback-{writer_slug}-{task_id}.md`"""
 

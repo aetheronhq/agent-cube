@@ -9,7 +9,14 @@ def build_review_checklist() -> str:
     """Build the shared review checklist section."""
     return """## Review Checklist
 
-### 1. Planning & Architecture Alignment (CHECK FIRST)
+### 0. Writer Responses (CHECK FIRST IF EXISTS)
+- Check `.prompts/responses/writer-*-{task_id}.md` for writer explanations/challenges
+- If a writer has challenged previous judge feedback, consider their reasoning carefully
+- Writers may have context judges missed (architecture decisions, requirements, constraints)
+- If the writer's explanation is valid, remove or downgrade the related issue
+- If the writer's explanation is insufficient, keep the issue and explain why
+
+### 1. Planning & Architecture Alignment
 - **Read planning docs** - Check `docs/`, `planning/`, `ARCHITECTURE.md`, `ADR/` in the repo
 - **Verify documented decisions** - Does this change align with existing architecture?
 - **Flag conflicts immediately** - If changes contradict documented patterns (auth, data flow, credentials)
