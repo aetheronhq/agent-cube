@@ -36,12 +36,27 @@ Create a detailed writer prompt and save to: `.prompts/writer-prompt-{task_id}.m
 Include: context, requirements, steps, constraints, anti-patterns, success criteria.
 
 **Critical Instructions for Writers:**
-1. **First step**: Merge latest main to avoid conflicts later:
-   - `git fetch origin main`
-   - `git merge origin/main --no-edit` (non-interactive merge)
-   - If conflicts: Use read_file/write_file to fix them programmatically (no interactive editors!)
-   - Verify clean with `git status` before proceeding
-2. **Last step**: Commit and push when complete!"""
+
+### First Step - Sync with main:
+1. `git fetch origin main`
+2. `git merge origin/main --no-edit` (non-interactive merge)
+3. If conflicts: Use read_file/write_file to fix them programmatically (no interactive editors!)
+4. Verify clean with `git status` before proceeding
+
+### Before Committing - MANDATORY Verification:
+**Look up the verification command for this repo** by checking:
+- `Taskfile.yml` or `Taskfile.yaml` - look for `verify`, `check`, or `ci` task
+- `package.json` - look for `verify`, `check`, `test`, or `ci` script
+- `Makefile` - look for `verify`, `check`, or `ci` target
+- `pyproject.toml` or `setup.cfg` - look for test/lint commands
+
+**Include this verification step in the writer prompt** as a MANDATORY step before committing.
+Example: "Run `task verify` (or `npm run verify`, etc.) and fix any errors before committing."
+
+If no verification command is found, instruct writers to at least run the linter and type checker.
+
+### Last Step:
+Commit and push when verification passes!"""
 
     layout = SingleAgentLayout.initialize("Prompter")
     layout.start()
@@ -169,7 +184,8 @@ Create a targeted feedback prompt for Writer {writer_label} that tells them to:
 3. Provides concrete fix suggestions
 4. References specific files/lines
 5. Keeps their good work, fixes problems
-6. Commit and push when complete
+6. **Before committing**: Run the repo's verification command (check Taskfile.yml, package.json, Makefile for `verify`/`check`/`ci` task) and fix any errors
+7. Commit and push when verification passes!
 
 Save to: `.prompts/feedback-{writer_slug}-{task_id}.md`"""
 

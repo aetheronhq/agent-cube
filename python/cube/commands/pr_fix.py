@@ -113,7 +113,11 @@ You are fixing review comments on PR #{pr_number}: {pr_title}
 2. Make the requested changes in the appropriate files
 3. If a comment contains a `suggestion` block, apply that exact change
 4. For questions, add code comments or make clarifying changes as appropriate
-5. Run any relevant tests to ensure your fixes don't break anything
+5. **Before committing**: Run the repo's verification command to ensure your fixes don't break anything:
+   - Check `Taskfile.yml` for `verify`, `check`, or `ci` task
+   - Or `package.json` for `verify`, `check`, or `ci` script
+   - Or `Makefile` for `verify`, `check`, or `ci` target
+   - Fix any errors before proceeding
 6. Commit your changes with a message referencing the PR
 
 **Important:** Focus only on the changes requested in the comments above. Do not refactor or change unrelated code.
