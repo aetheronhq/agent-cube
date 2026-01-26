@@ -474,12 +474,26 @@ git diff origin/main...HEAD --stat
 
     # Don't re-filter - already filtered correctly above based on review_type and single_judge
 
+    # Check if any sessions exist to resume - if not, fall back to fresh mode
+    actual_resume_mode = resume_mode
+    if resume_mode:
+        any_sessions = False
+        for jconfig in judge_configs:
+            if jconfig.type != "cli-review":
+                session_id = load_session(jconfig.key.upper(), f"{task_id}_{review_type}")
+                if session_id:
+                    any_sessions = True
+                    break
+        if not any_sessions:
+            print_info("No existing judge sessions found - starting fresh")
+            actual_resume_mode = False
+
     judges: List[JudgeInfo] = []
     for jconfig in judge_configs:
         session_id = None
 
         # CLI review tools don't have resumable sessions (peer_review_only judges CAN resume)
-        needs_resume = resume_mode and jconfig.type != "cli-review"
+        needs_resume = actual_resume_mode and jconfig.type != "cli-review"
 
         if needs_resume:
             # Session suffix must match what's used in save_session (line 118)
@@ -508,7 +522,7 @@ git diff origin/main...HEAD --stat
     console.print(f"[bold]Task:[/bold] {task_id}")
     console.print()
 
-    if resume_mode:
+    if actual_resume_mode:
         console.print("[yellow]📋 Found existing judge sessions to resume:[/yellow]")
         for judge in judges:
             if judge.session_id:
@@ -582,7 +596,7 @@ git diff origin/main...HEAD --stat
     panel_layout.start()
 
     results = await asyncio.gather(
-        *(run_judge(judge, prompt, resume_mode, panel_layout, winner=winner) for judge in judges),
+        *(run_judge(judge, prompt, actual_resume_mode, panel_layout, winner=winner) for judge in judges),
         return_exceptions=True,
     )
 
