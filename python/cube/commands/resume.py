@@ -116,8 +116,12 @@ def resume_command(target: str, task_id: str, message: str = None) -> None:
 
 Your decision file: `{decision_file}`
 
-If you already completed your review, just confirm it's done.
-If not, complete your review and write your decision JSON."""
+**⚠️ YOU MUST RE-REVIEW THE CODE** - the writer may have made changes!
+- Run `git log` to see new commits since your last review
+- Run `git diff` to see what changed
+- Check each issue from your prior review: is it still there or fixed?
+- **OVERWRITE** your decision file with a fresh assessment
+- Do NOT say "already reviewed" - always re-check the current code"""
     elif writer_cfg:
         target_label = writer_cfg.label
         color = writer_cfg.color
