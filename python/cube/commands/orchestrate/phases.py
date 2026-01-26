@@ -259,7 +259,14 @@ Include the worktree location and git commands for reviewing."""
     )
 
 
-async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir: Path, fresh_writer: bool = False):
+async def run_minor_fixes(
+    task_id: str,
+    result: dict,
+    issues: list,
+    prompts_dir: Path,
+    fresh_writer: bool = False,
+    resume_prompt: str | None = None,
+):
     """Address minor issues from peer review."""
     from ...core.user_config import get_writer_by_key_or_metadata
 
@@ -272,6 +279,17 @@ async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir:
         minor_fixes_path.unlink()
 
     branch_name = f"writer-{winner_name}/{task_id}"
+
+    # Include additional context if provided
+    additional_context = ""
+    if resume_prompt:
+        additional_context = f"""
+## Additional Context from User
+
+{resume_prompt}
+
+"""
+
     prompt = f"""Generate a minor fixes prompt for the winning writer.
 
 ## Context
@@ -279,7 +297,7 @@ async def run_minor_fixes(task_id: str, result: dict, issues: list, prompts_dir:
 Winner: Writer {result['winner']} ({winner_cfg.label})
 Branch: `{branch_name}`
 Worktree: `~/.cube/worktrees/{Path(PROJECT_ROOT).name}/writer-{winner_name}-{task_id}/`
-
+{additional_context}
 ## Minor Issues from Peer Review
 
 {chr(10).join('- ' + _normalize_issue(issue) for issue in issues)}
