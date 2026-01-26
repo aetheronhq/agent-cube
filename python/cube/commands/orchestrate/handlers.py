@@ -243,7 +243,12 @@ async def synthesis_minor_fixes(ctx: WorkflowContext) -> PhaseResult:
         return PhaseResult(data={"fixes_skipped": True, "all_approved": False})
     else:
         await run_minor_fixes(
-            ctx.task_id, ctx.result, final_result["remaining_issues"], ctx.prompts_dir, ctx.fresh_writer
+            ctx.task_id,
+            ctx.result,
+            final_result["remaining_issues"],
+            ctx.prompts_dir,
+            ctx.fresh_writer,
+            resume_prompt=ctx.resume_prompt,
         )
         return PhaseResult(data={"fixes_skipped": False})
 
