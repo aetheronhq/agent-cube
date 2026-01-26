@@ -111,10 +111,16 @@ def build_decision_file_instructions(task_id: str, include_inline_comments: bool
 
 ## Complete Review Required
 
+⚠️ **YOU MUST RE-REVIEW THE CODE** - even if your decision file already exists!
+- The writer may have made fixes since your last review
+- Run `git log` and `git diff` to see what changed
+- **OVERWRITE** your decision file with a fresh assessment
+- Do NOT say "already reviewed" - that is WRONG, always re-check the code
+
 This is a COMPLETE review - include ALL issues you find, even if mentioned previously.
 - Report every issue that exists in the current code
 - Only omit a previously-reported issue if you verify it has been RESOLVED
-- Do not assume previous feedback was addressed - check the code
+- Do not assume previous feedback was addressed - CHECK THE CODE
 """
 
 
@@ -163,9 +169,12 @@ Do a **full code review** of this PR:
 2. Look for bugs, security issues, missing error handling, etc.
 3. Check code quality, patterns, and best practices
 
-**If you have a prior decision file** (`.prompts/decisions/{{judge_key}}-{task_id}-peer-review.json`):
-- Read it first to see what you flagged before
-- Verify each prior issue: is it STILL there in the current code? Remove any that are now fixed
+**⚠️ MANDATORY RE-REVIEW** - If you have a prior decision file:
+- The writer has likely made changes since your last review
+- Run `git log` to see new commits, `git diff` to see changes
+- **You MUST re-check all code and OVERWRITE your decision file**
+- Do NOT just say "already reviewed" - that is incorrect behavior
+- Verify each prior issue: is it STILL there? Remove any that are now fixed
 - Add any NEW issues you find in this review
 
 {build_review_checklist()}
