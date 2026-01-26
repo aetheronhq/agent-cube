@@ -85,7 +85,11 @@ class BaseThinkingLayout:
             return 40
 
     def _truncate_plain(self, text: str, max_len: int) -> str:
+        """Truncate plain text, only if > 3x terminal width."""
         from rich.errors import MarkupError
+
+        # Only truncate if > 3 terminal widths
+        threshold = max_len * 3
 
         try:
             rich_text = Text.from_markup(text)
@@ -96,24 +100,39 @@ class BaseThinkingLayout:
                 plain = plain.replace(f"[{tag}]", "").replace(f"[/{tag}]", "")
             plain = plain.replace("\\[", "[").replace("\\]", "]")
 
-        if len(plain) <= max_len:
+        if len(plain) <= threshold:
             return plain
-        return plain[: max_len - 1] + "…"
+        return plain[: threshold - 1] + "…"
 
     def _truncate_markup(self, text: str, max_len: int) -> str:
+        """Truncate markup text, only if > 3x terminal width. Preserves markup."""
         from rich.errors import MarkupError
-        from rich.markup import escape
+
+        # Only truncate if > 3 terminal widths
+        threshold = max_len * 3
 
         try:
             rich_text = Text.from_markup(text)
-            if len(rich_text.plain) <= max_len:
-                return text
-            return escape(rich_text.plain[: max_len - 1]) + "…"
+            plain_len = len(rich_text.plain)
+            if plain_len <= threshold:
+                return text  # Return original with markup intact
+            # For very long text, truncate but keep original markup structure
+            # Use Rich's built-in truncation which preserves styles
+            rich_text.truncate(threshold - 1, overflow="ellipsis")
+            # Convert back to markup string (this preserves colors)
+            from io import StringIO
+
+            from rich.console import Console
+
+            buf = StringIO()
+            console = Console(file=buf, force_terminal=True, no_color=False, width=10000)
+            console.print(rich_text, end="")
+            return buf.getvalue().rstrip()
         except MarkupError:
-            escaped = escape(text)
-            if len(escaped) <= max_len:
-                return escaped
-            return escaped[: max_len - 1] + "…"
+            # Fallback for invalid markup - just return as-is up to threshold
+            if len(text) <= threshold:
+                return text
+            return text[: threshold - 1] + "…"
 
     def _assistant_line_width(self, label: str) -> int:
         return self._term_width() - len(label) - 10
