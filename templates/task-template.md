@@ -6,16 +6,38 @@
 
 ---
 
+<!--
+## Writing Effective Task Files
+
+Task files are consumed by Agent Cube's two-stage pipeline:
+1. A Prompter AI reads this file and generates a detailed writer prompt
+2. Writer AIs receive that prompt and implement the task (with full codebase access)
+
+This means:
+- Writers CAN read planning docs and codebase files directly — don't duplicate content
+- Specify WHAT to build and constraints, not HOW to build it step-by-step
+- Keep code examples minimal — show patterns/style (2-5 lines), not implementations
+- Anti-patterns work best as brief constraints, not full bad/good code blocks
+- Requirements and acceptance criteria are the highest-value sections
+- Overly prescriptive instructions reduce solution quality (writers can't explore alternatives)
+
+Research shows: Goal-oriented prompts with clear constraints outperform verbose
+procedural instructions. AI agents exploit surface patterns in code examples rather
+than reasoning about requirements — keep examples short and pattern-focused.
+-->
+
 ## 📖 **Context**
 
 **What this builds on:**
 - [Previous task or foundation]
-- [Why this is needed now]
 - [How it fits in the bigger picture]
 
-**Planning docs (Golden Source):**
-- `planning/[relevant-doc-1].md` - [What it defines]
-- `planning/[relevant-doc-2].md` - [What it defines]
+**Required reading (Golden Source):**
+- `planning/[relevant-doc-1].md` — [What it defines]
+- `planning/[relevant-doc-2].md` — [What it defines]
+
+> Writers: Read these planning docs before implementing. They contain
+> the authoritative patterns, types, and constraints for this task.
 
 ---
 
@@ -26,7 +48,6 @@
 **Deliverable:**
 - [Specific item 1]
 - [Specific item 2]
-- [Specific item 3]
 
 **Acceptance criteria:**
 - [ ] [Testable criterion 1]
@@ -39,79 +60,33 @@
 
 ---
 
-## 📝 **Implementation Steps**
+## 🏗️ **Constraints**
 
-**Suggested order:**
+**Architecture (from planning docs):**
+- [Specific constraint from planning-doc-1.md]
+- [Specific constraint from planning-doc-2.md]
 
-1. **[Step 1]**
-   - [ ] Substep A
-   - [ ] Substep B
+**Technical:**
+- TypeScript strict mode, no `any` types
+- [Project-specific constraint]
 
-2. **[Step 2]**
-   - [ ] Substep A
-   - [ ] Substep B
-
-3. **[Step 3]**
-   - [ ] Substep A
-   - [ ] Substep B
-
-4. **Verify**
-   - [ ] Run tests
-   - [ ] Run typecheck
-   - [ ] Run linter
-   - [ ] Manually test [key functionality]
-
-5. **Finalize**
-   - [ ] Commit changes
-   - [ ] Push to branch
-   - [ ] Verify push succeeded
-
----
-
-## 🏗️ **Architecture Constraints**
-
-### **Must Follow**
-
-**Planning docs:**
-- [Specific requirement from planning-doc-1.md]
-- [Specific requirement from planning-doc-2.md]
-
-**Technical constraints:**
-- TypeScript strict mode
-- No `any` types
-- Explicit return types
-- Tests required
-
-**KISS Principles:**
-- ✅ Simplest solution that works
-- ✅ No unnecessary abstractions
-- ✅ No premature optimization
-- ❌ No "for future flexibility"
+**KISS:**
+- Simplest solution that meets requirements
+- No unnecessary abstractions or "for future flexibility"
 
 ---
 
 ## 🚫 **Anti-Patterns**
 
-### **❌ DON'T: [Anti-pattern 1]**
+<!--
+Keep anti-patterns brief — state the constraint and why, with minimal code.
+A 1-2 line example showing the wrong pattern is more effective than
+full bad/good implementation blocks. Writers reason better from constraints
+than from code to copy.
+-->
 
-```typescript
-// Bad example
-const overEngineered = {
-  // Why this is bad
-}
-```
-
-**Instead:**
-```typescript
-// Good alternative
-const simple = {
-  // Why this is better
-}
-```
-
-### **❌ DON'T: [Anti-pattern 2]**
-
-[Repeat structure]
+- **Don't [anti-pattern 1]** — [Why it's wrong]. Use [correct approach] instead.
+- **Don't [anti-pattern 2]** — [Why it breaks]. See `planning/[doc].md` for the correct pattern.
 
 ---
 
@@ -119,133 +94,73 @@ const simple = {
 
 **This task owns:**
 ```
-apps/api/src/lib/[feature]/
+[directory/]
 ├── [file1].ts
 ├── [file2].ts
 └── [file3].test.ts
 ```
 
 **Must NOT modify:**
-- `apps/api/src/server.ts` (owned by integrator)
-- `[Other protected files]`
-
-**Integration:**
-- Export [module/middleware/function]
-- Integrator will import and wire in separate task
+- `[file]` (owned by [other task])
 
 ---
 
 ## 🧪 **Testing Requirements**
 
-**Test coverage:**
 - [ ] Unit tests for core functions
-- [ ] Integration tests (if applicable)
-- [ ] Edge cases covered
+- [ ] Edge cases: [specific to this task]
 - [ ] Error paths tested
-
-**Test quality:**
-- Descriptive test names
-- Arrange-Act-Assert pattern
-- No flaky tests
-- Fast execution (<5s)
+- [ ] [Domain-specific test requirement]
 
 ---
 
 ## ✅ **Acceptance Criteria**
 
-**Definition of Done:**
-
 - [ ] All requirements met
-- [ ] Planning docs followed
-- [ ] Tests written and passing
-- [ ] TypeScript compiles (no errors)
-- [ ] Linter passes (no warnings)
-- [ ] Code is self-documenting
+- [ ] Planning docs followed (see Required Reading above)
+- [ ] Tests passing, TypeScript compiles, linter clean
 - [ ] No unnecessary complexity
-- [ ] Integration points clear
-- [ ] Changes committed
-- [ ] Branch pushed to remote
-
-**Quality gates:**
-- [ ] Follows KISS principles
-- [ ] No security issues
-- [ ] Performance acceptable
-- [ ] Error handling complete
+- [ ] Changes committed and pushed
 
 ---
 
 ## 🔗 **Integration Points**
 
-**Dependencies (requires these first):**
-- [Task or component this needs]
-- [Another dependency]
-
-**Dependents (these will use this):**
-- [Task that will integrate this]
-- [Component that will consume this]
-
-**Integrator task:**
-- [Which task wires this into server/app]
-- [What integration looks like]
+**Depends on:** [Previous tasks]
+**Enables:** [Future tasks]
 
 ---
 
-## 📊 **Examples**
+## 📊 **Style Reference**
 
-### **Success Example**
+<!--
+Only include if there's a specific pattern the writer must follow that
+ISN'T already in the planning docs. Keep to 2-5 lines showing the pattern,
+not a full implementation. The writer will read planning docs for details.
+-->
 
-**From:** [Similar task in v2 or reference]
-
-**What made it good:**
-- [Quality aspect 1]
-- [Quality aspect 2]
-
-**Code snippet:**
 ```typescript
-// Reference example
+// Show the pattern/convention, not a full implementation
 ```
 
 ---
 
-## 🎓 **Common Pitfalls**
+## 🎓 **Pitfalls**
 
-**Watch out for:**
-- ⚠️ [Common mistake 1]
-- ⚠️ [Common mistake 2]
-- ⚠️ [Common mistake 3]
-
-**If you see [X], it means [Y] - fix by [Z]**
-
----
-
-## 📝 **Notes**
-
-**Additional context:**
-- [Important note 1]
-- [Important note 2]
-
-**Nice-to-haves (not required):**
-- [Optional improvement 1]
-- [Optional improvement 2]
+- ⚠️ [Common mistake — how to avoid]
+- ⚠️ [Edge case to watch for]
 
 ---
 
 **FINAL STEPS - CRITICAL:**
 
-After completing implementation and verifying all tests pass:
+After implementing and verifying all tests pass:
 
 ```bash
-# Stage your changes
 git add [files]
-
-# Commit with descriptive message
 git commit -m "feat: [brief description]"
-
-# Push to remote
 git push origin writer-[your-model-slug]/[task-id]
-
-# Verify push succeeded
-git status  # Should show "up to date with origin"
+git status
 ```
 
 **⚠️ IMPORTANT:** Uncommitted or unpushed changes will NOT be reviewed!
@@ -253,6 +168,5 @@ git status  # Should show "up to date with origin"
 ---
 
 **Built with:** Agent Cube v1.0
-**Template version:** 1.0
-**Last updated:** 2025-11-11
-
+**Template version:** 2.0
+**Last updated:** 2025-02-11
