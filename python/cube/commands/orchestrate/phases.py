@@ -74,7 +74,7 @@ async def run_prompter_with_session(task_id: str, prompt: str, layout, output_pa
         raise RuntimeError(f"Prompter failed to generate {output_path}")
 
 
-async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
+async def run_synthesis(task_id: str, result: dict, prompts_dir: Path, resume_prompt: str | None = None):
     """Phase 6: Run synthesis if needed."""
     import json
 
@@ -175,6 +175,11 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
             await run_prompter_with_session(task_id, prompt, layout, synthesis_path)
         finally:
             layout.close()
+
+    # If user provided additional context via -p, append to synthesis prompt
+    if resume_prompt:
+        with open(synthesis_path, "a") as f:
+            f.write(f"\n\n## Additional Context from User\n\n{resume_prompt}\n")
 
     print_info(f"Sending synthesis to {winner_cfg.label}")
     from ...core.session import load_session
