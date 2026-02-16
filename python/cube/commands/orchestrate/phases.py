@@ -86,6 +86,10 @@ async def run_synthesis(task_id: str, result: dict, prompts_dir: Path, resume_pr
 
     synthesis_path = prompts_dir / f"synthesis-{task_id}.md"
 
+    # Regenerate if resume_prompt provided (user wants to inject context)
+    if resume_prompt and synthesis_path.exists():
+        synthesis_path.unlink()
+
     if not synthesis_path.exists():
         console.print("Generating synthesis prompt...")
 
@@ -115,6 +119,15 @@ async def run_synthesis(task_id: str, result: dict, prompts_dir: Path, resume_pr
             else "(Read judge decision files for issues)"
         )
 
+        additional_context = ""
+        if resume_prompt:
+            additional_context = f"""
+## Additional Context from User
+
+{resume_prompt}
+
+"""
+
         prompt = f"""Generate a synthesis prompt for the WINNING writer.
 
 ## Context
@@ -123,7 +136,7 @@ Task: {task_id}
 Winner: Writer {winner_name} ({winner_cfg.label})
 Winner's branch: writer-{winner_cfg.name}/{task_id}
 Winner's location: ~/.cube/worktrees/PROJECT/writer-{winner_cfg.name}-{task_id}/
-
+{additional_context}
 ## Available Information
 
 **Judge Decisions (JSON with detailed feedback):**
@@ -175,11 +188,6 @@ Save to: `.prompts/synthesis-{task_id}.md`"""
             await run_prompter_with_session(task_id, prompt, layout, synthesis_path)
         finally:
             layout.close()
-
-    # If user provided additional context via -p, append to synthesis prompt
-    if resume_prompt:
-        with open(synthesis_path, "a") as f:
-            f.write(f"\n\n## Additional Context from User\n\n{resume_prompt}\n")
 
     print_info(f"Sending synthesis to {winner_cfg.label}")
     from ...core.session import load_session
