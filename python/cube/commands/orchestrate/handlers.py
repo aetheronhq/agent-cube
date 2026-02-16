@@ -125,7 +125,7 @@ async def synthesis_run(ctx: WorkflowContext) -> PhaseResult:
         return PhaseResult(data={"synthesis_complete": True, "skipped": True})
 
     # Winner needs changes - run synthesis
-    await run_synthesis(ctx.task_id, ctx.result, ctx.prompts_dir)
+    await run_synthesis(ctx.task_id, ctx.result, ctx.prompts_dir, resume_prompt=ctx.resume_prompt)
     return PhaseResult(data={"synthesis_complete": True})
 
 

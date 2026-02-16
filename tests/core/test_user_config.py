@@ -29,11 +29,11 @@ def mock_config_files(tmp_path, monkeypatch):
     """Create a minimal cube.yaml and mock find_config_files."""
     config_data = {
         "writers": {
-            "writer_a": {"name": "opus", "model": "opus-4.5", "label": "Writer Opus", "color": "green"},
+            "writer_a": {"name": "opus", "model": "opus-4.6-thinking", "label": "Writer Opus", "color": "green"},
             "writer_b": {"name": "codex", "model": "gpt-5.1", "label": "Writer Codex", "color": "blue"},
         },
         "judges": {
-            "judge_1": {"model": "opus-4.5", "label": "Judge 1", "color": "green"},
+            "judge_1": {"model": "opus-4.6-thinking", "label": "Judge 1", "color": "green"},
             "judge_2": {"model": "gpt-4", "label": "Judge 2", "color": "red"},
         },
         "writer_order": ["writer_a", "writer_b"],
@@ -86,7 +86,7 @@ class TestUserConfig:
         """Get judge by exact key (judge_1, judge_2)."""
         judge = get_judge_config("judge_1")
         assert judge.key == "judge_1"
-        assert judge.model == "opus-4.5"
+        assert judge.model == "opus-4.6-thinking"
 
     def test_get_judge_config_unknown_raises(self, mock_config_files):
         """Unknown judge key raises KeyError."""
@@ -162,7 +162,7 @@ class TestUserConfig:
         """get_prompter_model() returns model name."""
         from cube.core.user_config import get_prompter_model
 
-        assert get_prompter_model() == "opus-4.5-thinking"
+        assert get_prompter_model() == "opus-4.6-thinking"
 
     def test_get_writer_slugs(self, mock_config_files):
         """get_writer_slugs() returns list of names."""

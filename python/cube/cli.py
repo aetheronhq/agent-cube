@@ -683,6 +683,7 @@ def auto(
 
 
 @app.command(name="pr-review")
+@app.command(name="prv", hidden=True)
 def pr_review_cmd(
     pr_number: Annotated[Optional[int], typer.Argument(help="PR number to review")] = None,
     focus: Annotated[

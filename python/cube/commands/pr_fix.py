@@ -309,27 +309,68 @@ def _run_fix_agent(
 
 
 def _get_current_pr_number(cwd: Optional[str] = None) -> Optional[int]:
-    """Try to detect PR number from current branch."""
+    """Try to detect PR number from current branch, then from worktrees.
+
+    Cube branches live in worktrees, not the workspace, so we scan worktrees
+    if the workspace branch has no associated PR.
+    """
     import subprocess
 
+    effective_cwd = cwd or str(PROJECT_ROOT)
+
+    # 1. Try current workspace branch
+    pr = _gh_pr_view_number(effective_cwd)
+    if pr is not None:
+        return pr
+
+    # 2. Scan worktrees for branches with open PRs
     result = subprocess.run(
-        ["gh", "pr", "view", "--json", "number"],
+        ["git", "worktree", "list", "--porcelain"],
+        cwd=effective_cwd,
         capture_output=True,
         text=True,
-        cwd=cwd,
-        timeout=30,
+        timeout=10,
     )
-
     if result.returncode != 0:
         return None
 
-    try:
-        import json
+    worktree_paths = []
+    current_path = None
+    for line in result.stdout.split("\n"):
+        if line.startswith("worktree "):
+            current_path = line.replace("worktree ", "")
+        elif line.startswith("branch ") and current_path:
+            if current_path != effective_cwd:
+                worktree_paths.append(current_path)
+            current_path = None
 
-        data = json.loads(result.stdout)
-        return data.get("number")
-    except Exception:
-        return None
+    for wt_path in worktree_paths:
+        pr = _gh_pr_view_number(wt_path)
+        if pr is not None:
+            return pr
+
+    return None
+
+
+def _gh_pr_view_number(cwd: str) -> Optional[int]:
+    """Run gh pr view in a directory and return the PR number if found."""
+    import json
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", "--json", "number"],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=15,
+        )
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            return data.get("number")
+    except (subprocess.TimeoutExpired, Exception):
+        pass
+    return None
 
 
 def _filter_threads_by_author(

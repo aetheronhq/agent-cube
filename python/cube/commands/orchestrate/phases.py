@@ -74,7 +74,7 @@ async def run_prompter_with_session(task_id: str, prompt: str, layout, output_pa
         raise RuntimeError(f"Prompter failed to generate {output_path}")
 
 
-async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
+async def run_synthesis(task_id: str, result: dict, prompts_dir: Path, resume_prompt: str | None = None):
     """Phase 6: Run synthesis if needed."""
     import json
 
@@ -85,6 +85,10 @@ async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
     winner_name = result["winner"]
 
     synthesis_path = prompts_dir / f"synthesis-{task_id}.md"
+
+    # Regenerate if resume_prompt provided (user wants to inject context)
+    if resume_prompt and synthesis_path.exists():
+        synthesis_path.unlink()
 
     if not synthesis_path.exists():
         console.print("Generating synthesis prompt...")
@@ -115,6 +119,15 @@ async def run_synthesis(task_id: str, result: dict, prompts_dir: Path):
             else "(Read judge decision files for issues)"
         )
 
+        additional_context = ""
+        if resume_prompt:
+            additional_context = f"""
+## Additional Context from User
+
+{resume_prompt}
+
+"""
+
         prompt = f"""Generate a synthesis prompt for the WINNING writer.
 
 ## Context
@@ -123,7 +136,7 @@ Task: {task_id}
 Winner: Writer {winner_name} ({winner_cfg.label})
 Winner's branch: writer-{winner_cfg.name}/{task_id}
 Winner's location: ~/.cube/worktrees/PROJECT/writer-{winner_cfg.name}-{task_id}/
-
+{additional_context}
 ## Available Information
 
 **Judge Decisions (JSON with detailed feedback):**

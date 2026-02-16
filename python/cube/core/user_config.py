@@ -194,7 +194,7 @@ def load_config() -> CubeConfig:
     cli_tools = data.get("cli_tools", {})
     behavior = data.get("behavior", {})
     prompter = data.get("prompter", {})
-    prompter_model = prompter.get("model", "opus-4.5-thinking")
+    prompter_model = prompter.get("model", "opus-4.6-thinking")
 
     _config_cache = CubeConfig(
         writers=writers,
