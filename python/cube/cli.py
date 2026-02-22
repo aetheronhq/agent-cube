@@ -19,6 +19,7 @@ from .commands.run import run_command
 from .commands.sessions import sessions_command
 from .commands.status import status_command
 from .commands.ui import ui_command
+from .commands.ui_review import ui_review_command
 from .commands.version import version_command
 from .commands.writers import writers_command
 from .core.output import console, print_success
@@ -520,6 +521,52 @@ def logs(
 def ui(port: Annotated[int, typer.Option("--port", help="Port to run UI server on", show_default=True)] = 3030):
     """Launch AgentCube web UI."""
     ui_command(port)
+
+
+@app.command(name="ui-review")
+def ui_review(
+    file: Annotated[
+        Optional[list[str]], typer.Option("--file", "-f", help="UI file(s) to review (repeatable)")
+    ] = None,
+    description: Annotated[
+        Optional[str], typer.Option("--description", "-d", help="Free-text description of the UI to review")
+    ] = None,
+    context: Annotated[
+        str, typer.Option("--context", "-c", help="Platform, target user, and primary task (one-liner)")
+    ] = "",
+    pr: Annotated[
+        Optional[int], typer.Option("--pr", help="GitHub PR number — review UI-related file changes only")
+    ] = None,
+    output: Annotated[
+        Optional[str], typer.Option("--output", "-o", help="Save report to this file path")
+    ] = None,
+    fresh: Annotated[
+        bool, typer.Option("--fresh", help="Start fresh judge sessions (ignore cached sessions)")
+    ] = False,
+):
+    """Review UI/UX quality using the judge panel.
+
+    Examples:
+        cube ui-review --file web-ui/src/pages/Dashboard.tsx
+        cube ui-review --file web-ui/src/pages/Dashboard.tsx --file web-ui/src/pages/TaskDetail.tsx
+        cube ui-review --pr 123
+        cube ui-review --description "Settings page with 15 ungrouped toggles"
+        cube ui-review --file src/App.tsx --context "web dashboard, developer users, monitor agent tasks"
+        cube ui-review --file src/App.tsx --output reviews/dashboard.md
+    """
+    try:
+        ui_review_command(
+            files=list(file) if file else [],
+            description=description,
+            context=context,
+            pr=pr,
+            output=output,
+            fresh=fresh,
+        )
+    except Exception as e:
+        _print_error(e)
+        import sys
+        sys.exit(1)
 
 
 @app.command(name="clean")
