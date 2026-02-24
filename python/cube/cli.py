@@ -537,6 +537,12 @@ def ui_review(
     pr: Annotated[
         Optional[int], typer.Option("--pr", help="GitHub PR number — review UI-related file changes only")
     ] = None,
+    repo: Annotated[
+        Optional[str], typer.Option("--repo", "-r", help="Repo for --pr in owner/name format (e.g. aetheronhq/aetheron-connect-v2)")
+    ] = None,
+    post: Annotated[
+        bool, typer.Option("--post", help="Post findings as a GitHub review with inline diff comments (requires --pr)")
+    ] = False,
     output: Annotated[
         Optional[str], typer.Option("--output", "-o", help="Save report to this file path")
     ] = None,
@@ -560,7 +566,9 @@ def ui_review(
             description=description,
             context=context,
             pr=pr,
+            repo=repo,
             output=output,
+            post=post,
             fresh=fresh,
         )
     except Exception as e:

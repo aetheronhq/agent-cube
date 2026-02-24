@@ -29,12 +29,13 @@ def check_gh_installed() -> bool:
         return False
 
 
-def fetch_pr(pr_number: int, cwd: Optional[str] = None) -> PRData:
+def fetch_pr(pr_number: int, cwd: Optional[str] = None, repo: Optional[str] = None) -> PRData:
     """Fetch PR metadata and diff via gh CLI.
 
     Args:
         pr_number: The PR number to fetch
         cwd: Working directory (defaults to current directory)
+        repo: Optional repo in owner/name format for cross-repo access.
 
     Returns:
         PRData with all PR information
@@ -47,9 +48,12 @@ def fetch_pr(pr_number: int, cwd: Optional[str] = None) -> PRData:
             "gh CLI not installed or not authenticated.\n" "Install: https://cli.github.com/\n" "Auth: gh auth login"
         )
 
+    repo_flags = ["--repo", repo] if repo else []
+
     # Get PR details as JSON
     result = subprocess.run(
-        ["gh", "pr", "view", str(pr_number), "--json", "number,title,body,headRefName,baseRefName,headRefOid,reviews"],
+        ["gh", "pr", "view", str(pr_number), "--json", "number,title,body,headRefName,baseRefName,headRefOid,reviews"]
+        + repo_flags,
         capture_output=True,
         text=True,
         cwd=cwd,
@@ -66,7 +70,7 @@ def fetch_pr(pr_number: int, cwd: Optional[str] = None) -> PRData:
 
     # Get diff separately
     diff_result = subprocess.run(
-        ["gh", "pr", "diff", str(pr_number)],
+        ["gh", "pr", "diff", str(pr_number)] + repo_flags,
         capture_output=True,
         text=True,
         cwd=cwd,
@@ -82,6 +86,6 @@ def fetch_pr(pr_number: int, cwd: Optional[str] = None) -> PRData:
         diff=diff_result.stdout,
         head_branch=data.get("headRefName", ""),
         base_branch=data.get("baseRefName", ""),
-        head_sha=data.get("headRefOid", "")[:7] if data.get("headRefOid") else "",
+        head_sha=data.get("headRefOid", ""),
         existing_reviews=data.get("reviews") or [],
     )

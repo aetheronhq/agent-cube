@@ -60,8 +60,8 @@ def _filter_ui_diff(diff: str) -> str:
     return "\n".join(result)
 
 
-def _fetch_pr_ui_diff(pr_number: int) -> tuple[str, str]:
-    """Fetch a PR and return (title, filtered_ui_diff).
+def _fetch_pr_ui_diff(pr_number: int, repo: Optional[str] = None) -> tuple[str, str, str]:
+    """Fetch a PR and return (title, filtered_ui_diff, head_sha).
 
     Raises RuntimeError if gh CLI is missing or no UI files are changed.
     """
@@ -70,7 +70,7 @@ def _fetch_pr_ui_diff(pr_number: int) -> tuple[str, str]:
     if not check_gh_installed():
         raise RuntimeError("gh CLI not installed or not authenticated. Run: gh auth login")
 
-    pr = fetch_pr(pr_number, cwd=str(PROJECT_ROOT))
+    pr = fetch_pr(pr_number, cwd=str(PROJECT_ROOT), repo=repo)
     ui_diff = _filter_ui_diff(pr.diff)
 
     if not ui_diff.strip():
@@ -79,7 +79,7 @@ def _fetch_pr_ui_diff(pr_number: int) -> tuple[str, str]:
             f"Checked extensions: {', '.join(sorted(UI_FILE_EXTENSIONS))}"
         )
 
-    return pr.title, ui_diff
+    return pr.title, ui_diff, pr.head_sha
 
 
 def _collect_findings(task_id: str) -> dict:
@@ -132,6 +132,129 @@ def _collect_findings(task_id: str) -> dict:
         "quick_wins": unique_wins,
         "summaries": summaries,
     }
+
+
+def _post_inline_review(
+    pr_number: int,
+    findings: dict,
+    context: str,
+    commit_sha: str,
+    repo: Optional[str] = None,
+) -> None:
+    """Post findings as a GitHub PR review with inline comments where possible."""
+    import subprocess as sp
+
+    from ..core.output import print_info, print_success, print_warning
+
+    inline_comments = []
+    summary_lines: list[str] = []
+
+    summary_lines.append("## 🎨 UI Review — Agent Cube")
+    summary_lines.append("")
+    if context:
+        summary_lines.append(f"> **Context:** {context}")
+        summary_lines.append("")
+
+    priority_map = [
+        ("P0", "🔴 P0 — Blockers"),
+        ("P1", "🟡 P1 — Important"),
+        ("P2", "⚪ P2 — Polish"),
+    ]
+
+    for key, heading in priority_map:
+        items = findings.get(key, [])
+        if not items:
+            continue
+        summary_lines.append(f"### {heading} ({len(items)})")
+        summary_lines.append("")
+        for i, f in enumerate(items, 1):
+            path = f.get("path") or ""
+            line = f.get("line") or 0
+            judge = f.get("_judge", "?")
+
+            body_parts = [f"**{f.get('problem', '')}**"]
+            if f.get("evidence"):
+                body_parts.append(f"**Evidence:** {f['evidence']}")
+            if f.get("diagnosis"):
+                body_parts.append(f"**Diagnosis:** {f['diagnosis']}")
+            if f.get("principle"):
+                body_parts.append(f"**Principle:** {f['principle']}")
+            if f.get("fix"):
+                body_parts.append(f"**Fix:** {f['fix']}")
+            if f.get("acceptance"):
+                body_parts.append(f"**Verify:** {f['acceptance']}")
+            body_parts.append(f"*[{judge}]*")
+
+            comment_body = "\n\n".join(body_parts)
+
+            if path and line and int(line) > 0:
+                inline_comments.append({"path": path, "line": int(line), "side": "RIGHT", "body": comment_body})
+            else:
+                summary_lines.append(f"**{i}. {f.get('problem', '')}** *[{judge}]*")
+                if f.get("fix"):
+                    summary_lines.append(f"- **Fix:** {f['fix']}")
+                summary_lines.append("")
+
+    if findings.get("quick_wins"):
+        summary_lines.append("### ⚡ Quick Wins")
+        for i, win in enumerate(findings["quick_wins"][:5], 1):
+            summary_lines.append(f"{i}. {win}")
+        summary_lines.append("")
+
+    p0, p1, p2 = len(findings["P0"]), len(findings["P1"]), len(findings["P2"])
+    summary_lines.append("---")
+    summary_lines.append(f"*Agent Cube UI Review — {p0} P0 · {p1} P1 · {p2} P2*")
+
+    summary_body = "\n".join(summary_lines)
+
+    # Resolve full repo path for gh api
+    repo_path = repo if repo else _get_current_repo()
+    api_path = f"repos/{repo_path}/pulls/{pr_number}/reviews"
+
+    payload = {
+        "commit_id": commit_sha,
+        "body": summary_body,
+        "event": "COMMENT",
+        "comments": inline_comments,
+    }
+
+    print_info(f"Posting review with {len(inline_comments)} inline comment(s) to PR #{pr_number}...")
+
+    result = sp.run(
+        ["gh", "api", api_path, "-X", "POST", "--input", "-"],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        # Fallback: post as plain comment
+        print_warning(f"Inline review failed ({result.stderr.strip()[:80]}), falling back to plain comment...")
+        fallback = sp.run(
+            ["gh", "pr", "comment", str(pr_number), "--repo", repo_path, "--body", summary_body]
+            if repo_path
+            else ["gh", "pr", "comment", str(pr_number), "--body", summary_body],
+            capture_output=True,
+            text=True,
+        )
+        if fallback.returncode != 0:
+            raise RuntimeError(f"Failed to post comment: {fallback.stderr.strip()}")
+        print_success(f"Posted as plain comment to PR #{pr_number}")
+    else:
+        print_success(f"Posted review with {len(inline_comments)} inline comment(s) to PR #{pr_number}")
+
+
+def _get_current_repo() -> str:
+    """Get owner/repo from current directory's git remote."""
+    import subprocess as sp
+
+    result = sp.run(
+        ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
+        capture_output=True,
+        text=True,
+        cwd=str(PROJECT_ROOT),
+    )
+    return result.stdout.strip() if result.returncode == 0 else ""
 
 
 def _strip_markup(text: str) -> str:
@@ -217,8 +340,10 @@ def ui_review_command(
     description: Optional[str],
     context: str,
     pr: Optional[int],
-    output: Optional[str],
-    fresh: bool,
+    repo: Optional[str] = None,
+    output: Optional[str] = None,
+    post: bool = False,
+    fresh: bool = False,
 ) -> None:
     """Run a UI review through the judge panel.
 
@@ -227,7 +352,9 @@ def ui_review_command(
         description: Free-text description of the UI to review.
         context: One-liner providing platform, user type, and primary task.
         pr: GitHub PR number — review only UI-related file changes.
+        repo: Optional repo in owner/name format for cross-repo PR review.
         output: Optional path to save the report as a Markdown file.
+        post: Post findings as a GitHub review with inline diff comments (requires --pr).
         fresh: Start fresh judge sessions (skip any cached sessions).
     """
     from ..automation.judge_panel import launch_judge_panel
@@ -243,11 +370,17 @@ def ui_review_command(
         print_error("--pr cannot be combined with --file or --description")
         raise typer.Exit(1)
 
+    if post and pr is None:
+        print_error("--post requires --pr")
+        raise typer.Exit(1)
+
+    head_sha: str = ""
+
     # --- Build input content ---
     if pr is not None:
         print_info(f"Fetching UI diff for PR #{pr}...")
         try:
-            pr_title, ui_diff = _fetch_pr_ui_diff(pr)
+            pr_title, ui_diff, head_sha = _fetch_pr_ui_diff(pr, repo=repo)
         except RuntimeError as e:
             print_error(str(e))
             raise typer.Exit(1)
@@ -283,7 +416,8 @@ def ui_review_command(
     console.print()
     console.print("[bold cyan]UI Review[/bold cyan]")
     if pr is not None:
-        console.print(f"[bold]PR:[/bold] #{pr}")
+        pr_ref = f"{repo}#{pr}" if repo else f"#{pr}"
+        console.print(f"[bold]PR:[/bold] {pr_ref}")
     else:
         for f in files:
             console.print(f"[bold]File:[/bold] {f}")
@@ -329,3 +463,12 @@ def ui_review_command(
         )
     else:
         print_warning("No findings collected from judges")
+
+    if post and pr is not None and total > 0:
+        _post_inline_review(
+            pr_number=pr,
+            findings=findings,
+            context=context,
+            commit_sha=head_sha,
+            repo=repo,
+        )

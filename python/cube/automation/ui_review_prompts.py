@@ -109,7 +109,9 @@ Use this EXACT absolute path.
       "diagnosis": "execution gulf | evaluation gulf | slip | mistake",
       "principle": "Optional: e.g. Fitts's Law, Hick's Law, Loss Aversion, Gulf of Evaluation",
       "fix": "Specific, implementable fix",
-      "acceptance": "How to verify the fix is done"
+      "acceptance": "How to verify the fix is done",
+      "path": "Optional: relative file path e.g. apps/web/src/app/help/page.tsx",
+      "line": 0
     }}}}
   ],
   "P1": [
@@ -119,7 +121,9 @@ Use this EXACT absolute path.
       "diagnosis": "execution gulf | evaluation gulf | slip | mistake",
       "principle": "Optional: relevant HCI law or cognitive principle",
       "fix": "Specific fix",
-      "acceptance": "How to verify"
+      "acceptance": "How to verify",
+      "path": "Optional: relative file path",
+      "line": 0
     }}}}
   ],
   "P2": [
@@ -137,6 +141,11 @@ Use this EXACT absolute path.
 - P0 (blocker): user cannot complete primary task, critical confusion, or broken state
 - P1 (important): degrades experience meaningfully, but a workaround exists
 - P2 (polish): minor improvements to clarity, spacing, or consistency
+
+**`path` and `line` rules:**
+- If a finding ties to a specific line in the diff, set `path` to the relative file path and `line` to the line number in the new version of the file (lines starting with `+` in the diff).
+- If the finding is general (no specific line), omit `path` and `line` or set them to `null`/`0`.
+- Use line numbers from the **new file** only (lines added with `+`).
 
 Each finding must be specific and actionable. No generic advice.
 
