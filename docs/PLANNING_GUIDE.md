@@ -174,7 +174,14 @@ Phase 04: Integration (wire it together)
 
 ### **Step 6: Task File Format**
 
-**Each task includes:**
+**Understanding the pipeline:** Task files don't go directly to writers. A Prompter AI (Phase 1) reads your task file and generates a writer prompt. Writers then implement from that generated prompt with full codebase access. This means:
+
+- **Reference planning docs, don't duplicate them** — writers can read the originals
+- **State requirements and constraints, not step-by-step procedures** — writers reason better from goals
+- **Keep code examples minimal (2-5 lines)** — verbose examples cause copying, not reasoning
+- **Anti-patterns work best as brief constraints** — "Don't do X because Y" beats full code blocks
+
+**Each task includes (highest to lowest value):**
 
 ```markdown
 # Task XX: Feature Name
@@ -182,40 +189,38 @@ Phase 04: Integration (wire it together)
 ## Context
 What this builds on, why it's needed
 
+## Required Reading (Golden Source)
+- `planning/api-conventions.md` — Error patterns, pagination
+- `planning/crud-factory.md` — Registration pattern
+
 ## Requirements
-1. Specific requirement
-2. With acceptance criteria
-3. References to planning docs
+1. Specific deliverable with acceptance criteria
+2. Another deliverable with acceptance criteria
 
-## Implementation Steps
-1. Do this
-2. Then this
-3. Verify that
-
-## Architecture Constraints
-**Must follow:**
-- planning/api-conventions.md
-- planning/crud-factory.md
-
-**Must NOT:**
-- Over-engineer
-- Add unnecessary abstractions
-- Touch files owned by other agents
+## Constraints
+- Must follow patterns in planning/api-conventions.md
+- No unnecessary abstractions, KISS throughout
+- Don't touch files owned by other agents
 
 ## Anti-Patterns
-❌ Don't: Bad example
-✅ Do: Good example
-
-## Acceptance Criteria
-- [ ] Tests pass
-- [ ] CI passes
-- [ ] Planning docs followed
-- [ ] Commit and push
+- Don't [X] — [why]. Use [correct approach] instead.
 
 ## Owned Paths
 - apps/api/src/lib/auth/**
-(This agent owns these files)
+
+## Acceptance Criteria
+- [ ] Tests pass
+- [ ] Planning docs followed
+- [ ] Commit and push
 ```
+
+**Key quality signals:**
+- 100-250 lines total (shorter = better if clear)
+- Requirements are testable but not prescriptive
+- Planning doc references point to WHERE, not duplicate WHAT
+- No code examples longer than 5 lines
+
+**See also:** `templates/task-template.md` (v2.0) and `docs/TASK_BREAKDOWN.md` for detailed guidance.
 
 **v2 example:** See `implementation/phase-02/tasks/02-crud-factory-core.md`
 
@@ -315,17 +320,23 @@ cube auto implementation/phase-02/tasks/02-crud-factory-core.md
 - Wasted work
 - More specific = better
 
-**2. Large tasks** (>8 hours)
+**2. Overly prescriptive task files**
+- Full code examples cause writers to copy, not reason
+- Step-by-step procedures prevent writers from finding better solutions
+- Duplicating planning doc content wastes context window
+- **Goal-oriented constraints consistently outperform verbose instructions**
+
+**3. Large tasks** (>8 hours)
 - Hard to compare
 - Longer feedback cycles
 - More can go wrong
 
-**3. Overlapping paths**
+**4. Overlapping paths**
 - Merge conflicts
 - Integration pain
 - Slow down
 
-**4. Trusting blindly**
+**5. Trusting blindly**
 - All judges approved wrong approach (API client)
 - Human caught it
 - **Always validate critical decisions**

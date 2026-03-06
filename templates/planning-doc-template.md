@@ -4,6 +4,23 @@
 
 **Related Docs:** [Links to other planning docs this builds on]
 
+<!--
+Planning docs are the Golden Source of truth for Agent Cube.
+
+Writers read these docs directly during implementation — task files reference
+planning docs but don't duplicate their content. This means planning docs
+should contain the patterns, code examples, and specifications that
+writers need. If it's important, put it HERE, not in the task file.
+
+Good planning docs have:
+- Clear principles with rationale
+- Concrete code examples showing the expected pattern/style (not overly verbose)
+- Explicit anti-patterns with brief explanations
+- Technical specifications (types, schemas, APIs)
+
+Task files then simply say: "Follow patterns in planning/this-doc.md"
+-->
+
 ---
 
 ## 🎯 **Principles**
@@ -35,9 +52,9 @@
 
 **Example (good):**
 ```typescript
-// Show what good looks like
+// Show what good looks like — this is the golden source
 const goodExample = {
-  // Annotate why this is good
+  // Writers read planning docs directly
 }
 ```
 

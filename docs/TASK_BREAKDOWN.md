@@ -6,6 +6,29 @@ Based on v2: 15 tasks, perfect parallelization, zero conflicts.
 
 ---
 
+## 🧠 **How Task Files Flow Through Agent Cube**
+
+Understanding the pipeline is critical for writing effective task files:
+
+1. **You write** a task file (markdown) with requirements, constraints, and planning doc references
+2. **Prompter AI** (Phase 1) reads your task file + codebase and generates a detailed writer prompt
+3. **Writer AIs** (Phase 2) receive the generated prompt and implement the task — they also have full codebase access and can read planning docs directly
+4. **Judge AIs** (Phase 4+) review implementations against the original task requirements
+
+**This two-stage pipeline has key implications:**
+
+| Do This | Not This | Why |
+|---------|----------|-----|
+| Reference planning docs | Duplicate planning doc content | Writers can read the originals directly |
+| State requirements and constraints | Write step-by-step procedures | Writers reason better from goals than instructions |
+| Show 2-5 line style patterns | Include full code implementations | Verbose examples cause copy-paste, not reasoning |
+| Describe anti-patterns as constraints | Write full bad/good code blocks | Brief constraints are more generalizable |
+| Be specific about WHAT | Be prescriptive about HOW | Prescriptive tasks prevent writers from finding better solutions |
+
+**Research-backed insight:** Goal-oriented prompts with clear constraints consistently outperform verbose procedural instructions. AI agents exploit surface patterns in code examples rather than reasoning about requirements — which means long code examples can actually reduce solution quality.
+
+---
+
 ## 🎯 **The Goal**
 
 Create tasks that are:
@@ -146,22 +169,26 @@ Phase 02 had 9 parallel tasks:
 
 ## 📋 **Task File Checklist**
 
-**Every task must have:**
+**Every task must have (high-value sections):**
 
-- [ ] **Context** - What this builds on
-- [ ] **Requirements** - Specific, testable
-- [ ] **Planning References** - Which docs to follow
-- [ ] **Owned Paths** - Clear file ownership
-- [ ] **Anti-Patterns** - What NOT to do
-- [ ] **Acceptance Criteria** - Definition of done
-- [ ] **Integration Points** - How it connects
-- [ ] **Time Estimate** - Rough guidance
+- [ ] **Goal** - One sentence, clear deliverable
+- [ ] **Required Reading** - Planning docs the writer MUST read (these are the golden source)
+- [ ] **Requirements** - Specific, testable deliverables with acceptance criteria
+- [ ] **Constraints** - Architecture rules, technical limits, KISS principles
+- [ ] **Anti-Patterns** - Brief constraints on what NOT to do (1-2 sentences each, not code blocks)
+- [ ] **Owned Paths** - Clear file ownership (critical for parallel safety)
+- [ ] **Acceptance Criteria** - Testable definition of done
+- [ ] **Integration Points** - Dependencies and what this enables
 
-**Optional but valuable:**
-- Examples (good/bad code)
-- Architecture constraints
-- Testing requirements
-- Migration notes
+**Include sparingly:**
+- **Style Reference** - Only if there's a pattern NOT already in planning docs. Keep to 2-5 lines showing the convention, not a full implementation.
+- **Implementation Steps** - Only if ordering genuinely matters (e.g., "migrations before seed data"). Otherwise, let the writer decide the approach.
+
+**Avoid:**
+- Full code implementations (writers copy instead of reasoning)
+- Duplicating planning doc content (writers can read the originals)
+- Step-by-step procedures for obvious work (writers are capable AI models)
+- Generic boilerplate sections with no task-specific content
 
 ---
 
@@ -256,6 +283,27 @@ apps/api/src/lib/middleware/auth.ts
 ✅ GOOD: "Builds on 02-auth-middleware, needed for CRUD"
    (agents understand the bigger picture)
 ```
+
+---
+
+## 📐 **Task File Quality Signals**
+
+**Signs of a good task file:**
+- Requirements are specific enough to test, open enough to allow different approaches
+- Planning doc references tell the writer WHERE to find patterns (not what the patterns are)
+- Anti-patterns are brief constraints ("Don't use X because Y — use Z instead")
+- Acceptance criteria are concrete and verifiable
+- Total length is 100-250 lines (shorter is better if requirements are clear)
+
+**Signs of a bloated task file:**
+- Code examples longer than 5 lines (writer will copy, not reason)
+- Sections that restate planning doc content (wasted context window)
+- Step-by-step procedures for straightforward work ("install X, then configure Y")
+- Generic boilerplate sections with no task-specific content
+- Anti-pattern blocks with full bad/good implementations (10+ lines each)
+- Total length exceeds 300 lines
+
+**The test:** If you removed all code examples and the task is still clear, the examples weren't adding value. If the task is unclear without them, the requirements section needs work.
 
 ---
 
