@@ -4,6 +4,7 @@ from typing import Dict, Type
 
 from .base import ParserAdapter
 from .claude import ClaudeParser
+from .claude_code import ClaudeCodeParser
 from .cli_review import CLIReviewParser
 from .cursor import CursorParser
 from .gemini import GeminiParser
@@ -13,6 +14,7 @@ _PARSERS: Dict[str, Type[ParserAdapter]] = {
     "claude": ClaudeParser,
     "gemini": GeminiParser,
     "cli-review": CLIReviewParser,
+    "claude-code": ClaudeCodeParser,
 }
 
 
