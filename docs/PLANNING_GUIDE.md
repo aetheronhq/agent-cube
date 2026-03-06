@@ -362,8 +362,8 @@ See: `templates/phase-readme-template.md`
 ## 🔗 **References**
 
 **v2 as Example:**
-- Planning: `aetheron-connect-v2/planning/`
-- Implementation: `aetheron-connect-v2/implementation/`
+- Planning: `your-project/planning/`
+- Implementation: `your-project/implementation/`
 - Metrics: `implementation/panel/panel-metrics.md`
 
 **Agent Cube Framework:**

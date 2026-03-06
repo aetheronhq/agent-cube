@@ -62,7 +62,7 @@ Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement:
 
 * **Public concerns:** [GitHub Issues](https://github.com/aetheronhq/agent-cube/issues)
-* **Private/sensitive reports:** jacob@aetheron.com
+* **Private/sensitive reports:** dev@aetheron.com
 
 All complaints will be reviewed and investigated promptly and fairly.
 

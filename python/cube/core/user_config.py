@@ -1,11 +1,13 @@
 """User configuration management."""
 
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
 
 import yaml
+from rich.console import Console
+
+_console_err = Console(stderr=True)
 
 
 @dataclass
@@ -151,7 +153,7 @@ def load_config() -> CubeConfig:
                 if base_data:
                     data = merge_config_data(data, base_data)
             except (yaml.YAMLError, Exception) as e:
-                print(f"Warning: Failed to parse base config {base_config}: {e}", file=sys.stderr)
+                _console_err.print(f"[yellow]Warning: Failed to parse base config {base_config}: {e}[/yellow]")
 
     if global_config:
         with open(global_config) as f:
@@ -160,7 +162,7 @@ def load_config() -> CubeConfig:
                 if global_data:
                     data = merge_config_data(data, global_data)
             except (yaml.YAMLError, Exception) as e:
-                print(f"Warning: Failed to parse global config {global_config}: {e}", file=sys.stderr)
+                _console_err.print(f"[yellow]Warning: Failed to parse global config {global_config}: {e}[/yellow]")
 
     if repo_config:
         with open(repo_config) as f:
@@ -169,7 +171,7 @@ def load_config() -> CubeConfig:
                 if repo_data:
                     data = merge_config_data(data, repo_data)
             except (yaml.YAMLError, Exception) as e:
-                print(f"Warning: Failed to parse repo config {repo_config}: {e}", file=sys.stderr)
+                _console_err.print(f"[yellow]Warning: Failed to parse repo config {repo_config}: {e}[/yellow]")
 
     writer_order: list[str] = []
     writers: Dict[str, WriterConfig] = {}

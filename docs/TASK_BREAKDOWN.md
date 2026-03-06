@@ -412,7 +412,7 @@ Parallel-safe: [Yes/No]
 
 1. Read: `docs/PLANNING_GUIDE.md` (architecture meetings → planning docs)
 2. Read: `docs/PHASE_ORGANIZATION.md` (how phases emerge)
-3. Review: v2 tasks in `aetheron-connect-v2/implementation/`
+3. Review: v2 tasks in `your-project/implementation/`
 4. Practice: Split one of YOUR features into tasks
 
 **The art: Small enough to compare, large enough to matter!**
