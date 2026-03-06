@@ -5,7 +5,7 @@ version: "1.1.0"
 
 # Prompter agent (generates prompts for writers)
 prompter:
-  model: "opus-4.6-thinking"
+  model: "sonnet-4.6-thinking"
 
 # CLI tool to use for each model
 # gemini CLI: npm install -g @google/gemini-cli
@@ -15,11 +15,14 @@ prompter:
 # Then authenticate: claude /login
 cli_tools:
   sonnet-4.5-thinking: cursor-agent
-  opus-4.6-thinking: cursor-agent
-  gpt-5.3-codex-xhigh-fast: cursor-agent
+  sonnet-4.6-thinking: cursor-agent
+  gpt-5.3-codex-high: cursor-agent
+  gpt-5.4: cursor-agent
   grok: cursor-agent
   gemini-2.5-pro: gemini
   gemini-3-pro: cursor-agent
+  gemini-3.1-pro: cursor-agent
+  composer-1.5: cursor-agent
   claude-sonnet: claude
   claude-opus: claude
 
@@ -27,30 +30,30 @@ cli_tools:
 writers:
   writer_a:
     name: "opus"
-    model: "opus-4.6-thinking"
-    label: "Writer Opus"
+    model: "sonnet-4.6-thinking"
+    label: "Writer Sonnet"
     color: "green"
     
   writer_b:
     name: "codex"
-    model: "gpt-5.3-codex-xhigh-fast"
+    model: "gpt-5.3-codex-high"
     label: "Writer Codex"
     color: "blue"
 
 # Judge personas
 judges:
   judge_1:
-    model: "opus-4.6-thinking"
-    label: "Judge Opus"
+    model: "sonnet-4.6-thinking"
+    label: "Judge Sonnet"
     color: "green"
     
   judge_2:
-    model: "gpt-5.3-codex-xhigh-fast"
-    label: "Judge Codex"
+    model: "gpt-5.4"
+    label: "Judge GPT"
     color: "yellow"
     
   judge_3:
-    model: "gemini-3-pro"
+    model: "gemini-3.1-pro"
     label: "Judge Gemini"
     color: "magenta"
 
@@ -65,6 +68,6 @@ behavior:
   auto_push: true
   auto_update: true
   session_recording_at_start: true
-  default_mode: "dual"
+  default_mode: "single"
   default_writer: "writer_a"
 

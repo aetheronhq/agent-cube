@@ -13,6 +13,56 @@ from ..core.output import console, print_error, print_info, print_success, print
 from ..core.state import update_phase
 
 
+def _format_thread_context(threads: list) -> str:
+    """Format comment threads as prior review context for the prompt."""
+    if not threads:
+        return ""
+
+    resolved = [t for t in threads if t.is_resolved]
+    unresolved = [t for t in threads if not t.is_resolved and not t.is_outdated]
+
+    parts = []
+
+    if resolved:
+        parts.append(f"### Resolved Threads ({len(resolved)})")
+        parts.append(
+            "These were previously raised and marked resolved. **Verify the fixes are actually correct** — "
+            "resolved does not always mean properly addressed."
+        )
+        parts.append("")
+        for t in resolved:
+            first = t.comments[0] if t.comments else None
+            if not first:
+                continue
+            loc = f"`{t.path}:{t.line}`" if t.path else "(top-level)"
+            body_preview = first.body[:200].replace("\n", " ")
+            parts.append(f"- {loc} — @{first.author}: {body_preview}")
+            if len(t.comments) > 1:
+                last = t.comments[-1]
+                last_preview = last.body[:150].replace("\n", " ")
+                parts.append(f"  └ reply @{last.author}: {last_preview}")
+
+    if unresolved:
+        if parts:
+            parts.append("")
+        parts.append(f"### Unresolved Threads ({len(unresolved)})")
+        parts.append("These are still open — check if they've been addressed by recent commits.")
+        parts.append("")
+        for t in unresolved:
+            first = t.comments[0] if t.comments else None
+            if not first:
+                continue
+            loc = f"`{t.path}:{t.line}`" if t.path else "(top-level)"
+            body_preview = first.body[:200].replace("\n", " ")
+            parts.append(f"- {loc} — @{first.author}: {body_preview}")
+            if len(t.comments) > 1:
+                last = t.comments[-1]
+                last_preview = last.body[:150].replace("\n", " ")
+                parts.append(f"  └ reply @{last.author}: {last_preview}")
+
+    return "\n".join(parts)
+
+
 def _load_repo_context() -> str:
     """Load repo context for review (planning docs, README, CONTRIBUTING)."""
     context_parts = []
@@ -107,6 +157,18 @@ def _run_pr_review(
     prompts_dir = PROJECT_ROOT / ".prompts"
     prompts_dir.mkdir(exist_ok=True)
 
+    # Fetch comment threads (resolved + unresolved) for prior review context
+    from ..github.comments import fetch_comment_threads
+
+    print_info("Fetching prior review threads...")
+    all_threads = fetch_comment_threads(pr_number, cwd=str(PROJECT_ROOT))
+    resolved_count = sum(1 for t in all_threads if t.is_resolved)
+    unresolved_count = sum(1 for t in all_threads if not t.is_resolved and not t.is_outdated)
+    console.print(
+        f"[dim]Found {len(all_threads)} threads ({resolved_count} resolved, {unresolved_count} unresolved)[/dim]"
+    )
+    prior_comments = _format_thread_context(all_threads)
+
     # Load repo context (planning docs, README, etc.)
     repo_context = _load_repo_context()
 
@@ -125,6 +187,7 @@ def _run_pr_review(
             task_id=task_id,
             focus_area=focus,
             repo_context=repo_context,
+            prior_comments=prior_comments,
         )
     else:
         prompt_content = build_pr_review_prompt(
@@ -136,6 +199,7 @@ def _run_pr_review(
             base_branch=pr.base_branch,
             task_id=task_id,
             repo_context=repo_context,
+            prior_comments=prior_comments,
         )
 
     prompt_path.write_text(prompt_content)

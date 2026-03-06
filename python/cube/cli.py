@@ -487,12 +487,15 @@ def pr(
     winner = writer
     if not winner:
         state = load_state(resolved_task_id)
-        if state and state.winner:
+        if state and state.winner and state.winner != "TIE":
             winner = state.winner
         elif state and state.writer_key:
             winner = state.writer_key
         else:
-            print_error("No winner found in state. Use --writer to specify.")
+            if state and state.winner == "TIE":
+                print_error("Result was TIE. Use --writer to pick one (e.g. --writer opus)")
+            else:
+                print_error("No winner found in state. Use --writer to specify.")
             raise typer.Exit(1)
 
     print_info(f"Creating PR for {resolved_task_id} (writer: {winner})")
@@ -578,10 +581,17 @@ def auto(
     if fix_comments:
         from .commands.pr_fix import fix_pr_comments
 
+        task_id = None
+        if task_file:
+            task_id = extract_task_id_from_file(task_file)
+        elif get_current_task_id():
+            task_id = get_current_task_id()
+
         fix_pr_comments(
             pr_number=pr,
             dry_run=dry_run,
             from_author=from_author,
+            task_id=task_id,
         )
         return
 

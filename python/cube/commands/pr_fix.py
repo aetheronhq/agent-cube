@@ -7,7 +7,7 @@ from typing import Optional
 from ..core.config import PROJECT_ROOT, get_worktree_path
 from ..core.output import console, print_error, print_info, print_success, print_warning
 from ..github.comments import CommentThread, PRComment, fetch_all_comments, fetch_comment_threads
-from ..github.pulls import check_gh_installed, fetch_pr
+from ..github.pulls import check_gh_installed, fetch_failed_ci_logs, fetch_pr
 from ..github.responder import reply_and_resolve
 
 
@@ -42,10 +42,17 @@ def _sync_pr_worktree(pr_number: int, branch: str, cwd: Optional[str] = None) ->
                 elif line.startswith("branch ") and current_worktree:
                     worktree_branch = line.replace("branch refs/heads/", "")
                     if worktree_branch == branch:
-                        # Found existing worktree for this branch - use it
                         worktree_path = Path(current_worktree)
+                        if not worktree_path.exists():
+                            print_warning(f"Stale worktree entry (directory missing): {worktree_path}")
+                            subprocess.run(
+                                ["git", "worktree", "remove", "--force", str(worktree_path)],
+                                cwd=cwd or PROJECT_ROOT,
+                                capture_output=True,
+                                timeout=10,
+                            )
+                            break
                         print_info(f"Using existing worktree: {worktree_path}")
-                        # Pull latest changes
                         subprocess.run(
                             ["git", "pull", "--ff-only"],
                             cwd=worktree_path,
@@ -54,14 +61,21 @@ def _sync_pr_worktree(pr_number: int, branch: str, cwd: Optional[str] = None) ->
                         )
                         return worktree_path
 
-        # No existing worktree - create a new one
+        # No existing worktree - create a new one tracking the branch
         project_name = Path(PROJECT_ROOT).name
         worktree_path = get_worktree_path(project_name, "pr-fix", str(pr_number))
 
         if not worktree_path.exists():
             worktree_path.parent.mkdir(parents=True, exist_ok=True)
+            # Create local tracking branch, then add worktree on it
+            subprocess.run(
+                ["git", "branch", "--track", branch, f"origin/{branch}"],
+                cwd=cwd or PROJECT_ROOT,
+                capture_output=True,
+                timeout=10,
+            )
             result = subprocess.run(
-                ["git", "worktree", "add", str(worktree_path), f"origin/{branch}"],
+                ["git", "worktree", "add", str(worktree_path), branch],
                 cwd=cwd or PROJECT_ROOT,
                 capture_output=True,
                 text=True,
@@ -70,8 +84,21 @@ def _sync_pr_worktree(pr_number: int, branch: str, cwd: Optional[str] = None) ->
             if result.returncode != 0:
                 print_error(f"Failed to create worktree: {result.stderr}")
                 return None
+            # Fast-forward to latest remote
+            subprocess.run(
+                ["git", "reset", "--hard", f"origin/{branch}"],
+                cwd=worktree_path,
+                capture_output=True,
+                timeout=30,
+            )
         else:
-            # Worktree exists but on different branch - reset it
+            # Worktree exists - make sure we're on the branch, not detached
+            subprocess.run(
+                ["git", "checkout", branch],
+                cwd=worktree_path,
+                capture_output=True,
+                timeout=10,
+            )
             result = subprocess.run(
                 ["git", "reset", "--hard", f"origin/{branch}"],
                 cwd=worktree_path,
@@ -89,7 +116,9 @@ def _sync_pr_worktree(pr_number: int, branch: str, cwd: Optional[str] = None) ->
         return None
 
 
-def _build_fix_prompt(comments: list[PRComment], pr_number: int, pr_title: str) -> str:
+def _build_fix_prompt(
+    comments: list[PRComment], pr_number: int, pr_title: str, ci_logs: list[dict] | None = None
+) -> str:
     """Build a prompt for the writer agent to fix the comments."""
     prompt = f"""# Fix PR Review Comments
 
@@ -106,6 +135,12 @@ You are fixing review comments on PR #{pr_number}: {pr_title}
 {comment.body}
 
 """
+
+    if ci_logs:
+        prompt += "## Failed CI/Build Logs\n\n"
+        prompt += "The following CI checks are failing and MUST be fixed:\n\n"
+        for ci in ci_logs:
+            prompt += f"### {ci['name']} ({ci['status']})\n```\n{ci['log']}\n```\n\n"
 
     prompt += """## Instructions
 
@@ -293,9 +328,37 @@ def _run_fix_agent(
         )
         commit_sha = result.stdout.strip() if result.returncode == 0 else None
 
-    # Push the changes
+    # Push the changes — resolve branch name explicitly to avoid detached HEAD issues
+    branch_result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    branch_name = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
+    if not branch_name or branch_name == "HEAD":
+        # Detached HEAD — find the branch from the reflog
+        branch_result = subprocess.run(
+            ["git", "log", "--format=%D", "-1"],
+            cwd=worktree,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        for ref in (branch_result.stdout.strip() or "").split(", "):
+            ref = ref.strip()
+            if ref.startswith("origin/") and not ref.startswith("origin/HEAD"):
+                branch_name = ref.replace("origin/", "")
+                break
+
+    if branch_name and branch_name != "HEAD":
+        push_ref = f"HEAD:{branch_name}"
+    else:
+        push_ref = "HEAD"
+
     result = subprocess.run(
-        ["git", "push", "origin", "HEAD"],
+        ["git", "push", "origin", push_ref],
         cwd=worktree,
         capture_output=True,
         text=True,
@@ -308,22 +371,52 @@ def _run_fix_agent(
     return commit_sha
 
 
-def _get_current_pr_number(cwd: Optional[str] = None) -> Optional[int]:
-    """Try to detect PR number from current branch, then from worktrees.
+def _get_pr_for_task(task_id: str, cwd: Optional[str] = None) -> Optional[int]:
+    """Find the open PR for a task by checking writer branch patterns."""
+    from ..core.user_config import load_config
 
-    Cube branches live in worktrees, not the workspace, so we scan worktrees
-    if the workspace branch has no associated PR.
+    effective_cwd = cwd or str(PROJECT_ROOT)
+    config = load_config()
+
+    # Check writer branches: writer-opus/<task_id>, writer-codex/<task_id>, etc.
+    for writer_key in config.writer_order:
+        writer = config.writers[writer_key]
+        branch = f"writer-{writer.name}/{task_id}"
+        pr = _find_open_pr_for_branch(branch, effective_cwd)
+        if pr is not None:
+            print_info(f"Found PR #{pr} for branch {branch}")
+            return pr
+
+    return None
+
+
+def _get_current_pr_number(cwd: Optional[str] = None) -> Optional[int]:
+    """Detect the most recent open PR for the current branch or any worktree branch.
+
+    Uses `gh pr list --head <branch>` to find the most recent open PR for a
+    specific branch, rather than `gh pr view` which can return stale/wrong PRs.
     """
     import subprocess
 
     effective_cwd = cwd or str(PROJECT_ROOT)
 
-    # 1. Try current workspace branch
-    pr = _gh_pr_view_number(effective_cwd)
-    if pr is not None:
-        return pr
+    # Collect all branch names: workspace + worktrees
+    branches = []
 
-    # 2. Scan worktrees for branches with open PRs
+    # Current workspace branch
+    result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=effective_cwd,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if result.returncode == 0:
+        branch = result.stdout.strip()
+        if branch and branch != "HEAD":
+            branches.append(branch)
+
+    # Worktree branches
     result = subprocess.run(
         ["git", "worktree", "list", "--porcelain"],
         cwd=effective_cwd,
@@ -331,43 +424,39 @@ def _get_current_pr_number(cwd: Optional[str] = None) -> Optional[int]:
         text=True,
         timeout=10,
     )
-    if result.returncode != 0:
-        return None
+    if result.returncode == 0:
+        for line in result.stdout.split("\n"):
+            if line.startswith("branch refs/heads/"):
+                branch = line.replace("branch refs/heads/", "")
+                if branch not in branches:
+                    branches.append(branch)
 
-    worktree_paths = []
-    current_path = None
-    for line in result.stdout.split("\n"):
-        if line.startswith("worktree "):
-            current_path = line.replace("worktree ", "")
-        elif line.startswith("branch ") and current_path:
-            if current_path != effective_cwd:
-                worktree_paths.append(current_path)
-            current_path = None
-
-    for wt_path in worktree_paths:
-        pr = _gh_pr_view_number(wt_path)
+    # Find the most recent open PR for any of these branches
+    for branch in branches:
+        pr = _find_open_pr_for_branch(branch, effective_cwd)
         if pr is not None:
             return pr
 
     return None
 
 
-def _gh_pr_view_number(cwd: str) -> Optional[int]:
-    """Run gh pr view in a directory and return the PR number if found."""
+def _find_open_pr_for_branch(branch: str, cwd: str) -> Optional[int]:
+    """Find the most recent open PR for a specific branch."""
     import json
     import subprocess
 
     try:
         result = subprocess.run(
-            ["gh", "pr", "view", "--json", "number"],
+            ["gh", "pr", "list", "--head", branch, "--state", "open", "--json", "number", "--limit", "1"],
             capture_output=True,
             text=True,
             cwd=cwd,
             timeout=15,
         )
         if result.returncode == 0:
-            data = json.loads(result.stdout)
-            return data.get("number")
+            prs = json.loads(result.stdout)
+            if prs:
+                return prs[0].get("number")
     except (subprocess.TimeoutExpired, Exception):
         pass
     return None
@@ -417,6 +506,7 @@ def fix_pr_comments(
     dry_run: bool = False,
     from_author: Optional[str] = None,
     skip_bots: Optional[list[str]] = None,
+    task_id: Optional[str] = None,
 ) -> None:
     """Fix review comments on a PR.
 
@@ -425,6 +515,7 @@ def fix_pr_comments(
         dry_run: Show plan without making changes
         from_author: Only process comments from this author
         skip_bots: List of bot usernames to skip
+        task_id: Task ID to find the PR by writer branch pattern
     """
     if not check_gh_installed():
         print_error("gh CLI not installed or not authenticated")
@@ -435,9 +526,12 @@ def fix_pr_comments(
     cwd = str(PROJECT_ROOT)
 
     if pr_number is None:
-        pr_number = _get_current_pr_number(cwd)
+        pr_number = _get_pr_for_task(task_id, cwd) if task_id else _get_current_pr_number(cwd)
         if pr_number is None:
-            print_error("Could not detect PR number. Use --pr to specify.")
+            if task_id:
+                print_error(f"No open PR found for task '{task_id}'. Use --pr to specify.")
+            else:
+                print_error("Could not detect PR number. Use --pr to specify or pass a task file.")
             return
 
     print_info(f"Fetching comments from PR #{pr_number}...")
@@ -476,31 +570,39 @@ def fix_pr_comments(
         f"[dim]Processing: {len(thread_comments)} thread comments + {len(issue_comments)} issue comments[/dim]"
     )
 
-    if not all_to_process:
-        print_success("No active comments to address!")
-        return
-
-    console.print()
-    console.print(f"[bold]Processing {len(all_to_process)} comments from {len(active_threads)} active threads[/bold]")
-
-    # Show brief summary of each comment
-    for comment in all_to_process:
-        path_info = f"{comment.path}:{comment.line}" if comment.path else "(top-level)"
-        body_preview = comment.body[:80].replace("\n", " ")
-        if len(comment.body) > 80:
-            body_preview += "..."
-        console.print(f"  {path_info}: {body_preview}")
-
-    if dry_run:
-        console.print()
-        print_warning("Dry run - no changes made")
-        return
-
     print_info(f"Fetching PR #{pr_number} details...")
     try:
         pr = fetch_pr(pr_number, cwd=cwd)
     except RuntimeError as e:
         print_error(f"Failed to fetch PR: {e}")
+        return
+
+    print_info("Fetching CI/build logs...")
+    ci_logs = fetch_failed_ci_logs(pr_number, cwd=cwd)
+    if ci_logs:
+        console.print(f"[dim]Found {len(ci_logs)} failed CI check(s): {', '.join(c['name'] for c in ci_logs)}[/dim]")
+    else:
+        console.print("[dim]No failed CI checks[/dim]")
+
+    if not all_to_process and not ci_logs:
+        print_success("No active comments and CI is passing!")
+        return
+
+    if all_to_process:
+        console.print()
+        console.print(
+            f"[bold]Processing {len(all_to_process)} comments from {len(active_threads)} active threads[/bold]"
+        )
+        for comment in all_to_process:
+            path_info = f"{comment.path}:{comment.line}" if comment.path else "(top-level)"
+            body_preview = comment.body[:80].replace("\n", " ")
+            if len(comment.body) > 80:
+                body_preview += "..."
+            console.print(f"  {path_info}: {body_preview}")
+
+    if dry_run:
+        console.print()
+        print_warning("Dry run - no changes made")
         return
 
     print_info(f"Setting up worktree for branch: {pr.head_branch}")
@@ -511,10 +613,15 @@ def fix_pr_comments(
 
     console.print(f"[dim]Worktree ready at: {worktree}[/dim]")
 
+    work_items = []
+    if all_to_process:
+        work_items.append(f"{len(all_to_process)} comments")
+    if ci_logs:
+        work_items.append(f"{len(ci_logs)} failed CI checks")
     console.print()
-    print_info(f"Running writer agent to fix {len(all_to_process)} comments...")
+    print_info(f"Running writer agent to fix {', '.join(work_items)}...")
 
-    fix_prompt = _build_fix_prompt(all_to_process, pr_number, pr.title)
+    fix_prompt = _build_fix_prompt(all_to_process, pr_number, pr.title, ci_logs=ci_logs)
     commit_sha = _run_fix_agent(worktree, fix_prompt, pr_number, comments=all_to_process)
 
     if not commit_sha:
