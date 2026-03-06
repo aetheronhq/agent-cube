@@ -30,7 +30,7 @@ class CursorAdapter(CLIAdapter):
         if "CURSOR_API_KEY" in env:
             del env["CURSOR_API_KEY"]
 
-        cmd = ["cursor-agent", "--force", "--output-format", "stream-json", "--stream-partial-output", "--model", model]
+        cmd = ["cursor-agent", "--force", "--trust", "--print", "--output-format", "stream-json", "--stream-partial-output", "--model", model]
 
         if resume and session_id:
             cmd.extend(["--resume", session_id])
