@@ -56,12 +56,16 @@ class TestBaseLayout:
 
     def test_truncate_markup_escapes_on_truncate(self, layout):
         """Long markup text escaped and truncated safely at 3x max_len."""
+        import re
+
         # Note: truncation threshold is max_len * 3
         text = "[bold]" + "a" * 100 + "[/bold]"
         truncated = layout._truncate_markup(text, 10)  # threshold = 30
-        assert len(truncated) <= 30
-        assert truncated.endswith("…")
-        assert "[bold]" not in truncated
+        # Strip ANSI escape codes before measuring visible length
+        visible = re.sub(r"\x1b\[[0-9;]*m", "", truncated)
+        assert len(visible) <= 30
+        assert visible.endswith("…")
+        assert "[bold]" not in visible
 
     def test_add_thinking_buffers_text(self, layout):
         """Text accumulated in thinking buffer."""
