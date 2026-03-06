@@ -109,9 +109,9 @@ cube auto implementation/phase-02/tasks/02-my-feature.md
 ## 📚 **Examples**
 
 **See v2 for real examples:**
-- Planning: `aetheron-connect-v2/planning/`
-- Tasks: `aetheron-connect-v2/implementation/phase-*/tasks/`
-- Metrics: `aetheron-connect-v2/implementation/panel/panel-metrics.md`
+- Planning: `your-project/planning/`
+- Tasks: `your-project/implementation/phase-*/tasks/`
+- Metrics: `your-project/implementation/panel/panel-metrics.md`
 
 **Learn from what worked!**
 
