@@ -12,7 +12,7 @@ from .decisions import clear_peer_review_decisions, run_decide_and_get_result, r
 from .phases import _normalize_issue, run_minor_fixes, run_peer_review, run_synthesis
 from .phases_registry import Phase, PhaseResult, WorkflowContext
 from .pr import create_pr
-from .prompts import generate_panel_prompt, generate_writer_prompt
+from .prompts import generate_dual_feedback, generate_panel_prompt, generate_writer_prompt
 
 
 def is_single_mode(ctx: WorkflowContext) -> bool:
@@ -114,10 +114,24 @@ async def synthesis_run(ctx: WorkflowContext) -> PhaseResult:
         print_info("Single mode - skipping synthesis")
         return PhaseResult(data={"synthesis_complete": True, "skipped": True})
 
-    # TIE case - need feedback loop, continue to re-run panel
+    # TIE case - send feedback to both writers, then re-run panel
     if winner == "TIE":
-        print_warning("TIE detected - both writers received feedback, re-running panel")
-        return PhaseResult(data={"needs_feedback": True}, next_phase=4)
+        MAX_TIE_RETRIES = 2
+        ctx.tie_count += 1
+        if ctx.tie_count > MAX_TIE_RETRIES:
+            print_warning(f"TIE persisted after {MAX_TIE_RETRIES} retries - breaking loop")
+            console.print()
+            console.print("[yellow]Judges cannot agree on a winner. Options:[/yellow]")
+            console.print()
+            console.print("[cyan]Option 1:[/cyan] Pick a writer manually")
+            console.print(f"  cube auto {ctx.task_file} --resume-from feedback --single -w writer_a")
+            console.print()
+            console.print("[cyan]Option 2:[/cyan] Start fresh judge sessions")
+            console.print(f"  cube auto {ctx.task_file} --resume-from 4 --fresh")
+            return PhaseResult(exit=True)
+        print_warning(f"TIE detected (attempt {ctx.tie_count}/{MAX_TIE_RETRIES}) - sending feedback to both writers")
+        await generate_dual_feedback(ctx.task_id, ctx.prompts_dir)
+        return PhaseResult(data={"needs_feedback": True}, next_phase=3)
 
     # All approved - skip synthesis
     if ctx.result.get("all_approved"):

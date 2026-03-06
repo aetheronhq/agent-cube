@@ -89,3 +89,126 @@ def fetch_pr(pr_number: int, cwd: Optional[str] = None, repo: Optional[str] = No
         head_sha=data.get("headRefOid", ""),
         existing_reviews=data.get("reviews") or [],
     )
+
+
+def fetch_failed_ci_logs(pr_number: int, cwd: Optional[str] = None, max_log_lines: int = 200) -> list[dict]:
+    """Fetch logs from failed CI/GHA checks on a PR.
+
+    Returns a list of dicts with 'name', 'status', and 'log' keys for each
+    failed check.
+    """
+    # Get failed checks for the PR
+    result = subprocess.run(
+        [
+            "gh",
+            "pr",
+            "checks",
+            str(pr_number),
+            "--json",
+            "name,state,link",
+            "--jq",
+            '.[] | select(.state == "FAILURE")',
+        ],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+        timeout=30,
+    )
+
+    if result.returncode != 0 or not result.stdout.strip():
+        # Try alternate: get all checks and filter
+        result = subprocess.run(
+            ["gh", "pr", "checks", str(pr_number), "--json", "name,state,link"],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            return []
+
+    try:
+        checks = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        # jq output is newline-delimited JSON objects, not an array
+        checks = []
+        for line in result.stdout.strip().split("\n"):
+            if line.strip():
+                try:
+                    checks.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+
+    failed = [c for c in checks if c.get("state") in ("FAILURE", "ERROR")]
+    if not failed:
+        return []
+
+    results = []
+    for check in failed:
+        name = check.get("name", "unknown")
+        log = _fetch_run_log(pr_number, name, cwd, max_log_lines)
+        results.append({"name": name, "status": check.get("state", "FAILURE"), "log": log})
+
+    return results
+
+
+def _fetch_run_log(pr_number: int, check_name: str, cwd: Optional[str], max_lines: int) -> str:
+    """Fetch the log output for a specific failed GHA run on a PR."""
+    # Find the run ID for this check
+    result = subprocess.run(
+        [
+            "gh",
+            "pr",
+            "checks",
+            str(pr_number),
+            "--json",
+            "name,link",
+            "--jq",
+            f'.[] | select(.name == "{check_name}") | .link',
+        ],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+        timeout=15,
+    )
+
+    run_id = None
+    if result.returncode == 0 and result.stdout.strip():
+        # Extract run ID from URL like https://github.com/org/repo/actions/runs/12345/job/67890
+        import re
+
+        match = re.search(r"/runs/(\d+)", result.stdout.strip())
+        if match:
+            run_id = match.group(1)
+
+    if not run_id:
+        return "(could not fetch log - run ID not found)"
+
+    # Fetch failed job logs
+    result = subprocess.run(
+        ["gh", "run", "view", run_id, "--log-failed"],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+        timeout=60,
+    )
+
+    if result.returncode != 0 or not result.stdout.strip():
+        # Fallback: try full log
+        result = subprocess.run(
+            ["gh", "run", "view", run_id, "--log"],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=60,
+        )
+
+    if result.returncode != 0:
+        return f"(failed to fetch log: {result.stderr.strip()[:200]})"
+
+    log = result.stdout
+    lines = log.split("\n")
+    if len(lines) > max_lines:
+        lines = lines[-max_lines:]
+        log = f"... (truncated, showing last {max_lines} lines) ...\n" + "\n".join(lines)
+    return log

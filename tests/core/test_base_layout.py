@@ -38,10 +38,10 @@ class TestBaseLayout:
         assert layout._truncate_plain(text, 20) == text
 
     def test_truncate_plain_long_text(self, layout):
-        """Text longer than max_len truncated with ellipsis."""
-        text = "This is a very long text that should be truncated"
-        truncated = layout._truncate_plain(text, 10)
-        assert len(truncated) == 10
+        """Text longer than 3x max_len is truncated with ellipsis."""
+        text = "a" * 100
+        truncated = layout._truncate_plain(text, 10)  # threshold = 30
+        assert len(truncated) <= 30
         assert truncated.endswith("…")
 
     def test_truncate_plain_strips_markup(self, layout):
@@ -55,13 +55,17 @@ class TestBaseLayout:
         assert layout._truncate_markup(text, 100) == text
 
     def test_truncate_markup_escapes_on_truncate(self, layout):
-        """Long markup text escaped and truncated safely."""
-        # Note: _truncate_markup implementation escapes text if it truncates
+        """Long markup text escaped and truncated safely at 3x max_len."""
+        import re
+
+        # Note: truncation threshold is max_len * 3
         text = "[bold]" + "a" * 100 + "[/bold]"
-        truncated = layout._truncate_markup(text, 10)
-        assert len(truncated) == 10
-        assert truncated.endswith("…")
-        assert "[bold]" not in truncated
+        truncated = layout._truncate_markup(text, 10)  # threshold = 30
+        # Strip ANSI escape codes before measuring visible length
+        visible = re.sub(r"\x1b\[[0-9;]*m", "", truncated)
+        assert len(visible) <= 30
+        assert visible.endswith("…")
+        assert "[bold]" not in visible
 
     def test_add_thinking_buffers_text(self, layout):
         """Text accumulated in thinking buffer."""

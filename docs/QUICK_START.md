@@ -165,8 +165,8 @@ cube continue task  # Even simpler!
 - Full framework: `AGENT_CUBE.md`
 
 **See it in action:**
-- v2 example: `aetheron-connect-v2/implementation/`
-- Panel metrics: `aetheron-connect-v2/implementation/panel/panel-metrics.md`
+- v2 example: `your-project/implementation/`
+- Panel metrics: `your-project/implementation/panel/panel-metrics.md`
 
 **Get help:**
 - GitHub Issues: https://github.com/aetheronhq/agent-cube/issues
