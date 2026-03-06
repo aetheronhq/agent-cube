@@ -11,6 +11,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CONTRIBUTING.md, CODE_OF_CONDUCT.md, and CHANGELOG.md files
 - Open source project documentation
 
+## [1.2.0] - 2026-02-07
+
+### Added
+- Single writer mode (`cube auto --single`, configurable via `default_mode`)
+- `cube auto --fix` fetches failed CI/GHA logs and includes them in the fix prompt
+- `cube prv <pr>` shortcut for `cube peer-review --pr`
+- claude-code adapter (claude CLI) alongside cursor-agent and gemini adapters
+- mypy type checking via pre-commit hook
+- TIE loop fix: on judge draw, writers receive targeted feedback before re-judging (max 2 retries)
+- PR fix correctly identifies task worktree branch (not current workspace branch)
+
+### Fixed
+- `-p` prompt now correctly forwarded to synthesis (Phase 6) and minor fixes (Phase 9) on resume
+- `cube pr` gives clear error when result is TIE instead of crashing with "Unknown writer"
+- `cube auto --fix` no longer exits early when CI is failing but there are no PR comments
+- Judge sessions gracefully fall back to fresh mode when no prior session exists
+- Output truncation preserves colors and only triggers at 3× terminal width
+- Worktree push no longer fails on detached HEAD branches
+
+### Changed
+- Default models updated to Sonnet 4.6 (writers/judges) and GPT-5.3 Codex High (Codex judge)
+- Gemini 3.1 Pro replaces Gemini 3 Pro as third judge
+- `cube auto --fix` PR detection prioritises most recent open PR for the task branch
+
 ## [1.1.0] - 2025-11-25
 
 ### Added

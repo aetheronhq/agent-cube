@@ -19,7 +19,6 @@ cli_tools:
   sonnet-4.5-thinking: cursor-agent
   sonnet-4.6-thinking: cursor-agent
   gpt-5.3-codex-high: cursor-agent
-  gpt-5.4: cursor-agent
   grok: cursor-agent
   gemini-2.5-pro: gemini
   gemini-3-pro: cursor-agent
@@ -53,8 +52,8 @@ judges:
     color: "green"
     
   judge_2:
-    model: "gpt-5.4"
-    label: "Judge GPT"
+    model: "gpt-5.3-codex-high"
+    label: "Judge Codex"
     color: "yellow"
     
   judge_3:
