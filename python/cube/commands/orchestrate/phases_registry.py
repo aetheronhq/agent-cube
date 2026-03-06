@@ -31,6 +31,7 @@ class WorkflowContext:
     fresh_writer: bool = False  # Clear winner's session and start fresh
     fresh_judges: bool = False  # Start fresh judge sessions instead of resuming
     resume_prompt: Optional[str] = None  # Additional context for resumed agents
+    tie_count: int = 0  # Track TIE loop iterations to prevent infinite loops
 
     @property
     def writer_prompt_path(self) -> Path:

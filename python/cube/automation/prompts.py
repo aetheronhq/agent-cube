@@ -133,9 +133,11 @@ def build_pr_review_prompt(
     base_branch: str,
     task_id: str,
     repo_context: str = "",
+    prior_comments: str = "",
 ) -> str:
     """Build complete prompt for PR review."""
     context_section = f"\n## Repository Context\n{repo_context}\n" if repo_context else ""
+    prior_section = f"\n## Prior Review Comments\n\n{prior_comments}\n" if prior_comments else ""
 
     return f"""# Peer Review: PR #{pr_number}
 
@@ -146,7 +148,7 @@ def build_pr_review_prompt(
 ## Branch
 - Head: `{head_branch}` ({head_sha[:8]})
 - Base: `{base_branch}`
-{context_section}
+{context_section}{prior_section}
 ## View Changes
 
 Run these commands to review the PR (using origin/ to ensure you see the latest remote commits):
@@ -168,6 +170,7 @@ Do a **full code review** of this PR:
 1. Review all changed files using `git diff` commands
 2. Look for bugs, security issues, missing error handling, etc.
 3. Check code quality, patterns, and best practices
+4. If prior review comments are listed above, verify resolved threads were actually fixed correctly — don't just trust the "resolved" status
 
 **⚠️ MANDATORY RE-REVIEW** - If you have a prior decision file:
 - The writer has likely made changes since your last review
@@ -291,6 +294,7 @@ def build_focused_review_prompt(
     task_id: str,
     focus_area: str,
     repo_context: str = "",
+    prior_comments: str = "",
 ) -> str:
     """Build prompt for focused PR review.
 
@@ -304,8 +308,10 @@ def build_focused_review_prompt(
         task_id: Task/PR ID
         focus_area: Area to focus on (security, tests, performance, bugs)
         repo_context: Additional repo context
+        prior_comments: Formatted prior review threads for context
     """
     context_section = f"\n## Repository Context\n{repo_context}\n" if repo_context else ""
+    prior_section = f"\n## Prior Review Comments\n\n{prior_comments}\n" if prior_comments else ""
     focus_checklist = _get_focus_checklist(focus_area)
 
     return f"""# Focused PR Review: {focus_area.upper()}
@@ -317,7 +323,7 @@ def build_focused_review_prompt(
 ## Branch
 - Head: `{head_branch}` ({head_sha[:8]})
 - Base: `{base_branch}`
-{context_section}
+{context_section}{prior_section}
 ## View Changes
 
 ```bash
@@ -331,6 +337,7 @@ git diff origin/{base_branch}...origin/{head_branch}
 ## Focus Area: {focus_area.upper()}
 
 This is a **focused review** specifically looking for **{focus_area}** issues.
+If prior review comments are listed above, verify resolved threads were actually fixed — don't re-raise issues that are genuinely addressed, but flag any that were resolved without a proper fix.
 
 {focus_checklist}
 
