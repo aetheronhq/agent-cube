@@ -7,7 +7,7 @@ import typer
 from ..automation.judge_panel import launch_judge_panel
 from ..core.agent import check_cursor_agent
 from ..core.config import PROJECT_ROOT, resolve_path
-from ..core.output import print_error, print_info
+from ..core.output import console, print_error, print_info
 from ..core.state import update_phase
 
 
@@ -18,7 +18,7 @@ def panel_command(task_id: str, panel_prompt_file: str, resume: bool = False) ->
         print_error("cursor-agent CLI is not installed")
         print_info("Install cursor-agent:")
         print_info("  npm install -g @cursor/cli")
-        print_info("")
+        console.print()
         print_info("After installation, authenticate with:")
         print_info("  cursor-agent login")
         raise typer.Exit(1)
