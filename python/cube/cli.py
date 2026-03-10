@@ -706,6 +706,7 @@ def pr_review_cmd(
     skip_agents: Annotated[
         bool, typer.Option("--skip-agents", "--skip", help="Skip AI, just aggregate existing decisions")
     ] = False,
+    judge: Annotated[Optional[str], typer.Option("--judge", "-j", help="Run only this judge (e.g., judge_4)")] = None,
 ):
     """Review a GitHub PR with Agent Cube judges.
 
@@ -736,6 +737,7 @@ def pr_review_cmd(
         fresh=fresh,
         focus=focus,
         skip_agents=skip_agents,
+        judge=judge,
     )
 
 
