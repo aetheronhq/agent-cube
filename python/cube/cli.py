@@ -528,9 +528,7 @@ def ui(port: Annotated[int, typer.Option("--port", help="Port to run UI server o
 
 @app.command(name="ui-review")
 def ui_review(
-    file: Annotated[
-        Optional[list[str]], typer.Option("--file", "-f", help="UI file(s) to review (repeatable)")
-    ] = None,
+    file: Annotated[Optional[list[str]], typer.Option("--file", "-f", help="UI file(s) to review (repeatable)")] = None,
     description: Annotated[
         Optional[str], typer.Option("--description", "-d", help="Free-text description of the UI to review")
     ] = None,
@@ -541,17 +539,13 @@ def ui_review(
         Optional[int], typer.Option("--pr", help="GitHub PR number — review UI-related file changes only")
     ] = None,
     repo: Annotated[
-        Optional[str], typer.Option("--repo", "-r", help="Repo for --pr in owner/name format (e.g. aetheronhq/aetheron-connect-v2)")
+        Optional[str], typer.Option("--repo", "-r", help="Repo for --pr in owner/name format (e.g. owner/repo-name)")
     ] = None,
     post: Annotated[
         bool, typer.Option("--post", help="Post findings as a GitHub review with inline diff comments (requires --pr)")
     ] = False,
-    output: Annotated[
-        Optional[str], typer.Option("--output", "-o", help="Save report to this file path")
-    ] = None,
-    fresh: Annotated[
-        bool, typer.Option("--fresh", help="Start fresh judge sessions (ignore cached sessions)")
-    ] = False,
+    output: Annotated[Optional[str], typer.Option("--output", "-o", help="Save report to this file path")] = None,
+    fresh: Annotated[bool, typer.Option("--fresh", help="Start fresh judge sessions (ignore cached sessions)")] = False,
 ):
     """Review UI/UX quality using the judge panel.
 
@@ -576,7 +570,6 @@ def ui_review(
         )
     except Exception as e:
         _print_error(e)
-        import sys
         sys.exit(1)
 
 

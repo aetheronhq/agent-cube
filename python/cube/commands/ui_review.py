@@ -93,7 +93,7 @@ def _collect_findings(task_id: str) -> dict:
     all_quick_wins: list[str] = []
     summaries: list[str] = []
 
-    for jconfig in get_judge_configs():
+    for jconfig in (j for j in get_judge_configs() if j.type != "cli-review"):
         decision_path = get_decision_file_path(jconfig.key, task_id, review_type="ui-review")
         if not decision_path.exists():
             print_warning(f"No decision file for {jconfig.label}: {decision_path}")
@@ -458,8 +458,7 @@ def ui_review_command(
     total = len(findings["P0"]) + len(findings["P1"]) + len(findings["P2"])
     if total > 0:
         print_success(
-            f"UI review complete: {len(findings['P0'])} P0, "
-            f"{len(findings['P1'])} P1, {len(findings['P2'])} P2"
+            f"UI review complete: {len(findings['P0'])} P0, " f"{len(findings['P1'])} P1, {len(findings['P2'])} P2"
         )
     else:
         print_warning("No findings collected from judges")

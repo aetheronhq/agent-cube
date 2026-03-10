@@ -56,7 +56,7 @@ def build_ui_review_prompt(
     }
     input_label = input_labels.get(input_type, "Input")
 
-    return f"""# UI Review
+    return f"""# UI Review — {task_id}
 
 You are a UI/UX reviewer. Use the knowledge base below to produce a structured, prioritized review report.
 {context_section}
