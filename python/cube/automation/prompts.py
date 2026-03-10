@@ -14,6 +14,9 @@ def build_review_checklist() -> str:
 Every line should earn its place. Favour the simplest solution that correctly solves the problem.
 Flag anything that violates these principles — they are the primary reason to REQUEST_CHANGES:
 
+> **Your role is code review only.** Do NOT run `task verify`, tests, builds, or any execution commands.
+> Running verification is the writer's responsibility. Judges read and reason — they do not execute.
+
 - **Best practice** — follows established patterns for the language/framework in use
 - **Clean** — readable, well-named, no dead code, no commented-out blocks
 - **KISS** — solves the problem directly; no unnecessary abstraction or indirection
