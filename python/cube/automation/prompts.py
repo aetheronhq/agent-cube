@@ -7,7 +7,25 @@ from ..core.config import PROJECT_ROOT
 
 def build_review_checklist() -> str:
     """Build the shared review checklist section."""
-    return """## Review Checklist
+    return """## Primary Standard
+
+**The single most important criterion: is this code clean, elegant, and minimalistic?**
+
+Every line should earn its place. Favour the simplest solution that correctly solves the problem.
+Flag anything that violates these principles — they are the primary reason to REQUEST_CHANGES:
+
+- **Best practice** — follows established patterns for the language/framework in use
+- **Clean** — readable, well-named, no dead code, no commented-out blocks
+- **KISS** — solves the problem directly; no unnecessary abstraction or indirection
+- **Elegant** — the design feels obvious in hindsight, not clever or convoluted
+- **Minimalistic** — does exactly what's needed, nothing more; no speculative code
+
+> If the implementation works but is over-engineered, verbose, or adds complexity without
+> clear justification — that IS a blocking issue, not a nitpick.
+
+---
+
+## Review Checklist
 
 ### 0. Writer Responses (CHECK FIRST IF EXISTS)
 - Check `.prompts/responses/writer-*-{task_id}.md` for writer explanations/challenges
@@ -34,10 +52,13 @@ def build_review_checklist() -> str:
 - Missing tests for new functionality
 - Error handling
 
-### 4. KISS & Simplicity
-- **Existing patterns** - Could this use existing modules/utilities?
-- **Redundant config** - Is this specifying default behavior explicitly?
-- **Over-engineering** - Is the solution more complex than needed?
+### 4. KISS, Elegance & Minimalism
+- **Existing patterns** - Could this use existing modules/utilities instead of new code?
+- **Redundant config** - Is this specifying default behaviour explicitly?
+- **Over-engineering** - Is the solution more complex than the problem demands?
+- **Dead weight** - Any code, abstraction, or config that isn't actively needed?
+- **Naming** - Do names clearly convey intent without needing a comment to explain?
+- **Simpler alternative** - Could this be written in fewer lines with equal clarity?
 """
 
 
