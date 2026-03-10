@@ -234,6 +234,12 @@ def _parse_decision_status(judge_info: JudgeInfo) -> str:
             score = None
         writer_scores.append((writer_key, score))
 
+    if judge_info.review_type == "ui-review":
+        p0 = len(data.get("P0", []))
+        p1 = len(data.get("P1", []))
+        p2 = len(data.get("P2", []))
+        return f"P0:{p0}  P1:{p1}  P2:{p2}"
+
     if judge_info.review_type == "peer-review":
         # Count both remaining_issues and inline_comments for accurate issue count
         all_issues = remaining_issues + inline_comments
@@ -308,7 +314,10 @@ async def launch_judge_panel(
     if not prompt_file.exists():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
 
-    worktree_head_sha = await _prefetch_worktrees(task_id, winner)
+    # UI reviews have no writer branches or worktrees to prefetch.
+    worktree_head_sha: str | None = None
+    if review_type != "ui-review":
+        worktree_head_sha = await _prefetch_worktrees(task_id, winner)
 
     all_judges = get_judge_configs()
 
@@ -326,6 +335,9 @@ async def launch_judge_panel(
     elif review_type == "panel":
         # Panel review: exclude peer_review_only judges (they only do peer review)
         judge_configs = [j for j in all_judges if not j.peer_review_only]
+    elif review_type == "ui-review":
+        # UI review: exclude cli-review judges (e.g. CodeRabbit) — they are code-specific tools
+        judge_configs = [j for j in all_judges if j.type != "cli-review"]
     elif review_type == "peer-review":
         # Peer review: by default run only peer_review_only judges (e.g. CodeRabbit)
         # The handler may override this with judges_to_run for judges that haven't approved
@@ -351,7 +363,11 @@ When creating your decision file, use judge key {judge_key}.
 
 """
 
-    if review_type == "peer-review":
+    if review_type == "ui-review":
+        from .ui_review_prompts import build_ui_review_judge_instructions
+
+        review_instructions = build_ui_review_judge_instructions(task_id)
+    elif review_type == "peer-review":
         from .prompts import build_peer_review_prompt
 
         is_pr_review = winner and winner.startswith("LOCAL:")
@@ -537,21 +553,26 @@ git diff origin/main...HEAD --stat
     print_info(f"Review Type: {review_type}")
     console.print()
 
-    print_info("Fetching latest changes from writer branches...")
-    fetch_branches()
-
     config = load_config()
 
-    for writer_key in config.writer_order:
-        writer_cfg = config.writers[writer_key]
-        branch = f"writer-{writer_cfg.name}/{task_id}"
-        if branch_exists(branch):
-            commit = get_commit_hash(branch)
-            console.print(f"  📍 {branch}: {commit}")
-    console.print()
+    if review_type != "ui-review":
+        print_info("Fetching latest changes from writer branches...")
+        fetch_branches()
+
+        for writer_key in config.writer_order:
+            writer_cfg = config.writers[writer_key]
+            branch = f"writer-{writer_cfg.name}/{task_id}"
+            if branch_exists(branch):
+                commit = get_commit_hash(branch)
+                console.print(f"  📍 {branch}: {commit}")
+        console.print()
 
     console.print("━" * 60)
-    if review_type == "peer-review" and winner:
+    if review_type == "ui-review":
+        console.print("[bold yellow]⚖️  JUDGES: UI/UX review[/bold yellow]")
+        console.print()
+        console.print("Review the provided UI artifact and output P0/P1/P2 findings.")
+    elif review_type == "peer-review" and winner:
         console.print("[bold yellow]⚖️  JUDGES: Peer review winning implementation[/bold yellow]")
         console.print()
         if winner.startswith("LOCAL:"):
