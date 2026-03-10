@@ -35,6 +35,7 @@ Flag anything that violates these principles — they are the primary reason to 
 - If the writer's explanation is insufficient, keep the issue and explain why
 
 ### 1. Planning & Architecture Alignment
+- **REVIEW.md** - If a `REVIEW.md` exists in the repo root, read it first — it contains project-specific review standards that override or extend these defaults
 - **Read planning docs** - Check `docs/`, `planning/`, `ARCHITECTURE.md`, `ADR/` in the repo
 - **Verify documented decisions** - Does this change align with existing architecture?
 - **Flag conflicts immediately** - If changes contradict documented patterns (auth, data flow, credentials)
