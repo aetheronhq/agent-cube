@@ -703,6 +703,9 @@ def pr_review_cmd(
     fresh: Annotated[bool, typer.Option("--fresh", help="Launch new judges instead of resuming")] = False,
     include_cli: Annotated[bool, typer.Option("--include-cli", help="Include cli-review judges")] = False,
     all_prs: Annotated[bool, typer.Option("--all", help="Review all open PRs")] = False,
+    skip_agents: Annotated[
+        bool, typer.Option("--skip-agents", "--skip", help="Skip AI, just aggregate existing decisions")
+    ] = False,
 ):
     """Review a GitHub PR with Agent Cube judges.
 
@@ -724,7 +727,16 @@ def pr_review_cmd(
         print_error("PR number is required unless using --all")
         raise typer.Exit(1)
 
-    peer_review_command("", "", pr=pr_number, dry_run=dry_run, include_cli=include_cli, fresh=fresh, focus=focus)
+    peer_review_command(
+        "",
+        "",
+        pr=pr_number,
+        dry_run=dry_run,
+        include_cli=include_cli,
+        fresh=fresh,
+        focus=focus,
+        skip_agents=skip_agents,
+    )
 
 
 @app.command(name="continue")
